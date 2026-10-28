@@ -1,0 +1,7 @@
+{
+  "name": "weird-people-league",
+  "private": true,
+  "type": "module",
+  "description": "Live analytics for the 'Weird people with free time' ESPN fantasy football league",
+  "engines": { "node": ">=20" }
+}
