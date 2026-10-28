@@ -48,32 +48,46 @@
       </div>
       <div id="team-body">
         <div class="row-head"><h2 id="team-name">–</h2><span class="pill" id="team-status">–</span></div>
-        <p class="lede" id="team-lede"></p>
-        <div id="hero" class="hero"></div>
-        <div class="grid">
-          <div class="card"><h3>Moves I'd make this week</h3><p class="note">Lineup calls average ESPN's projection with the Vegas projection. Same rules for every team.</p><div id="moves" class="moves"></div></div>
-          <div class="card"><h3>Bye weeks</h3><p class="note" id="bye-note">Every player, by NFL week, through the end of the regular season.</p><div class="tbl" id="t-byes"></div></div>
-        </div>
-        <div class="card"><h3>Your starters this week: Vegas &amp; weather</h3><p class="note" id="vegas-note">DraftKings implied team totals; weather at kickoff.</p><div class="tbl" id="t-myvegas"></div></div>
-        <div class="card"><h3>Start/sit: compare two players</h3><p class="note">Any two players in the league or on waivers, side by side.</p><div class="cmp-pick"><select id="cmp-a" aria-label="First player"></select><span>vs</span><select id="cmp-b" aria-label="Second player"></select></div><div id="cmp"></div></div>
         <div class="tiles" id="tiles"></div>
-        <div class="card"><h3>Report card</h3><p class="note" id="card-note">Graded against the rest of the league.</p><div id="mycard" class="reportcard"></div></div>
-        <div class="grid">
-          <div class="card"><h3>What if…</h3><div id="whatif" class="facts"></div></div>
-          <div class="card"><h3>Where you'll finish</h3><p class="note">Chance of each final regular-season place across 20,000 simulated seasons. Bright = playoff spot.</p><div class="chart" id="c-whatif"></div><p class="note" id="seed-range"></p></div>
+        <nav class="subnav" id="subnav" aria-label="My Team sections">
+          <button data-view="week">This week</button><button data-view="roster">Roster</button><button data-view="outlook">Playoff outlook</button><button data-view="season">Season so far</button>
+        </nav>
+
+        <div class="view" data-view="week">
+          <div id="hero" class="hero"></div>
+          <div class="card"><h3>Moves I'd make this week</h3><p class="note">Lineup calls average ESPN's projection with the Vegas projection; close calls go to the softer matchup. Same rules for every team.</p><div id="moves" class="moves"></div></div>
+          <div class="card"><h3>Start/sit: compare two players</h3><p class="note">Any two players in the league or on waivers, side by side.</p><div class="cmp-pick"><select id="cmp-a" aria-label="First player"></select><span>vs</span><select id="cmp-b" aria-label="Second player"></select></div><div id="cmp"></div></div>
         </div>
-        <div class="card"><h3>Your record with everyone else's schedule</h3><p class="note">Same scores you put up each week, against the opponents each team actually faced. Highlighted bar = your actual schedule.</p><div class="chart" id="c-swap"></div></div>
-        <div class="card"><h3>Season, week by week</h3><p class="note">Bars = your points (bright = win). Tick = opponent. Dot = your best possible lineup. Dashed = league average.</p><div class="chart" id="c-season"></div></div>
-        <div class="grid">
-          <div class="card"><h3>Remaining schedule</h3><div class="tbl" id="t-sched"></div></div>
-          <div class="card"><h3>Points by lineup slot</h3><p class="note">Per week vs the league average for that slot.</p><div class="chart" id="c-pos"></div></div>
-        </div>
-        <div class="card"><h3>Who's carrying you</h3><p class="note">Share of your points scored while in your starting lineup.</p><div class="chart" id="c-top"></div></div>
-        <div class="card"><h3>Fantasy playoff schedule: Weeks <span class="po-wks">15–17</span></h3><p class="note">Who each player faces when titles are decided, and how many points that defense gives up to his position (1st = stingiest, 32nd = easiest).</p><div class="tbl" id="t-posched"></div></div>
-        <div class="card"><h3>Roster</h3><p class="note">This wk = ESPN projection, Vegas = Vegas projection. <b class="ok">Start</b> = benched but in your best lineup; <b class="badt">Sit</b> = starting but shouldn't be.</p><div class="tbl" id="t-roster"></div></div>
-        <div class="grid">
-          <div class="card"><h3>Trade targets: <span id="weak-pos">–</span></h3><p class="note">Best players at your weakest slot sitting outside their own team's best lineup.</p><div class="tbl" id="t-targets"></div></div>
+
+        <div class="view" data-view="roster" hidden>
+          <div class="card"><h3>Roster</h3><p class="note">ESPN and Vegas = this week's projections. <b class="ok">Start</b> / <b class="badt">Sit</b> match the moves on This week.</p><div class="tbl" id="t-roster"></div></div>
           <div class="card"><h3>Best available</h3><p class="note">Free agents and waivers by rest-of-season projection.</p><div class="seg" id="wv-seg"></div><div class="tbl" id="t-waivers"></div></div>
+          <div class="card"><h3>Trade targets: <span id="weak-pos">–</span></h3><p class="note">Best players at your weakest slot sitting outside their own team's best lineup. Test a deal in the Trades tab's analyzer.</p><div class="tbl" id="t-targets"></div></div>
+        </div>
+
+        <div class="view" data-view="outlook" hidden>
+          <div class="grid">
+            <div class="card"><h3>Where you'll finish</h3><p class="note">Chance of each final place across 20,000 simulated seasons. Bright = playoff spot.</p><div class="chart" id="c-whatif"></div><p class="note" id="seed-range"></p></div>
+            <div class="card"><h3>Path to the playoffs</h3><div id="path" class="facts"></div></div>
+          </div>
+          <div class="grid">
+            <div class="card"><h3>Remaining schedule</h3><p class="note">Win chance for each game left.</p><div class="tbl" id="t-sched"></div></div>
+            <div class="card"><h3>Bye weeks</h3><p class="note" id="bye-note">Every player, by NFL week, through the end of the regular season.</p><div class="tbl" id="t-byes"></div></div>
+          </div>
+          <div class="card"><h3>Fantasy playoff schedule: Weeks <span class="po-wks">15–17</span></h3><p class="note">Who each player faces when titles are decided, and how many points that defense gives up to his position (1st = stingiest, 32nd = easiest).</p><div class="tbl" id="t-posched"></div></div>
+        </div>
+
+        <div class="view" data-view="season" hidden>
+          <div class="card"><h3>Week by week</h3><p class="note">Bars = your points (bright = win). Tick = opponent. Dot = your best possible lineup. Dashed = league average.</p><div class="chart" id="c-season"></div></div>
+          <div class="grid">
+            <div class="card"><h3>Report card</h3><p class="note" id="card-note">Graded against the rest of the league.</p><div id="mycard" class="reportcard one"></div></div>
+            <div class="card"><h3>What if…</h3><div id="whatif" class="facts"></div></div>
+          </div>
+          <div class="card"><h3>Your record with everyone else's schedule</h3><p class="note">Your exact weekly scores against the opponents each team actually faced. Highlighted bar = your real schedule.</p><div class="chart" id="c-swap"></div></div>
+          <div class="grid">
+            <div class="card"><h3>Points by lineup slot</h3><p class="note">Per week vs the league average for that slot.</p><div class="chart" id="c-pos"></div></div>
+            <div class="card"><h3>Who's carrying you</h3><p class="note">Share of your points scored while in your starting lineup.</p><div class="chart" id="c-top"></div></div>
+          </div>
         </div>
       </div>
     </section>

@@ -24,6 +24,8 @@
   if (tab === 'live') tab = 'scores';
   if (!TABS.includes(tab)) tab = 'team';
   let wvPos = 'ALL', yrSel = null, bumpFocus = null;
+  let heroOpen = null;
+  let teamView = ['week', 'roster', 'outlook', 'season'].includes(store.get('teamview')) ? store.get('teamview') : 'week';
 
   // ---------- tooltip ----------
   const tipEl = $('#tip');
@@ -244,9 +246,19 @@
     const st = $('#team-status');
     st.textContent = LIVE && LIVE.anyLive ? 'Live' : live && live.done ? 'Final' : `Week ${D.league.week}`;
     st.className = 'pill' + (LIVE && LIVE.anyLive ? ' live' : '');
-    $('#team-lede').replaceChildren('Record ', el('b', { text: `${t.w}-${t.l}` }), ' with the ', el('b', { text: ord(t.pf_rank) }), ' most points. Luck: ',
-      el('b', { text: signed(t.luck) }), ' wins. Playoff odds: ', el('b', { text: pct(t.playoffs) }), '.');
+    // summary tiles (always visible)
+    const tile = (l, v, s2, cls) => el('div', { class: 'tile' }, el('div', { class: 'l', text: l }), el('div', { class: 'v ' + (cls || ''), text: v }), el('div', { class: 's', text: s2 }));
+    $('#tiles').replaceChildren(
+      tile('Record', `${t.w}-${t.l}`, `seed ${t.seed ?? '–'} · power #${t.power}`),
+      tile('Points for', f1(t.pf), `${ord(t.pf_rank)} · luck ${signed(t.luck)} wins`, ''),
+      tile('Playoff odds', pct(t.playoffs), t.whatif && t.whatif.seed_median ? `likely ${ord(t.whatif.seed_median)} · bye ${pct(t.bye)}` : `bye ${pct(t.bye)}`),
+      tile('Report card', t.card ? t.card.gpa.toFixed(2) : '–', t.card ? `GPA · ${ord(t.card.rank)} of ${D.teams.length}` : ''));
+    $$('#subnav button').forEach((b) => { b.setAttribute('aria-pressed', String(b.dataset.view === teamView)); });
+    $$('#team-body .view').forEach((v) => { v.hidden = v.dataset.view !== teamView; });
+    ({ week: viewWeek, roster: viewRoster, outlook: viewOutlook, season: viewSeason })[teamView](t, live);
+  }
 
+  function viewWeek(t, live) {
     // hero matchup
     const hero = $('#hero');
     const m = myMatch();
@@ -260,54 +272,61 @@
         el('div', {}, el('span', { text: 'Win' }), el('b', { text: `${t.whatif.if_win}%` }), el('small', { text: 'playoff odds' })),
         el('div', {}, el('span', { text: 'Lose' }), el('b', { text: `${t.whatif.if_lose}%` }), el('small', { text: 'playoff odds' })),
         el('div', {}, el('span', { text: 'Swing' }), el('b', { text: `${t.whatif.if_win - t.whatif.if_lose} pts` }), el('small', { text: 'playoff odds at stake' }))) : null;
-      hero.replaceChildren(el('div', { class: 'game hero-card mine open' },
+      if (heroOpen == null) heroOpen = window.innerWidth > 700;
+      const tog = el('button', { class: 'lu-toggle', type: 'button', text: heroOpen ? 'Hide lineups ▴' : 'Show both lineups ▾' });
+      tog.addEventListener('click', () => { heroOpen = !heroOpen; viewWeek(t, myLive()); });
+      hero.replaceChildren(el('div', { class: 'game hero-card mine' + (heroOpen ? ' open' : '') },
         el('div', { class: 'hero-h', text: `Week ${LIVE.week} matchup` }),
         sideBlock(me, me.pts > them.pts, vegasMe ? `Vegas ${f1(vegasMe)}` : ''), sideBlock(them, them.pts > me.pts, vegasThem ? `Vegas ${f1(vegasThem)}` : ''),
-        ...wpBar(hw, live.done), needLine(me, them, true), stakes,
+        ...wpBar(hw, live.done), needLine(me, them, true), stakes, tog,
         el('div', { class: 'lineups' }, lineupList(me), lineupList(them)),
-        el('p', { class: 'note legend', text: 'Avg = points per game this season. ESPN = ESPN projection. Vegas = his average × how much more or less Vegas expects his team to score than usual (green = Vegas likes him more than ESPN, red = less). vs Opp = points per game the opponent gives up to that position (all of its RBs or WRs combined), ranked 1st (stingiest) to 32nd. Green = soft matchup, red = tough.' })));
+        el('p', { class: 'note legend lineups-only', text: 'Avg = points per game this season. ESPN = ESPN projection. Vegas = his average × how much more or less Vegas expects his team to score than usual (green = Vegas likes him more than ESPN, red = less). vs Opp = points per game the opponent gives up to that position (all of its RBs or WRs combined), ranked 1st (stingiest) to 32nd. Green = soft matchup, red = tough.' })));
     } else if (m) {
       hero.replaceChildren(el('div', { class: 'game hero-card mine' }, el('div', { class: 'hero-h', text: `Week ${D.league.week}: vs ${tm(m.h === team ? m.a : m.h).name}` }), el('p', { class: 'note', text: 'Loading live lineups…' })));
     } else hero.replaceChildren();
 
     // moves
-    const kinds = { Lineup: 'k-lineup', Pickup: 'k-urgent', Stream: 'k-stream', Waiver: 'k-waiver', Trade: 'k-trade', Injury: 'k-warn', Weather: 'k-warn', Vegas: 'k-warn' };
+    const kinds = { 'Close call': 'k-close', Lineup: 'k-lineup', Pickup: 'k-urgent', Stream: 'k-stream', Waiver: 'k-waiver', Trade: 'k-trade', Injury: 'k-warn', Weather: 'k-warn', Vegas: 'k-warn' };
     $('#moves').replaceChildren(...(t.moves && t.moves.length ? t.moves : [{ kind: 'All set', title: 'No moves needed', detail: 'Your lineup is already optimal and nothing on waivers clearly beats what you have.' }]).map((mv) =>
       el('div', { class: 'move' + (mv.urgent ? ' urgent' : '') }, el('span', { class: 'kind ' + (kinds[mv.kind] || ''), text: mv.kind }), el('div', {}, el('b', { text: mv.title }), el('p', { text: mv.detail })))));
 
-    renderByes(t);
     renderCompare();
-    renderMyCard(t);
-    renderPoSched();
+  }
 
-    // tiles
-    const tile = (l, v, s, cls) => el('div', { class: 'tile' }, el('div', { class: 'l', text: l }), el('div', { class: 'v ' + (cls || ''), text: v }), el('div', { class: 's', text: s }));
+  function viewOutlook(t) {
     const wi = t.whatif || {};
-    $('#tiles').replaceChildren(
-      tile('Record', `${t.w}-${t.l}`, `seed ${t.seed ?? '–'} · power #${t.power}`),
-      tile('Points for', f1(t.pf), `${ord(t.pf_rank)} in league`),
-      tile('All-play', `${t.allplay_w}-${t.allplay_l}`, 'vs every team, every week'),
-      tile('Luck', signed(t.luck), 'wins vs expected', t.luck > 0 ? 'ok' : t.luck < 0 ? 'badt' : ''),
-      tile('Playoff odds', pct(t.playoffs), `bye ${pct(t.bye)}`),
-      tile('Likely finish', wi.seed_median ? ord(wi.seed_median) : '–', wi.seed_best ? `range ${ord(wi.seed_best)}–${ord(wi.seed_worst)}` : ''));
+    const fact = (h, b) => el('div', {}, el('strong', { text: h }), el('span', { text: b }));
+    const path = [];
+    if (t.race) path.push(fact(t.race.status === 'Clinched' ? 'Playoff spot: clinched' : t.race.status === 'Eliminated' ? 'Eliminated from the playoffs' : t.race.magic != null ? `Magic number: ${t.race.magic}` : 'Magic number: none yet',
+      t.race.note));
+    { const reg = D.league.reg_weeks, rows = (t.wins_dist || []).filter((d) => d.chance >= 1);
+      const lo = rows.filter((d) => d.playoffs < 100), first100 = rows.find((d) => d.playoffs >= 100);
+      const show = [...lo.slice(-3), ...(first100 ? [first100] : [])];
+      if (show.length) path.push(fact('Playoff odds by final record', show.map((d) => `${d.wins}-${reg - d.wins} → ${d.playoffs}%`).join(' · '))); }
+    if (wi.if_win != null) path.push(fact(`This week: win → ${wi.if_win}%, lose → ${wi.if_lose}%`, 'Playoff odds depending on this week\'s result.'));
+    path.push(fact(`Projected: ~${f1(t.exp_wins)} wins`, `${pct(t.playoffs)} to make the playoffs, ${pct(t.bye)} for a first-round bye.`));
+    path.push(fact(`Worst case: ${ord(wi.seed_worst)} place`, `Miss the playoffs ${pct(Math.round((100 - t.playoffs) * 10) / 10)} of the time; last place ${pct(t.last)}.`));
+    $('#path').replaceChildren(...path);
+    drawSeeds($('#c-whatif'), t);
+    $('#seed-range').textContent = wi.seed_best ? `Realistic finish: ${ord(wi.seed_best)} to ${ord(wi.seed_worst)}; most likely ${ord(wi.seed_median)}.` : '';
+    table($('#t-sched'), [{ h: 'Wk', k: 'wk' }, { h: 'Opponent', k: 'opp', v: (r) => tm(r.opp).name }, { h: 'Owner', k: 'own', v: (r) => tm(r.opp).owner }, { h: 'Win', k: 'win', n: 1, bar: 1, f: (v) => v + '%' }], D.sched.filter((s2) => s2.id === team));
+    renderByes(t);
+    renderPoSched();
+  }
 
+  function viewSeason(t) {
+    const wi = t.whatif || {};
+    renderMyCard(t);
     // what-if facts
     const paRank = [...D.teams].sort((a, b) => (b.whatif?.pa_avg ?? 0) - (a.whatif?.pa_avg ?? 0)).findIndex((x) => x.id === team) + 1;
     const fact = (h, b) => el('div', {}, el('strong', { text: h }), el('span', { text: b }));
     const facts = [];
-    if (wi.swap_best) facts.push(fact(`With ${tm(wi.swap_best.id).owner}'s schedule: ${wi.swap_best.wins}-${D.league.done.length - wi.swap_best.wins}`, `Your exact weekly scores against the opponents ${tm(wi.swap_best.id).owner} faced. Worst schedule for you: ${tm(wi.swap_worst.id).owner}'s (${wi.swap_worst.wins}-${D.league.done.length - wi.swap_worst.wins}).`));
     facts.push(fact(`Perfect lineups every week: ${wi.opt_wins}-${D.league.done.length - wi.opt_wins}`, `vs your actual ${t.w}-${t.l}. ${f1(t.bench_lost)} points left on the bench (${pct(t.eff)} efficient).`));
     facts.push(fact(`Close games: ${wi.close_w}-${wi.close_l}`, 'Decided by under 10 points.'));
     facts.push(fact(`Schedule so far: ${ord(paRank)} toughest`, `Opponents have averaged ${f1(wi.pa_avg)} against you (league average ${f1(D.league.avg)}).`));
     facts.push(fact(`Boom/bust: ${wi.boom} boom, ${wi.bust} bust weeks`, `Weekly swing ±${f1(wi.sd)} pts. ${wi.vs_proj >= 0 ? 'Beating' : 'Missing'} ESPN projections by ${f1(Math.abs(wi.vs_proj))} a week.`));
-    if (wi.if_win != null) facts.push(fact(`This week: win → ${wi.if_win}%, lose → ${wi.if_lose}%`, 'Playoff odds depending on this week\'s result.'));
-    facts.push(fact(`Worst case: ${ord(wi.seed_worst)} place`, `Miss playoffs ${pct(Math.round((100 - t.playoffs) * 10) / 10)} of the time · last place ${pct(t.last)} · ~${f1(t.exp_wins)} projected wins.`));
-    if (t.race) facts.unshift(fact(t.race.status === 'Clinched' ? 'Playoff spot: clinched' : t.race.status === 'Eliminated' ? 'Eliminated from the playoffs' : t.race.magic != null ? `Magic number: ${t.race.magic}` : 'Magic number: none yet',
-      `${t.race.note}${t.race.need50 ? ` Finish ${t.race.need50} and it's a coin flip${t.race.need90 ? `; ${t.race.need90} makes it 90%` : ''}.` : ''}`));
+    facts.push(fact(`Lucky or not: ${signed(t.luck)} wins`, `All-play record ${t.allplay_w}-${t.allplay_l} (your score vs every team, every week) says you've earned ${f1(t.exp_w)} wins.`));
     $('#whatif').replaceChildren(...facts);
-
-    drawSeeds($('#c-whatif'), t);
-    $('#seed-range').textContent = wi.seed_best ? `Realistic finish: ${ord(wi.seed_best)} to ${ord(wi.seed_worst)}; most likely ${ord(wi.seed_median)}.` : '';
 
     // schedule swap bars
     { const rows = Object.entries(D.swap[team] || {}).map(([o, w]) => ({ id: Number(o), w })).sort((a, b) => b.w - a.w);
@@ -317,29 +336,16 @@
         tipHead: (r) => (r.id === team ? 'Your actual schedule' : `${tm(r.id).owner}'s schedule (${tm(r.id).name})`), tipBody: (r) => `You'd be ${r.w}-${D.league.done.length - r.w}` }); }
 
     drawSeason($('#c-season'), t);
-    table($('#t-sched'), [{ h: 'Wk', k: 'wk' }, { h: 'Opponent', k: 'opp', v: (r) => tm(r.opp).name }, { h: 'Owner', k: 'own', v: (r) => tm(r.opp).owner }, { h: 'Win', k: 'win', n: 1, bar: 1, f: (v) => v + '%' }], D.sched.filter((s) => s.id === team));
     drawPos($('#c-pos'), t);
     hbars($('#c-top'), t.top_players || [], { label: (r) => `${r.name} (${r.pos})`, value: (r) => r.share, fmt: (v) => v + '%', color: () => css('--accent-2'), tipHead: (r) => r.name, tipBody: (r) => `${f1(r.pts)} started points · ${r.share}% of team scoring` });
 
-    // my starters: Vegas & weather
-    const by = nflByAbbr();
-    const starters = (D.rosters[team] || []).filter((r) => r.starter);
-    $('#vegas-note').textContent = D.odds_provider ? `Team total = points ${D.odds_provider} expects his NFL team to score (this week's average ${f1(D.avg_implied)}). Green = good spot, red = tough. For a D/ST it's the opponent's total, so lower is better.` : 'Lines appear once sportsbooks post them.';
-    // D/ST wants the *opponent* to score little, so its number is the opponent's total and the colors flip
-    const vTot = (r) => { const x = by[r.nfl]; if (!x) return null; return r.pos === 'D/ST' ? x.them.implied ?? null : x.me.implied ?? null; };
-    table($('#t-myvegas'), [
-      { h: 'Player', k: 'name', f: (v, r) => (r.pos === 'D/ST' ? v.replace(' D/ST', ' D') : v) },
-      { h: 'Team total', k: 'imp', n: 1, v: vTot, f: (v, r) => (v == null ? '–' : f1(v) + (r.pos === 'D/ST' ? ' opp' : '')),
-        cls: (r) => { const v = vTot(r); if (v == null) return ''; const hi = v >= 26, lo = v <= 18.5; return r.pos === 'D/ST' ? (lo ? 'good' : hi ? 'bad' : '') : hi ? 'good' : lo ? 'bad' : ''; } },
-      { h: 'Line', k: 'line', n: 1, v: (r) => { const x = by[r.nfl]; return x && x.me.line != null ? x.me.line : null; }, f: (v) => (v == null ? '–' : v > 0 ? '+' + v : v === 0 ? 'PK' : String(v)) },
-      { h: 'Game & weather', k: 'g', v: (r) => (by[r.nfl] ? by[r.nfl].g.kickoff : 'z'), node: (r) => { const x = by[r.nfl]; if (!x) return el('span', { text: 'Bye' });
-        const w = wxShort(x.g), bad = x.g.weather && !x.g.indoor && ((x.g.weather.wind || 0) >= 15 || (x.g.weather.precip || 0) >= 60);
-        return el('div', { class: 'gw' }, el('span', { text: `${x.home ? 'vs' : '@'} ${x.them.abbr} · ${kick(x.g.kickoff)}` }), el('small', { class: bad ? 'badt' : '', text: w })); } }], starters, { stick: true });
+  }
 
+  function viewRoster(t) {
     table($('#t-roster'), [
-      { h: 'Slot', k: 'slot' }, { h: 'Player', k: 'name', f: (v, r) => v + (r.inj ? ` (${r.inj})` : '') },
+      { h: 'Player', k: 'name', f: (v, r) => v + (r.inj ? ` (${r.inj})` : '') }, { h: 'Slot', k: 'slot' },
       { h: '', k: 'note', f: (v) => v || '', cls: (r) => (r.note === 'Start' ? 'good' : r.note === 'Sit' ? 'bad' : '') },
-      { h: 'This wk', k: 'proj', n: 1, f: (v, r) => (r.bye ? 'BYE' : f1(v)), cls: (r) => (r.bye ? 'bad' : '') }, { h: 'Vegas', k: 'vg', n: 1, v: (r) => (D.vproj || {})[r.pid] ?? null, f: (v) => (v == null ? '–' : f1(v)) }, { h: 'Avg', k: 'avg', n: 1, f: (v) => (v == null ? '–' : f1(v)) }, { h: 'ROS', k: 'ros', n: 1 }, { h: 'Season', k: 'season', n: 1, f: f1 }, { h: 'Pos', k: 'pos' }, { h: 'NFL', k: 'nfl' }], D.rosters[team] || []);
+      { h: 'ESPN', k: 'proj', n: 1, f: (v, r) => (r.bye ? 'BYE' : f1(v)), cls: (r) => (r.bye ? 'bad' : '') }, { h: 'Vegas', k: 'vg', n: 1, v: (r) => (r.bye ? -1 : (D.vproj || {})[r.pid] ?? null), f: (v, r) => (r.bye ? 'BYE' : v == null ? '–' : f1(v)), cls: (r) => (r.bye ? 'bad' : '') }, { h: 'Avg', k: 'avg', n: 1, f: (v) => (v == null ? '–' : f1(v)) }, { h: 'Rest of season', k: 'ros', n: 1 }, { h: 'Bye', k: 'bye_wk', n: 1, f: (v) => v || '–' }, { h: 'NFL', k: 'nfl' }], D.rosters[team] || [], { stick: true });
     $('#weak-pos').textContent = t.need.weak;
     table($('#t-targets'), [{ h: 'Player', k: 'name' }, { h: 'Team', k: 'from', v: (r) => tm(r.from).name }, { h: 'Owner', k: 'own', v: (r) => tm(r.from).owner }, { h: 'ROS', k: 'ros', n: 1 }, { h: 'Season', k: 'season', n: 1, f: f1 }], t.targets);
     renderWaivers();
@@ -875,6 +881,7 @@
     renderAll();
   }
   $$('.tabs button').forEach((b) => b.addEventListener('click', () => show(b.dataset.tab)));
+  $$('#subnav button').forEach((b) => b.addEventListener('click', () => { teamView = b.dataset.view; store.set('teamview', teamView); renderTeam(); const nav = $('#subnav'); if (nav.getBoundingClientRect().top < 0) nav.scrollIntoView({ block: 'start' }); }));
   $('#copy-recap').addEventListener('click', async () => {
     const txt = $('#recap').textContent, btn = $('#copy-recap');
     try { await navigator.clipboard.writeText(txt); } catch { const r = document.createRange(); r.selectNodeContents($('#recap')); const s2 = getSelection(); s2.removeAllRanges(); s2.addRange(r); try { document.execCommand('copy'); } catch { /* user can copy manually */ } }
