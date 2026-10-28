@@ -11,6 +11,8 @@ const dump = fromTextDump(process.argv[2]);
 dump.byes ||= byes;
 import { oprk } from './oprk.mjs';
 dump.oprk ||= oprk;
+import { proSched } from './prosched.mjs';
+dump.proSched ||= proSched;
 const league = { ...analyze(dump, { week: sampleWeek }), updated: new Date().toISOString() };
 // simulated live week: current-week rows, with games at different stages
 const wk = dump.status.week;

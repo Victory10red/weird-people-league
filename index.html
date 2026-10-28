@@ -51,11 +51,13 @@
         <p class="lede" id="team-lede"></p>
         <div id="hero" class="hero"></div>
         <div class="grid">
-          <div class="card"><h3>Moves I'd make this week</h3><p class="note">Generated from ESPN projections, DraftKings lines, weather and every roster in the league. Same rules for every team.</p><div id="moves" class="moves"></div></div>
+          <div class="card"><h3>Moves I'd make this week</h3><p class="note">Lineup calls average ESPN's projection with the Vegas projection. Same rules for every team.</p><div id="moves" class="moves"></div></div>
           <div class="card"><h3>Bye weeks</h3><p class="note" id="bye-note">Every player, by NFL week, through the end of the regular season.</p><div class="tbl" id="t-byes"></div></div>
         </div>
         <div class="card"><h3>Your starters this week: Vegas &amp; weather</h3><p class="note" id="vegas-note">DraftKings implied team totals; weather at kickoff.</p><div class="tbl" id="t-myvegas"></div></div>
+        <div class="card"><h3>Start/sit: compare two players</h3><p class="note">Any two players in the league or on waivers, side by side.</p><div class="cmp-pick"><select id="cmp-a" aria-label="First player"></select><span>vs</span><select id="cmp-b" aria-label="Second player"></select></div><div id="cmp"></div></div>
         <div class="tiles" id="tiles"></div>
+        <div class="card"><h3>Report card</h3><p class="note" id="card-note">Graded against the rest of the league.</p><div id="mycard" class="reportcard"></div></div>
         <div class="grid">
           <div class="card"><h3>What if…</h3><div id="whatif" class="facts"></div></div>
           <div class="card"><h3>Where you'll finish</h3><p class="note">Chance of each final regular-season place across 20,000 simulated seasons. Bright = playoff spot.</p><div class="chart" id="c-whatif"></div><p class="note" id="seed-range"></p></div>
@@ -67,7 +69,8 @@
           <div class="card"><h3>Points by lineup slot</h3><p class="note">Per week vs the league average for that slot.</p><div class="chart" id="c-pos"></div></div>
         </div>
         <div class="card"><h3>Who's carrying you</h3><p class="note">Share of your points scored while in your starting lineup.</p><div class="chart" id="c-top"></div></div>
-        <div class="card"><h3>Roster</h3><p class="note">ESPN projections. <b class="ok">Start</b> = benched but in your best lineup; <b class="badt">Sit</b> = starting but shouldn't be.</p><div class="tbl" id="t-roster"></div></div>
+        <div class="card"><h3>Fantasy playoff schedule: Weeks <span class="po-wks">15–17</span></h3><p class="note">Who each player faces when titles are decided, and how many points that defense gives up to his position (1st = stingiest, 32nd = easiest).</p><div class="tbl" id="t-posched"></div></div>
+        <div class="card"><h3>Roster</h3><p class="note">This wk = ESPN projection, Vegas = Vegas projection. <b class="ok">Start</b> = benched but in your best lineup; <b class="badt">Sit</b> = starting but shouldn't be.</p><div class="tbl" id="t-roster"></div></div>
         <div class="grid">
           <div class="card"><h3>Trade targets: <span id="weak-pos">–</span></h3><p class="note">Best players at your weakest slot sitting outside their own team's best lineup.</p><div class="tbl" id="t-targets"></div></div>
           <div class="card"><h3>Best available</h3><p class="note">Free agents and waivers by rest-of-season projection.</p><div class="seg" id="wv-seg"></div><div class="tbl" id="t-waivers"></div></div>
@@ -84,8 +87,9 @@
 
     <!-- THIS WEEK -->
     <section id="week" class="tab" hidden>
+      <div class="card"><div class="row-head"><h3>Week <span class="recap-wk">–</span> recap</h3><button class="btn" id="copy-recap">Copy for the group chat</button></div><p class="note">Written automatically from last week's results. Copy it and paste into Facebook.</p><pre id="recap" class="recap"></pre></div>
       <div class="card"><h3>Week <span id="aw-week">–</span> awards</h3><p class="note">Last completed week, handed out automatically.</p><div id="awards" class="awards"></div></div>
-      <div class="card"><h3>Matchups: ESPN vs Vegas-adjusted</h3><p class="note">Projected scores by owner. Vegas-adjusted nudges each starter's ESPN projection toward his NFL team's DraftKings implied total (±15% max).</p><div class="tbl" id="t-vm"></div></div>
+      <div class="card"><h3>Matchups: ESPN vs Vegas</h3><p class="note">Vegas projection = each player's scoring average this season × how much more or less Vegas expects his NFL team to score this week than it usually does. It doesn't use ESPN's projections at all.</p><div class="tbl" id="t-vm"></div></div>
       <div class="row-head"><h2>NFL slate</h2><span class="pill" id="prov">–</span></div>
       <p class="note">Lines and totals from ESPN's feed; implied team totals; stadium forecast at kickoff. Tap a game to see this league's starters in it.</p>
       <div id="nfl" class="nfl"></div>
@@ -94,6 +98,8 @@
     <!-- LEAGUE -->
     <section id="league" class="tab" hidden>
       <div class="card"><h3>Power rankings</h3><p class="note">Rest-of-season roster strength 45%, points per game 35%, all-play record 20%. Luck = actual wins minus the wins your scores earned against everyone.</p><div class="tbl" id="t-power"></div></div>
+      <div class="card"><h3>Playoff race</h3><p class="note">Clinched / eliminated are guaranteed math. Magic number = wins that lock a spot with no help. 50/50 and 90% = the final record that gives those playoff odds in the simulations.</p><div class="tbl" id="t-race"></div></div>
+      <div class="card"><h3>Report cards</h3><p class="note">Draft (points from drafted players), waivers (started points from pickups), lineups (share of best possible points started) and trades (net value). Graded on a curve against the league. Tap a grade for details.</p><div class="tbl" id="t-cards"></div></div>
       <div class="grid">
         <div class="card"><h3>Playoff odds</h3><p class="note">Chance of a top-<span id="po-n">6</span> finish; darker = first-round bye.</p><div class="chart" id="c-odds"></div></div>
         <div class="card"><h3>Who's lucky</h3><p class="note">Dot = actual wins, ring = wins their scoring earned.</p><div class="chart" id="c-luck"></div></div>
@@ -113,6 +119,10 @@
 
     <!-- TRADES -->
     <section id="trades" class="tab" hidden>
+      <div class="card"><h3>Trade analyzer</h3><p class="note">Pick two teams and the players moving. Reruns the rest of the season 6,000 times both ways using each team's best rest-of-season lineup.</p>
+        <div class="ta-pick"><label>Team A <select id="ta-a"></select></label><label>Team B <select id="ta-b"></select></label></div>
+        <div class="ta-lists"><div id="ta-la" class="ta-list"></div><div id="ta-lb" class="ta-list"></div></div>
+        <div id="ta-out" class="ta-out"></div></div>
       <div class="card"><h3>Trades graded</h3><p class="note">Points the incoming players scored in starting lineups since, plus rest-of-season projection. A winner needs a clear (15%) edge.</p><div id="tradelist" class="trades"></div></div>
       <div class="grid">
         <div class="card"><h3>Best pickups</h3><p class="note">Adds ranked by points scored in the adding team's lineup.</p><div class="tbl" id="t-pickups"></div></div>

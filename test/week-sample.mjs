@@ -23,5 +23,7 @@ export const sampleWeek = (() => {
   ];
   const byPro = {};
   for (const x of games) for (const [me, them, s, o] of [[x.homeId, x.awayId, x.home, x.away], [x.awayId, x.homeId, x.away, x.home]]) byPro[me] = { opp: them, implied: s.implied, opp_implied: o.implied, line: s.line, total: x.odds.total, indoor: x.indoor, weather: x.weather, kickoff: x.kickoff, state: 'pre' };
-  return { games, byPro, provider: 'DraftKings' };
+  const raw = {"1":[171,173,7],"2":[197,171,6],"3":[180,143,7],"4":[163,122,6],"5":[133,146,7],"6":[189,180,7],"7":[144,141,7],"8":[184,165,6],"9":[144,145,7],"10":[108,156,7],"11":[154,180,7],"12":[143,103,6],"13":[183,197,7],"14":[170,159,7],"15":[98,157,6],"16":[125,74,6],"17":[160,143,7],"18":[162,194,7],"19":[163,161,7],"20":[137,150,7],"21":[127,175,7],"22":[142,208,7],"23":[153,138,7],"24":[90,151,6],"25":[197,139,7],"26":[168,125,7],"27":[162,151,7],"28":[132,172,6],"29":[159,166,6],"30":[154,104,6],"33":[169,167,7],"34":[165,170,7]};
+  const ppg = Object.fromEntries(Object.entries(raw).map(([k, [pf, pa, g]]) => [k, { pf: pf / g, pa: pa / g, g }]));
+  return { games, byPro, provider: 'DraftKings', ppg };
 })();
