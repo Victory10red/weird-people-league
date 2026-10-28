@@ -102,7 +102,7 @@
   const meRow = (r) => team != null && [r.id, r.h, r.a, r.a_id, r.b_id].includes(team);
   const myLive = () => LIVE && team ? LIVE.games.find((g) => g.h.id === team || g.a.id === team) : null;
   const myMatch = () => D && team ? D.matchups.find((m) => m.h === team || m.a === team) : null;
-  const nflByAbbr = () => { const m = {}; for (const g of (D.nfl || [])) { m[g.home.abbr] = { g, me: g.home, them: g.away, home: true }; m[g.away.abbr] = { g, me: g.away, them: g.home, home: false }; } return m; };
+  const nflByAbbr = () => { const m = {}; for (const g of (D.nfl || [])) { m[g.home.abbr] = { g, me: g.home, them: g.away, themId: g.awayId, home: true }; m[g.away.abbr] = { g, me: g.away, them: g.home, themId: g.homeId, home: false }; } return m; };
   const kick = (iso) => { const d = new Date(iso); return d.toLocaleString([], { weekday: 'short', hour: 'numeric', minute: d.getMinutes() ? '2-digit' : undefined }); };
   const wxText = (g) => {
     if (!g) return '–';
@@ -130,7 +130,7 @@
   // ---------- live matchup pieces ----------
   function lineupList(s) {
     const by = D ? nflByAbbr() : {}, avg = (D && D.pavg) || {};
-    const head = el('div', { class: 'luh' }, el('span'), el('span'), el('span', { text: 'Avg' }), el('span', { text: 'Proj' }), el('span', { text: 'Pts' }));
+    const head = el('div', { class: 'luh' }, el('span'), el('span'), el('span', { text: 'Avg' }), el('span', { text: 'Proj' }), el('span', { text: 'vs Opp', title: 'Fantasy points per game this opponent allows to the position (this league\'s scoring). Rank 32nd = easiest matchup.' }), el('span', { text: 'Pts' }));
     return el('div', { class: 'lu' }, el('b', { text: s.name }), head, ...s.rows.map((r) => {
       const x = by[r.nfl];
       const opp = x ? `${x.home ? 'vs' : '@'} ${x.them.abbr}` : '';
@@ -143,9 +143,18 @@
         el('span', { class: 'who' }, el('span', { class: 'nm', text: r.name }), el('span', { class: 'st' }, `${r.nfl} ${opp} · ${when}`, wx ? el('em', { text: ' · ' + wx }) : null)),
         el('span', { class: 'num muted', text: a != null ? f1(a) : '–' }),
         el('span', { class: 'num muted', text: f1(r.proj) }),
+        oppCell(x, r.pos),
         el('span', { class: 'num pts' + (r.state === 'post' && pctOfProj != null ? (pctOfProj >= 0 ? ' up' : ' down') : ''), text: r.state === 'pre' || r.state === 'bye' ? '–' : f1(r.pts) }));
     }));
   }
+  const POSID = { QB: 1, RB: 2, WR: 3, TE: 4, K: 5, 'D/ST': 16 };
+  const oppCell = (x, pos) => {
+    const tbl = D && D.oprk && D.oprk[POSID[pos]], v = x && tbl ? tbl[x.themId] : null;
+    if (!v) return el('span', { class: 'num muted opp', text: '–' });
+    const [avg, rank] = v, cls = rank >= 25 ? ' easy' : rank <= 8 ? ' hard' : '';
+    return el('span', { class: 'num opp' + cls, title: `${x.them.abbr} allows ${f1(avg)} pts/game to ${pos}s (league avg ${f1(tbl.avg)}); ${ord(rank)} most` },
+      el('span', { text: f1(avg) }), el('small', { text: ord(rank) }));
+  };
   const wxFlag = (w, pos) => {
     if (!['QB', 'WR', 'TE', 'K'].includes(pos)) return '';
     const b = [];
@@ -225,7 +234,8 @@
         el('div', { class: 'hero-h', text: `Week ${LIVE.week} matchup` }),
         sideBlock(me, me.pts > them.pts, vegasMe ? `Vegas ${f1(vegasMe)}` : ''), sideBlock(them, them.pts > me.pts, vegasThem ? `Vegas ${f1(vegasThem)}` : ''),
         ...wpBar(hw, live.done), stakes,
-        el('div', { class: 'lineups' }, lineupList(me), lineupList(them))));
+        el('div', { class: 'lineups' }, lineupList(me), lineupList(them)),
+        el('p', { class: 'note legend', text: 'Avg = points per game this season. vs Opp = points per game the opponent gives up to that position (all of its RBs or WRs combined), ranked 1st (stingiest) to 32nd. Green = soft matchup, red = tough.' })));
     } else if (m) {
       hero.replaceChildren(el('div', { class: 'game hero-card mine' }, el('div', { class: 'hero-h', text: `Week ${D.league.week}: vs ${tm(m.h === team ? m.a : m.h).name}` }), el('p', { class: 'note', text: 'Loading live lineups…' })));
     } else hero.replaceChildren();

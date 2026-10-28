@@ -63,7 +63,7 @@ main { padding-bottom: 40px; }
 .game.open .lineups { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .lu { font-size: 12px; }
 .lu > b { display: block; margin-bottom: 2px; }
-.lur, .luh { display: grid; grid-template-columns: 34px minmax(0, 1fr) 38px 38px 42px; gap: 4px; align-items: center; padding: 4px 0; }
+.lur, .luh { display: grid; grid-template-columns: 34px minmax(0, 1fr) 36px 36px 44px 40px; gap: 4px; align-items: center; padding: 4px 0; }
 .lur { border-bottom: 1px dashed var(--line); }
 .luh { padding: 0 0 2px; border-bottom: 1px solid var(--line); }
 .luh span { font-size: 10.5px; color: var(--muted); text-align: right; text-transform: uppercase; letter-spacing: .3px; }
@@ -74,6 +74,10 @@ main { padding-bottom: 40px; }
 .lur .num { text-align: right; font-variant-numeric: tabular-nums; }
 .lur .num.muted { color: var(--muted); }
 .lur .pts { font-weight: 600; }
+.lur .opp { display: grid; line-height: 1.15; color: var(--fg); }
+.lur .opp small { font-size: 9.5px; color: var(--muted); }
+.lur .opp.easy span, .lur .opp.easy small { color: var(--good); }
+.lur .opp.hard span, .lur .opp.hard small { color: var(--bad); }
 .lur .pts.up { color: var(--good); } .lur .pts.down { color: var(--muted); }
 .lur.in .pts { color: var(--accent); }
 .lur.in .nm::after { content: ' ●'; color: var(--bad); font-size: 9px; vertical-align: 2px; }
@@ -205,6 +209,7 @@ table.byes tr.tot td { font-weight: 600; border-top: 2px solid var(--line); }
 table.byes td.bw.warm { color: var(--fg); }
 table.byes td.bw.hot { color: var(--bad); font-weight: 700; }
 .tbl:has(table.byes) { max-height: none; }
+.note.legend { margin: 8px 0 0; font-size: 11.5px; }
 .foot { color: var(--muted); font-size: 12px; text-align: center; padding: 20px 0; }
 .skel { height: 90px; border-radius: 12px; background: linear-gradient(90deg, var(--panel) 0%, var(--panel-2) 50%, var(--panel) 100%); background-size: 200% 100%; animation: sk 1.2s infinite; }
 @keyframes sk { to { background-position: -200% 0; } }

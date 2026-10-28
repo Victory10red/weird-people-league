@@ -9,6 +9,8 @@ import { liveScores } from '../lib/live.js';
 import { byes } from './byes.mjs';
 const dump = fromTextDump(process.argv[2]);
 dump.byes ||= byes;
+import { oprk } from './oprk.mjs';
+dump.oprk ||= oprk;
 const league = { ...analyze(dump, { week: sampleWeek }), updated: new Date().toISOString() };
 // simulated live week: current-week rows, with games at different stages
 const wk = dump.status.week;
