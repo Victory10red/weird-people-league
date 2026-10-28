@@ -889,11 +889,6 @@
   }
   $$('.tabs button').forEach((b) => b.addEventListener('click', () => show(b.dataset.tab)));
   $$('#subnav button').forEach((b) => b.addEventListener('click', () => { teamView = b.dataset.view; store.set('teamview', teamView); renderTeam(); const nav = $('#subnav'); if (nav.getBoundingClientRect().top < 0) nav.scrollIntoView({ block: 'start' }); }));
-  $('#copy-recap').addEventListener('click', async () => {
-    const txt = $('#recap').textContent, btn = $('#copy-recap');
-    try { await navigator.clipboard.writeText(txt); } catch { const r = document.createRange(); r.selectNodeContents($('#recap')); const s2 = getSelection(); s2.removeAllRanges(); s2.addRange(r); try { document.execCommand('copy'); } catch { /* user can copy manually */ } }
-    btn.textContent = 'Copied!'; setTimeout(() => { btn.textContent = 'Copy for the group chat'; }, 1800);
-  });
   $('#team-pick').addEventListener('change', (e) => setTeam(e.target.value));
   let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(renderAll, 200); });
 
