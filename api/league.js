@@ -1,10 +1,12 @@
 import { fetchDump } from '../lib/espn.js';
+import { fetchWeek } from '../lib/week.js';
 import { analyze } from '../lib/analyze.js';
 
 export default async function handler(req, res) {
   try {
     const dump = await fetchDump();
-    const out = analyze(dump);
+    const week = await fetchWeek(dump.status.year, dump.status.week).catch(() => null);
+    const out = analyze(dump, { week });
     out.updated = new Date().toISOString();
     // recomputed at most every 5 minutes; visitors get the cached copy instantly
     res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=3600');

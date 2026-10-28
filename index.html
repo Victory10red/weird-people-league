@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Weird People League HQ</title>
-  <meta name="description" content="Live scores, playoff odds, luck, trades and history for the Weird people with free time fantasy league.">
+  <meta name="description" content="Live scores, win odds, moves for every team, playoff scenarios, Vegas lines, weather and league history for the Weird people with free time fantasy league.">
   <meta property="og:title" content="Weird People League HQ">
-  <meta property="og:description" content="Live scores, win odds, playoff chances and league history.">
+  <meta property="og:description" content="Live scores, win odds, your moves this week, playoff scenarios and league history.">
   <meta name="theme-color" content="#0f1115">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cellipse cx='32' cy='32' rx='28' ry='17' transform='rotate(-35 32 32)' fill='%23c2410c'/%3E%3Cpath d='M22 42 42 22M27 33l4 4M31 29l4 4M35 25l4 4' stroke='white' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -17,21 +17,20 @@
   <header class="top">
     <div class="wrap">
       <div class="brand">
-        <div>
-          <h1>Weird People <span>League HQ</span></h1>
-          <p class="sub" id="sub">Loading league…</p>
-        </div>
+        <h1>Weird People <span>League HQ</span></h1>
+        <p class="sub" id="sub">Loading league…</p>
       </div>
       <label class="picker">
         <span>Your team</span>
-        <select id="team" aria-label="Pick a team"></select>
+        <select id="team-pick" aria-label="Pick a team"></select>
       </label>
     </div>
     <nav class="tabs wrap" role="tablist">
-      <button role="tab" data-tab="live" aria-selected="true">Live</button>
-      <button role="tab" data-tab="team" aria-selected="false">Team</button>
+      <button role="tab" data-tab="team" aria-selected="true">My Team</button>
+      <button role="tab" data-tab="scores" aria-selected="false">Scores</button>
+      <button role="tab" data-tab="week" aria-selected="false">This Week</button>
       <button role="tab" data-tab="league" aria-selected="false">League</button>
-      <button role="tab" data-tab="moves" aria-selected="false">Moves</button>
+      <button role="tab" data-tab="trades" aria-selected="false">Trades</button>
       <button role="tab" data-tab="draft" aria-selected="false">Draft</button>
       <button role="tab" data-tab="history" aria-selected="false">History</button>
     </nav>
@@ -40,56 +39,87 @@
   <main class="wrap">
     <div id="error" class="banner bad" hidden></div>
 
-    <section id="live" class="tab">
-      <div class="row-head">
-        <h2>Week <span id="live-week">–</span> matchups</h2>
-        <span class="pill" id="live-status">–</span>
+    <!-- MY TEAM -->
+    <section id="team" class="tab">
+      <div id="pick-first" class="pickfirst" hidden>
+        <h2>Which team is yours?</h2>
+        <p class="note">Pick it once; this device remembers it.</p>
+        <div id="pick-grid" class="pickgrid"></div>
       </div>
-      <p class="note">Win odds update with every play: points so far plus what each starter is projected to add in the time left in his game. Tap a matchup for lineups.</p>
+      <div id="team-body">
+        <div class="row-head"><h2 id="team-name">–</h2><span class="pill" id="team-status">–</span></div>
+        <p class="lede" id="team-lede"></p>
+        <div id="hero" class="hero"></div>
+        <div class="card"><h3>Moves I'd make this week</h3><p class="note">Generated from ESPN projections, DraftKings lines, weather and every roster in the league. Same rules for every team.</p><div id="moves" class="moves"></div></div>
+        <div class="tiles" id="tiles"></div>
+        <div class="grid">
+          <div class="card"><h3>What if…</h3><div id="whatif" class="facts"></div></div>
+          <div class="card"><h3>Where you'll finish</h3><p class="note">Chance of each final regular-season place across 20,000 simulated seasons. Bright = playoff spot.</p><div class="chart" id="c-whatif"></div><p class="note" id="seed-range"></p></div>
+        </div>
+        <div class="card"><h3>Your record with everyone else's schedule</h3><p class="note">Same scores you put up each week, against the opponents each team actually faced. Highlighted bar = your actual schedule.</p><div class="chart" id="c-swap"></div></div>
+        <div class="card"><h3>Season, week by week</h3><p class="note">Bars = your points (bright = win). Tick = opponent. Dot = your best possible lineup. Dashed = league average.</p><div class="chart" id="c-season"></div></div>
+        <div class="grid">
+          <div class="card"><h3>Remaining schedule</h3><div class="tbl" id="t-sched"></div></div>
+          <div class="card"><h3>Points by lineup slot</h3><p class="note">Per week vs the league average for that slot.</p><div class="chart" id="c-pos"></div></div>
+        </div>
+        <div class="grid">
+          <div class="card"><h3>Who's carrying you</h3><p class="note">Share of your points scored while in your starting lineup.</p><div class="chart" id="c-top"></div></div>
+          <div class="card"><h3>Your starters this week: Vegas &amp; weather</h3><p class="note" id="vegas-note">DraftKings implied team totals; weather at kickoff.</p><div class="tbl" id="t-myvegas"></div></div>
+        </div>
+        <div class="card"><h3>Roster</h3><p class="note">ESPN projections. <b class="ok">Start</b> = benched but in your best lineup; <b class="badt">Sit</b> = starting but shouldn't be.</p><div class="tbl" id="t-roster"></div></div>
+        <div class="grid">
+          <div class="card"><h3>Trade targets: <span id="weak-pos">–</span></h3><p class="note">Best players at your weakest slot sitting outside their own team's best lineup.</p><div class="tbl" id="t-targets"></div></div>
+          <div class="card"><h3>Best available</h3><p class="note">Free agents and waivers by rest-of-season projection.</p><div class="seg" id="wv-seg"></div><div class="tbl" id="t-waivers"></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCORES -->
+    <section id="scores" class="tab" hidden>
+      <div class="row-head"><h2>Week <span id="live-week">–</span> scoreboard</h2><span class="pill" id="live-status">–</span></div>
+      <p class="note">Odds update during games: points so far plus each starter's projection for the time left in his game. Tap a matchup for lineups.</p>
       <div id="games" class="games"></div>
     </section>
 
-    <section id="team" class="tab" hidden>
-      <div id="pick-first" class="banner" hidden>Pick your team at the top to see your page.</div>
-      <h2 id="team-name">–</h2>
-      <p class="lede" id="team-lede"></p>
-      <div class="tiles" id="tiles"></div>
-      <div class="grid">
-        <div class="card"><h3>What the numbers say</h3><div id="insights" class="insights"></div></div>
-        <div class="card"><h3>Path to the playoffs</h3><p class="note">Playoff odds by final record (20,000 simulated seasons). Darker bars are more likely finishes.</p><div class="chart" id="c-whatif"></div></div>
-      </div>
-      <div class="card"><h3>Season, week by week</h3><p class="note">Bars are points (bright = win). Tick = opponent's score. Dashed line = league average.</p><div class="chart" id="c-season"></div></div>
-      <div class="grid">
-        <div class="card"><h3>Remaining schedule</h3><div class="tbl" id="t-sched"></div></div>
-        <div class="card"><h3>Points by lineup slot</h3><p class="note">Per week, versus the league average for that slot.</p><div class="chart" id="c-pos"></div></div>
-      </div>
-      <div class="card"><h3>Roster</h3><p class="note">ESPN projections. <b class="ok">Start</b> = benched but in the best lineup; <b class="badt">Sit</b> = starting but shouldn't be.</p><div class="tbl" id="t-roster"></div></div>
-      <div class="grid">
-        <div class="card"><h3>Trade targets: <span id="weak-pos">–</span></h3><p class="note">Best players at this team's weakest slot sitting outside their own team's best lineup.</p><div class="tbl" id="t-targets"></div></div>
-        <div class="card"><h3>Best available</h3><p class="note">Free agents and waivers by rest-of-season projection.</p><div class="seg" id="wv-seg"></div><div class="tbl" id="t-waivers"></div></div>
-      </div>
+    <!-- THIS WEEK -->
+    <section id="week" class="tab" hidden>
+      <div class="card"><h3>Week <span id="aw-week">–</span> awards</h3><p class="note">Last completed week, handed out automatically.</p><div id="awards" class="awards"></div></div>
+      <div class="card"><h3>Matchups: ESPN vs Vegas-adjusted</h3><p class="note">Projected scores by owner. Vegas-adjusted nudges each starter's ESPN projection toward his NFL team's DraftKings implied total (±15% max).</p><div class="tbl" id="t-vm"></div></div>
+      <div class="row-head"><h2>NFL slate</h2><span class="pill" id="prov">–</span></div>
+      <p class="note">Lines and totals from ESPN's feed; implied team totals; stadium forecast at kickoff. Tap a game to see this league's starters in it.</p>
+      <div id="nfl" class="nfl"></div>
     </section>
 
+    <!-- LEAGUE -->
     <section id="league" class="tab" hidden>
       <div class="card"><h3>Power rankings</h3><p class="note">Rest-of-season roster strength 45%, points per game 35%, all-play record 20%. Luck = actual wins minus the wins your scores earned against everyone.</p><div class="tbl" id="t-power"></div></div>
       <div class="grid">
-        <div class="card"><h3>Playoff odds</h3><p class="note">Chance of a top-<span id="po-n">6</span> finish; darker segment = first-round bye.</p><div class="chart" id="c-odds"></div></div>
+        <div class="card"><h3>Playoff odds</h3><p class="note">Chance of a top-<span id="po-n">6</span> finish; darker = first-round bye.</p><div class="chart" id="c-odds"></div></div>
         <div class="card"><h3>Who's lucky</h3><p class="note">Dot = actual wins, ring = wins their scoring earned.</p><div class="chart" id="c-luck"></div></div>
       </div>
+      <div class="card"><h3>Power rank, week by week</h3><p class="note">Rank by all-play record to date. Tap a line's label to highlight it.</p><div class="chart" id="c-bump"></div></div>
+      <div class="card"><h3>Schedule swap</h3><p class="note">Row team's record if it had column team's schedule. Diagonal = actual record. Green = better than reality.</p><div class="chart" id="c-swapgrid"></div></div>
       <div class="grid">
+        <div class="card"><h3>Boom or bust</h3><p class="note">Average score vs week-to-week swing. Top-left = steady, top-right = volatile.</p><div class="chart" id="c-scatter"></div></div>
         <div class="card"><h3>Lineup IQ</h3><p class="note">Points left on the bench this season.</p><div class="chart" id="c-bench"></div></div>
+      </div>
+      <div class="grid">
+        <div class="card"><h3>Beat the projection?</h3><p class="note">Average points per week above or below ESPN's projection for the lineup that was started.</p><div class="chart" id="c-proj"></div></div>
         <div class="card"><h3>Weekly finish</h3><p class="note">Scoring rank each week (1 = top score).</p><div class="chart" id="c-heat"></div></div>
       </div>
+      <div class="card"><h3>Clutch &amp; schedule</h3><p class="note">Close = decided by under 10 points. Opp avg = average score of the opponents faced.</p><div class="tbl" id="t-clutch"></div></div>
     </section>
 
-    <section id="moves" class="tab" hidden>
-      <div class="card"><h3>Trades graded</h3><p class="note">Points the incoming players scored in starting lineups since, plus rest-of-season projection. A winner needs a clear (15%) edge.</p><div id="trades" class="trades"></div></div>
+    <!-- TRADES -->
+    <section id="trades" class="tab" hidden>
+      <div class="card"><h3>Trades graded</h3><p class="note">Points the incoming players scored in starting lineups since, plus rest-of-season projection. A winner needs a clear (15%) edge.</p><div id="tradelist" class="trades"></div></div>
       <div class="grid">
         <div class="card"><h3>Best pickups</h3><p class="note">Adds ranked by points scored in the adding team's lineup.</p><div class="tbl" id="t-pickups"></div></div>
         <div class="card"><h3>Pickups: <span class="tname">–</span></h3><div class="tbl" id="t-mypickups"></div></div>
       </div>
     </section>
 
+    <!-- DRAFT -->
     <section id="draft" class="tab" hidden>
       <div class="grid">
         <div class="card"><h3>Draft haul</h3><p class="note">Season points from every player each team drafted.</p><div class="chart" id="c-haul"></div></div>
@@ -101,16 +131,25 @@
       </div>
     </section>
 
+    <!-- HISTORY -->
     <section id="history" class="tab" hidden>
       <div class="grid">
         <div class="card"><h3>Champions</h3><div id="champs" class="champs"></div></div>
+        <div class="card"><h3>Legacy rankings</h3><p class="note">Title 10 pts, runner-up 5, playoff trip 2, plus career all-play record. Seasons on ESPN since 2024.</p><div class="tbl" id="t-career"></div></div>
+      </div>
+      <div class="card"><h3>Rivalry</h3><div class="rival-pick"><select id="rv-a" aria-label="Owner"></select><span>vs</span><select id="rv-b" aria-label="Opponent"></select></div><div id="rivalry"></div></div>
+      <div class="grid">
+        <div class="card"><h3>Season by season</h3><div class="seg" id="yr-seg"></div><div class="tbl" id="t-seasons"></div></div>
+        <div class="card"><h3>Best regular seasons ever</h3><p class="note">By all-play win rate.</p><div class="tbl" id="t-bestseasons"></div></div>
+      </div>
+      <div class="grid">
         <div class="card"><h3>Head-to-head: <span class="towner">–</span></h3><p class="note">All seasons, playoffs included.</p><div class="chart" id="c-h2h"></div></div>
+        <div class="card"><h3>Record book</h3><div class="tbl" id="t-records"></div></div>
       </div>
       <div class="card"><h3>All-time standings</h3><div class="tbl" id="t-alltime"></div></div>
-      <div class="card"><h3>Record book</h3><div class="tbl" id="t-records"></div></div>
     </section>
 
-    <footer class="foot">Data from ESPN, refreshed every few minutes. Projections are ESPN's; odds, luck and grades are this app's math. Not affiliated with ESPN.</footer>
+    <footer class="foot">Data from ESPN (league, projections, NFL odds feed from DraftKings) and Open-Meteo (weather), refreshed every few minutes. Odds, luck, moves and grades are this app's math. For fun; not affiliated with ESPN or DraftKings.</footer>
   </main>
   <div id="tip" class="tip" hidden></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>

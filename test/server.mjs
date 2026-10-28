@@ -4,9 +4,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fromTextDump } from './from-text-dump.mjs';
 import { analyze } from '../lib/analyze.js';
+import { sampleWeek } from './week-sample.mjs';
 import { liveScores } from '../lib/live.js';
 const dump = fromTextDump(process.argv[2]);
-const league = { ...analyze(dump), updated: new Date().toISOString() };
+const league = { ...analyze(dump, { week: sampleWeek }), updated: new Date().toISOString() };
 // simulated live week: current-week rows, with games at different stages
 const wk = dump.status.week;
 const names = Object.fromEntries(dump.teams.map((t) => [t.id, t.name]));
