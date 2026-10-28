@@ -288,7 +288,7 @@
     table($('#t-roster'), [
       { h: 'Slot', k: 'slot' }, { h: 'Player', k: 'name', f: (v, r) => v + (r.inj ? ` (${r.inj})` : '') },
       { h: '', k: 'note', f: (v) => v || '', cls: (r) => (r.note === 'Start' ? 'good' : r.note === 'Sit' ? 'bad' : '') },
-      { h: 'This wk', k: 'proj', n: 1, f: f1 }, { h: 'Avg', k: 'avg', n: 1, f: (v) => (v == null ? '–' : f1(v)) }, { h: 'ROS', k: 'ros', n: 1 }, { h: 'Season', k: 'season', n: 1, f: f1 }, { h: 'Pos', k: 'pos' }, { h: 'NFL', k: 'nfl' }], D.rosters[team] || []);
+      { h: 'This wk', k: 'proj', n: 1, f: (v, r) => (r.bye ? 'BYE' : f1(v)), cls: (r) => (r.bye ? 'bad' : '') }, { h: 'Avg', k: 'avg', n: 1, f: (v) => (v == null ? '–' : f1(v)) }, { h: 'ROS', k: 'ros', n: 1 }, { h: 'Season', k: 'season', n: 1, f: f1 }, { h: 'Pos', k: 'pos' }, { h: 'NFL', k: 'nfl' }], D.rosters[team] || []);
     $('#weak-pos').textContent = t.need.weak;
     table($('#t-targets'), [{ h: 'Player', k: 'name' }, { h: 'Team', k: 'from', v: (r) => tm(r.from).name }, { h: 'Owner', k: 'own', v: (r) => tm(r.from).owner }, { h: 'ROS', k: 'ros', n: 1 }, { h: 'Season', k: 'season', n: 1, f: f1 }], t.targets);
     renderWaivers();
@@ -345,7 +345,7 @@
     const opts = ['ALL', 'QB', 'RB', 'WR', 'TE', 'D/ST', 'K'];
     seg.replaceChildren(...opts.map((p) => { const b = el('button', { 'aria-pressed': String(p === wvPos), text: p }); b.addEventListener('click', () => { wvPos = p; renderWaivers(); }); return b; }));
     const rows = wvPos === 'ALL' ? Object.values(D.waivers).flatMap((l) => l.slice(0, 3)).sort((a, b) => b.ros - a.ros) : D.waivers[wvPos] || [];
-    table($('#t-waivers'), [{ h: 'Player', k: 'name' }, { h: 'Pos', k: 'pos' }, { h: 'NFL', k: 'team' }, { h: 'ROS', k: 'ros', n: 1 }, { h: 'This wk', k: 'proj', n: 1, f: f1 }, { h: 'Rostered', k: 'owned', n: 1, f: (v) => v + '%' }, { h: '', k: 'status', f: (v) => (v === 'WAIVERS' ? 'Waivers' : 'FA') }], rows);
+    table($('#t-waivers'), [{ h: 'Player', k: 'name' }, { h: 'Pos', k: 'pos' }, { h: 'NFL', k: 'team' }, { h: 'ROS', k: 'ros', n: 1 }, { h: 'This wk', k: 'proj', n: 1, f: (v, r) => (r.bye ? 'BYE' : f1(v)), cls: (r) => (r.bye ? 'bad' : '') }, { h: 'Rostered', k: 'owned', n: 1, f: (v) => v + '%' }, { h: '', k: 'status', f: (v) => (v === 'WAIVERS' ? 'Waivers' : 'FA') }], rows);
   }
 
   // ---------- THIS WEEK ----------
