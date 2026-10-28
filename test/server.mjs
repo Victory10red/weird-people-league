@@ -6,7 +6,9 @@ import { fromTextDump } from './from-text-dump.mjs';
 import { analyze } from '../lib/analyze.js';
 import { sampleWeek } from './week-sample.mjs';
 import { liveScores } from '../lib/live.js';
+import { byes } from './byes.mjs';
 const dump = fromTextDump(process.argv[2]);
+dump.byes ||= byes;
 const league = { ...analyze(dump, { week: sampleWeek }), updated: new Date().toISOString() };
 // simulated live week: current-week rows, with games at different stages
 const wk = dump.status.week;

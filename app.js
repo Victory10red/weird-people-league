@@ -235,6 +235,8 @@
     $('#moves').replaceChildren(...(t.moves && t.moves.length ? t.moves : [{ kind: 'All set', title: 'No moves needed', detail: 'Your lineup is already optimal and nothing on waivers clearly beats what you have.' }]).map((mv) =>
       el('div', { class: 'move' + (mv.urgent ? ' urgent' : '') }, el('span', { class: 'kind ' + (kinds[mv.kind] || ''), text: mv.kind }), el('div', {}, el('b', { text: mv.title }), el('p', { text: mv.detail })))));
 
+    renderByes(t);
+
     // tiles
     const tile = (l, v, s, cls) => el('div', { class: 'tile' }, el('div', { class: 'l', text: l }), el('div', { class: 'v ' + (cls || ''), text: v }), el('div', { class: 's', text: s }));
     const wi = t.whatif || {};
@@ -294,6 +296,29 @@
     renderWaivers();
   }
 
+  function renderByes(t) {
+    const host = $('#t-byes'), cur = D.league.week, last = D.league.reg_weeks;
+    const roster = (D.rosters[team] || []).filter((r) => r.slot !== 'IR');
+    const weeks = d3.range(cur, last + 1);
+    const out = {};
+    for (const w of weeks) out[w] = roster.filter((r) => r.starter && r.bye_wk === w);
+    const row = (r) => el('tr', { class: r.starter ? '' : 'bench' },
+      el('td', { class: 'pn' }, r.starter ? el('span', { class: 'muted', text: r.slot + ' ' }) : null, r.name),
+      el('td', { class: 'n', text: r.bye_wk ? (r.bye_wk < cur ? `${r.bye_wk} ✓` : String(r.bye_wk)) : '–' }),
+      ...weeks.map((w) => el('td', { class: 'bw' + (r.bye_wk === w ? ' on' : '') + (w === cur ? ' now' : '') }, r.bye_wk === w ? 'BYE' : '')));
+    const starters = roster.filter((r) => r.starter), bench = roster.filter((r) => !r.starter);
+    host.replaceChildren(el('table', { class: 'byes' },
+      el('thead', {}, el('tr', {}, el('th', { text: 'Player' }), el('th', { class: 'n', text: 'Bye' }), ...weeks.map((w) => el('th', { class: 'bw' + (w === cur ? ' now' : ''), text: String(w) })))),
+      el('tbody', {}, ...starters.map(row),
+        el('tr', { class: 'sep' }, el('td', { colspan: weeks.length + 2, text: 'Bench' })),
+        ...bench.map(row),
+        el('tr', { class: 'tot' }, el('td', { text: 'Starters on bye' }), el('td'), ...weeks.map((w) => el('td', { class: 'bw' + (out[w].length >= 2 ? ' hot' : out[w].length ? ' warm' : ''), text: out[w].length || '' }))))));
+    const crunch = weeks.filter((w) => out[w].length).sort((a, b) => out[b].length - out[a].length || a - b)[0];
+    $('#bye-note').textContent = crunch
+      ? `Toughest week: Week ${crunch}, with ${out[crunch].length} starter${out[crunch].length > 1 ? 's' : ''} out (${out[crunch].map((r) => r.name).join(', ')}). ✓ = bye already done.`
+      : 'None of your starters have a bye left. ✓ = bye already done.';
+  }
+
   function drawSeeds(host, t) {
     const rows = (t.seeds || []).map((p, i) => ({ seed: i + 1, p }));
     if (!rows.length) return empty(host, 'No simulation yet.');
@@ -345,7 +370,7 @@
     const opts = ['ALL', 'QB', 'RB', 'WR', 'TE', 'D/ST', 'K'];
     seg.replaceChildren(...opts.map((p) => { const b = el('button', { 'aria-pressed': String(p === wvPos), text: p }); b.addEventListener('click', () => { wvPos = p; renderWaivers(); }); return b; }));
     const rows = wvPos === 'ALL' ? Object.values(D.waivers).flatMap((l) => l.slice(0, 3)).sort((a, b) => b.ros - a.ros) : D.waivers[wvPos] || [];
-    table($('#t-waivers'), [{ h: 'Player', k: 'name' }, { h: 'Pos', k: 'pos' }, { h: 'NFL', k: 'team' }, { h: 'ROS', k: 'ros', n: 1 }, { h: 'This wk', k: 'proj', n: 1, f: (v, r) => (r.bye ? 'BYE' : f1(v)), cls: (r) => (r.bye ? 'bad' : '') }, { h: 'Rostered', k: 'owned', n: 1, f: (v) => v + '%' }, { h: '', k: 'status', f: (v) => (v === 'WAIVERS' ? 'Waivers' : 'FA') }], rows);
+    table($('#t-waivers'), [{ h: 'Player', k: 'name' }, { h: 'Pos', k: 'pos' }, { h: 'NFL', k: 'team' }, { h: 'Bye', k: 'bye_wk', n: 1, f: (v) => v || '–' }, { h: 'ROS', k: 'ros', n: 1 }, { h: 'This wk', k: 'proj', n: 1, f: (v, r) => (r.bye ? 'BYE' : f1(v)), cls: (r) => (r.bye ? 'bad' : '') }, { h: 'Rostered', k: 'owned', n: 1, f: (v) => v + '%' }, { h: '', k: 'status', f: (v) => (v === 'WAIVERS' ? 'Waivers' : 'FA') }], rows);
   }
 
   // ---------- THIS WEEK ----------

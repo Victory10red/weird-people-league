@@ -195,6 +195,16 @@ td.good { color: var(--good); } td.bad { color: var(--bad); }
 .rv-games span { color: var(--muted); font-size: 11px; }
 .rv-games b { font-variant-numeric: tabular-nums; }
 td.empty { color: var(--muted); text-align: center; }
+table.byes td, table.byes th { padding: 5px 6px; }
+table.byes .bw { text-align: center; min-width: 34px; font-size: 11px; color: var(--muted); }
+table.byes th.bw.now, table.byes td.bw.now { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+table.byes td.bw.on { background: var(--bad); color: #fff; font-weight: 700; border-radius: 4px; }
+table.byes tr.bench td:first-child { color: var(--muted); }
+table.byes tr.sep td { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; padding-top: 10px; }
+table.byes tr.tot td { font-weight: 600; border-top: 2px solid var(--line); }
+table.byes td.bw.warm { color: var(--fg); }
+table.byes td.bw.hot { color: var(--bad); font-weight: 700; }
+.tbl:has(table.byes) { max-height: none; }
 .foot { color: var(--muted); font-size: 12px; text-align: center; padding: 20px 0; }
 .skel { height: 90px; border-radius: 12px; background: linear-gradient(90deg, var(--panel) 0%, var(--panel-2) 50%, var(--panel) 100%); background-size: 200% 100%; animation: sk 1.2s infinite; }
 @keyframes sk { to { background-position: -200% 0; } }
@@ -205,5 +215,8 @@ td.empty { color: var(--muted); text-align: center; }
   .move { grid-template-columns: 1fr; gap: 4px; }
   .kind { justify-self: start; }
   .hero-card .side .sc { font-size: 28px; }
+  table.byes td, table.byes th { padding: 5px 3px; }
+  table.byes .bw { min-width: 27px; font-size: 10px; }
+  table.byes td.pn { max-width: 104px; overflow: hidden; text-overflow: ellipsis; }
   .card { padding: 12px; }
 }
