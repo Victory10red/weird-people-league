@@ -141,26 +141,36 @@
   }
 
   // ---------- live matchup pieces ----------
-  function lineupList(s) {
+  function lineupList(s, opts = {}) {
     const by = D ? nflByAbbr() : {}, avg = (D && D.pavg) || {};
+    const tt = D && D.teams.find((x) => x.id === s.id), ss = (tt && tt.start_sit) || {};
     const head = el('div', { class: 'luh' }, el('span'), el('span'), el('span', { text: 'Avg' }), el('span', { text: 'ESPN' }), el('span', { text: 'Vegas', title: 'Season average × how much more or less Vegas expects his team to score this week than usual' }), el('span', { text: 'vs Opp', title: 'Fantasy points per game this opponent allows to the position (this league\'s scoring). Rank 32nd = easiest matchup.' }), el('span', { text: 'Pts' }));
-    return el('div', { class: 'lu' }, el('b', { text: s.name }), head, ...s.rows.map((r) => {
+    const row = (r) => {
       const x = by[r.nfl];
       const opp = x ? `${x.home ? 'vs' : '@'} ${x.them.abbr}` : '';
       const when = r.state === 'pre' ? (x ? kick(x.g.kickoff) : 'Not started') : r.game;
       const wx = x && !x.g.indoor && x.g.weather && r.state === 'pre' ? wxFlag(x.g.weather, r.pos) : '';
       const a = avg[r.pid];
       const pctOfProj = r.state !== 'pre' && r.proj > 0 ? r.pts - r.proj : null;
-      return el('div', { class: 'lur' + (r.state === 'in' ? ' in' : '') + (r.state === 'bye' ? ' bye' : '') },
-        el('span', { class: 'muted', text: r.slot }),
-        el('span', { class: 'who' }, el('span', { class: 'nm', text: r.name }), el('span', { class: 'st' }, `${r.nfl} ${opp} · ${when}`, wx ? el('em', { text: ' · ' + wx }) : null)),
+      const tag = ss[r.pid];
+      return el('div', { class: 'lur' + (r.state === 'in' ? ' in' : '') + (r.state === 'bye' ? ' bye' : '') + (tag ? ' tag-' + tag.toLowerCase() : '') },
+        el('span', { class: 'muted', text: r.slot === 'BN' ? (r.pos === 'D/ST' ? 'D/ST' : r.pos) : r.slot }),
+        el('span', { class: 'who' }, el('span', { class: 'nm' }, r.name, tag ? el('b', { class: 'ss ' + tag.toLowerCase(), text: tag }) : null), el('span', { class: 'st' }, `${r.nfl} ${opp} · ${when}`, wx ? el('em', { text: ' · ' + wx }) : null)),
         el('span', { class: 'num muted', text: a != null ? f1(a) : '–' }),
-        el('span', { class: 'num muted', text: f1(r.proj) }),
+        el('span', { class: 'num muted', text: r.state === 'bye' ? 'BYE' : f1(r.proj) }),
         vegCell(r.pid, r.proj),
         oppCell(x, r.pos),
         el('span', { class: 'num pts' + (r.state === 'post' && pctOfProj != null ? (pctOfProj >= 0 ? ' up' : ' down') : ''), text: r.state === 'pre' || r.state === 'bye' ? '–' : f1(r.pts) }));
-    }));
+    };
+    const bench = (s.bench || []).filter((r) => r.slot !== 'IR');
+    const key = 'bench-' + s.id;
+    const showBench = !!benchOpen[key];
+    const btn = bench.length ? el('button', { class: 'bench-toggle', type: 'button', text: showBench ? `Hide bench ▴` : `Show bench (${bench.length}) ▾` }) : null;
+    if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); benchOpen[key] = !benchOpen[key]; const host = btn.closest('.lu'); host.replaceWith(lineupList(s, opts)); });
+    return el('div', { class: 'lu' }, el('b', { text: s.name }), head, ...s.rows.map(row), btn,
+      showBench ? el('div', { class: 'benchrows' }, ...bench.map(row)) : null);
   }
+  const benchOpen = {};
   const vegCell = (pid, espn) => {
     const v = D && D.vproj ? D.vproj[pid] : null;
     if (v == null) return el('span', { class: 'num muted', text: '–' });
@@ -342,10 +352,6 @@
   }
 
   function viewRoster(t) {
-    table($('#t-roster'), [
-      { h: 'Player', k: 'name', f: (v, r) => v + (r.inj ? ` (${r.inj})` : '') }, { h: 'Slot', k: 'slot' },
-      { h: '', k: 'note', f: (v) => v || '', cls: (r) => (r.note === 'Start' ? 'good' : r.note === 'Sit' ? 'bad' : '') },
-      { h: 'ESPN', k: 'proj', n: 1, f: (v, r) => (r.bye ? 'BYE' : f1(v)), cls: (r) => (r.bye ? 'bad' : '') }, { h: 'Vegas', k: 'vg', n: 1, v: (r) => (r.bye ? -1 : (D.vproj || {})[r.pid] ?? null), f: (v, r) => (r.bye ? 'BYE' : v == null ? '–' : f1(v)), cls: (r) => (r.bye ? 'bad' : '') }, { h: 'Avg', k: 'avg', n: 1, f: (v) => (v == null ? '–' : f1(v)) }, { h: 'Rest of season', k: 'ros', n: 1 }, { h: 'Bye', k: 'bye_wk', n: 1, f: (v) => v || '–' }, { h: 'NFL', k: 'nfl' }], D.rosters[team] || [], { stick: true });
     $('#weak-pos').textContent = t.need.weak;
     table($('#t-targets'), [{ h: 'Player', k: 'name' }, { h: 'Team', k: 'from', v: (r) => tm(r.from).name }, { h: 'Owner', k: 'own', v: (r) => tm(r.from).owner }, { h: 'ROS', k: 'ros', n: 1 }, { h: 'Season', k: 'season', n: 1, f: f1 }], t.targets);
     renderWaivers();
