@@ -62,11 +62,22 @@ main { padding-bottom: 40px; }
 .lineups { display: none; margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; }
 .game.open .lineups { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .lu { font-size: 12px; }
-.lu div { display: grid; grid-template-columns: 34px 1fr auto; gap: 4px; padding: 3px 0; border-bottom: 1px dashed var(--line); }
-.lu div span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lu .pts { font-variant-numeric: tabular-nums; font-weight: 600; }
-.lu .st { grid-column: 2 / -1; color: var(--muted); font-size: 11px; margin-top: -3px; }
-.lu .in .pts { color: var(--bad); }
+.lu > b { display: block; margin-bottom: 2px; }
+.lur, .luh { display: grid; grid-template-columns: 34px minmax(0, 1fr) 38px 38px 42px; gap: 4px; align-items: center; padding: 4px 0; }
+.lur { border-bottom: 1px dashed var(--line); }
+.luh { padding: 0 0 2px; border-bottom: 1px solid var(--line); }
+.luh span { font-size: 10.5px; color: var(--muted); text-align: right; text-transform: uppercase; letter-spacing: .3px; }
+.lur .who { display: grid; min-width: 0; }
+.lur .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lur .st { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lur .st em { font-style: normal; color: var(--bad); }
+.lur .num { text-align: right; font-variant-numeric: tabular-nums; }
+.lur .num.muted { color: var(--muted); }
+.lur .pts { font-weight: 600; }
+.lur .pts.up { color: var(--good); } .lur .pts.down { color: var(--muted); }
+.lur.in .pts { color: var(--accent); }
+.lur.in .nm::after { content: ' ●'; color: var(--bad); font-size: 9px; vertical-align: 2px; }
+.lur.bye { opacity: .6; }
 
 /* tiles */
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 14px; }

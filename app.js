@@ -129,10 +129,31 @@
 
   // ---------- live matchup pieces ----------
   function lineupList(s) {
-    return el('div', { class: 'lu' }, el('b', { text: s.name }), ...s.rows.map((r) => el('div', { class: r.state === 'in' ? 'in' : '' },
-      el('span', { class: 'muted', text: r.slot }), el('span', { text: r.name }), el('span', { class: 'pts', text: f1(r.pts) }),
-      el('span', { class: 'st', text: `${r.nfl} · ${r.game}${r.state === 'pre' ? ' · proj ' + f1(r.proj) : ''}` }))));
+    const by = D ? nflByAbbr() : {}, avg = (D && D.pavg) || {};
+    const head = el('div', { class: 'luh' }, el('span'), el('span'), el('span', { text: 'Avg' }), el('span', { text: 'Proj' }), el('span', { text: 'Pts' }));
+    return el('div', { class: 'lu' }, el('b', { text: s.name }), head, ...s.rows.map((r) => {
+      const x = by[r.nfl];
+      const opp = x ? `${x.home ? 'vs' : '@'} ${x.them.abbr}` : '';
+      const when = r.state === 'pre' ? (x ? kick(x.g.kickoff) : 'Not started') : r.game;
+      const wx = x && !x.g.indoor && x.g.weather && r.state === 'pre' ? wxFlag(x.g.weather, r.pos) : '';
+      const a = avg[r.pid];
+      const pctOfProj = r.state !== 'pre' && r.proj > 0 ? r.pts - r.proj : null;
+      return el('div', { class: 'lur' + (r.state === 'in' ? ' in' : '') + (r.state === 'bye' ? ' bye' : '') },
+        el('span', { class: 'muted', text: r.slot }),
+        el('span', { class: 'who' }, el('span', { class: 'nm', text: r.name }), el('span', { class: 'st' }, `${r.nfl} ${opp} · ${when}`, wx ? el('em', { text: ' · ' + wx }) : null)),
+        el('span', { class: 'num muted', text: a != null ? f1(a) : '–' }),
+        el('span', { class: 'num muted', text: f1(r.proj) }),
+        el('span', { class: 'num pts' + (r.state === 'post' && pctOfProj != null ? (pctOfProj >= 0 ? ' up' : ' down') : ''), text: r.state === 'pre' || r.state === 'bye' ? '–' : f1(r.pts) }));
+    }));
   }
+  const wxFlag = (w, pos) => {
+    if (!['QB', 'WR', 'TE', 'K'].includes(pos)) return '';
+    const b = [];
+    if ((w.wind || 0) >= 15) b.push(`${Math.round(w.wind)} mph wind`);
+    if ((w.precip || 0) >= 60) b.push(`${w.precip}% ${w.temp <= 33 ? 'snow' : 'rain'}`);
+    if (w.temp != null && w.temp <= 25) b.push(`${Math.round(w.temp)}°`);
+    return b.join(', ');
+  };
   function sideBlock(s, lead, extra) {
     return el('div', { class: 'side' + (lead ? ' lead' : '') },
       el('span', { class: 'nm', text: s.name }), el('span', { class: 'sc', text: f1(s.pts) }),
@@ -267,7 +288,7 @@
     table($('#t-roster'), [
       { h: 'Slot', k: 'slot' }, { h: 'Player', k: 'name', f: (v, r) => v + (r.inj ? ` (${r.inj})` : '') },
       { h: '', k: 'note', f: (v) => v || '', cls: (r) => (r.note === 'Start' ? 'good' : r.note === 'Sit' ? 'bad' : '') },
-      { h: 'This wk', k: 'proj', n: 1, f: f1 }, { h: 'ROS', k: 'ros', n: 1 }, { h: 'Season', k: 'season', n: 1, f: f1 }, { h: 'Pos', k: 'pos' }, { h: 'NFL', k: 'nfl' }], D.rosters[team] || []);
+      { h: 'This wk', k: 'proj', n: 1, f: f1 }, { h: 'Avg', k: 'avg', n: 1, f: (v) => (v == null ? '–' : f1(v)) }, { h: 'ROS', k: 'ros', n: 1 }, { h: 'Season', k: 'season', n: 1, f: f1 }, { h: 'Pos', k: 'pos' }, { h: 'NFL', k: 'nfl' }], D.rosters[team] || []);
     $('#weak-pos').textContent = t.need.weak;
     table($('#t-targets'), [{ h: 'Player', k: 'name' }, { h: 'Team', k: 'from', v: (r) => tm(r.from).name }, { h: 'Owner', k: 'own', v: (r) => tm(r.from).owner }, { h: 'ROS', k: 'ros', n: 1 }, { h: 'Season', k: 'season', n: 1, f: f1 }], t.targets);
     renderWaivers();

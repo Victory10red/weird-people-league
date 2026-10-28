@@ -12,7 +12,7 @@ const league = { ...analyze(dump, { week: sampleWeek }), updated: new Date().toI
 const wk = dump.status.week;
 const names = Object.fromEntries(dump.teams.map((t) => [t.id, t.name]));
 const games = dump.sched.filter((m) => m.wk === wk && m.a != null).map((m) => {
-  const side = (tid) => ({ id: tid, name: names[tid], players: dump.roster.filter((r) => r.tid === tid).map((r) => ({ name: dump.players[r.pid]?.name || String(r.pid), pos: dump.players[r.pid]?.pos || 0, pro: dump.players[r.pid]?.pro || 0, slot: r.slot, proj: r.proj || 0, act: 0 })) });
+  const side = (tid) => ({ id: tid, name: names[tid], players: dump.roster.filter((r) => r.tid === tid).map((r) => ({ pid: r.pid, name: dump.players[r.pid]?.name || String(r.pid), pos: dump.players[r.pid]?.pos || 0, pro: dump.players[r.pid]?.pro || 0, slot: r.slot, proj: r.proj || 0, act: 0 })) });
   return { h: side(m.h), a: side(m.a), hp: 0, ap: 0 };
 });
 const clocks = {};
