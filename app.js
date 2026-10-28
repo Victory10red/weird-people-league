@@ -144,6 +144,7 @@
   function lineupList(s, opts = {}) {
     const by = D ? nflByAbbr() : {}, avg = (D && D.pavg) || {};
     const tt = D && D.teams.find((x) => x.id === s.id), ss = (tt && tt.start_sit) || {};
+    const injOf = {}; if (D) for (const r of D.rosters[s.id] || []) if (r.inj) injOf[r.pid] = r.inj;
     const head = el('div', { class: 'luh' }, el('span'), el('span'), el('span', { text: 'Avg' }), el('span', { text: 'ESPN' }), el('span', { text: 'Vegas', title: 'Season average × how much more or less Vegas expects his team to score this week than usual' }), el('span', { text: 'vs Opp', title: 'Fantasy points per game this opponent allows to the position (this league\'s scoring). Rank 32nd = easiest matchup.' }), el('span', { text: 'Pts' }));
     const row = (r) => {
       const x = by[r.nfl];
@@ -155,7 +156,7 @@
       const tag = ss[r.pid];
       return el('div', { class: 'lur' + (r.state === 'in' ? ' in' : '') + (r.state === 'bye' ? ' bye' : '') + (tag ? ' tag-' + tag.toLowerCase() : '') },
         el('span', { class: 'muted', text: r.slot === 'BN' ? (r.pos === 'D/ST' ? 'D/ST' : r.pos) : r.slot }),
-        el('span', { class: 'who' }, el('span', { class: 'nm' }, r.name, tag ? el('b', { class: 'ss ' + tag.toLowerCase(), text: tag }) : null), el('span', { class: 'st' }, `${r.nfl} ${opp} · ${when}`, wx ? el('em', { text: ' · ' + wx }) : null)),
+        el('span', { class: 'who' }, el('span', { class: 'nm' }, r.name, injOf[r.pid] ? el('b', { class: 'inj', title: { Q: 'Questionable', D: 'Doubtful', O: 'Out', IR: 'Injured reserve', SSPD: 'Suspended' }[injOf[r.pid]] || '', text: injOf[r.pid] }) : null, tag ? el('b', { class: 'ss ' + tag.toLowerCase(), text: tag }) : null), el('span', { class: 'st' }, `${r.nfl} ${opp} · ${when}`, wx ? el('em', { text: ' · ' + wx }) : null)),
         el('span', { class: 'num muted', text: a != null ? f1(a) : '–' }),
         el('span', { class: 'num muted', text: r.state === 'bye' ? 'BYE' : f1(r.proj) }),
         vegCell(r.pid, r.proj),
@@ -290,7 +291,7 @@
         sideBlock(me, me.pts > them.pts, vegasMe ? `Vegas ${f1(vegasMe)}` : ''), sideBlock(them, them.pts > me.pts, vegasThem ? `Vegas ${f1(vegasThem)}` : ''),
         ...wpBar(hw, live.done), needLine(me, them, true), stakes, tog,
         el('div', { class: 'lineups' }, lineupList(me), lineupList(them)),
-        el('p', { class: 'note legend lineups-only', text: 'Avg = points per game this season. ESPN = ESPN projection. Vegas = his average × how much more or less Vegas expects his team to score than usual (green = Vegas likes him more than ESPN, red = less). vs Opp = points per game the opponent gives up to that position (all of its RBs or WRs combined), ranked 1st (stingiest) to 32nd. Green = soft matchup, red = tough.' })));
+        el('p', { class: 'note legend lineups-only', text: 'Q / D / O = questionable / doubtful / out. Avg = points per game this season. ESPN = ESPN projection. Vegas = his average × how much more or less Vegas expects his team to score than usual (green = Vegas likes him more than ESPN, red = less). vs Opp = points per game the opponent gives up to that position (all of its RBs or WRs combined), ranked 1st (stingiest) to 32nd. Green = soft matchup, red = tough.' })));
     } else if (m) {
       hero.replaceChildren(el('div', { class: 'game hero-card mine' }, el('div', { class: 'hero-h', text: `Week ${D.league.week}: vs ${tm(m.h === team ? m.a : m.h).name}` }), el('p', { class: 'note', text: 'Loading live lineups…' })));
     } else hero.replaceChildren();
