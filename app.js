@@ -42,7 +42,7 @@
     .on('touchstart', (ev, d) => { const t = ev.touches[0]; tip.show({ clientX: t.clientX, clientY: t.clientY }, head(d), body(d)); }, { passive: true });
 
   // ---------- tables ----------
-  function table(host, cols, rows, { isMe, sort } = {}) {
+  function table(host, cols, rows, { isMe, sort, stick } = {}) {
     let sortCol = sort ? sort[0] : null, dir = sort ? sort[1] : 1;
     const draw = () => {
       const data = sortCol ? [...rows].sort((a, b) => {
@@ -64,12 +64,13 @@
           if (c.bar) {
             const w = Math.max(2, Math.round(46 * (raw || 0) / 100));
             td.append(el('span', { class: 'cbar' }, el('i', { class: raw >= 50 ? 'hot' : '', style: `width:${w}px` }), el('span', { text: c.f ? c.f(raw, r) : raw })));
-          } else td.textContent = c.f ? c.f(raw, r) : raw == null || raw === '' ? '–' : raw;
+          } else if (c.node) td.append(c.node(r));
+          else td.textContent = c.f ? c.f(raw, r) : raw == null || raw === '' ? '–' : raw;
           tr.append(td);
         }
         tbody.append(tr);
       }
-      host.replaceChildren(el('table', {}, thead, tbody));
+      host.replaceChildren(el('table', { class: stick ? 'stick' : '' }, thead, tbody));
     };
     draw();
   }
@@ -104,6 +105,16 @@
   const myMatch = () => D && team ? D.matchups.find((m) => m.h === team || m.a === team) : null;
   const nflByAbbr = () => { const m = {}; for (const g of (D.nfl || [])) { m[g.home.abbr] = { g, me: g.home, them: g.away, themId: g.awayId, home: true }; m[g.away.abbr] = { g, me: g.away, them: g.home, themId: g.homeId, home: false }; } return m; };
   const kick = (iso) => { const d = new Date(iso); return d.toLocaleString([], { weekday: 'short', hour: 'numeric', minute: d.getMinutes() ? '2-digit' : undefined }); };
+  const wxShort = (g) => {
+    if (!g) return '–';
+    if (g.indoor) return 'Dome';
+    const w = g.weather; if (!w) return 'Soon';
+    const bits = [];
+    if (w.temp != null) bits.push(`${Math.round(w.temp)}°`);
+    if (w.wind != null) bits.push(`${Math.round(w.wind)} mph`);
+    if (w.precip != null && w.precip >= 20) bits.push(`${w.precip}% rain`);
+    return bits.join(' · ') || w.text || '–';
+  };
   const wxText = (g) => {
     if (!g) return '–';
     if (g.indoor) return 'Indoors';
@@ -289,13 +300,17 @@
     // my starters: Vegas & weather
     const by = nflByAbbr();
     const starters = (D.rosters[team] || []).filter((r) => r.starter);
-    $('#vegas-note').textContent = D.odds_provider ? `${D.odds_provider} implied team totals (league avg ${f1(D.avg_implied)}); weather at kickoff.` : 'Lines appear once sportsbooks post them.';
+    $('#vegas-note').textContent = D.odds_provider ? `Team total = points ${D.odds_provider} expects his NFL team to score (this week's average ${f1(D.avg_implied)}). Green = good spot, red = tough. For a D/ST it's the opponent's total, so lower is better.` : 'Lines appear once sportsbooks post them.';
+    // D/ST wants the *opponent* to score little, so its number is the opponent's total and the colors flip
+    const vTot = (r) => { const x = by[r.nfl]; if (!x) return null; return r.pos === 'D/ST' ? x.them.implied ?? null : x.me.implied ?? null; };
     table($('#t-myvegas'), [
-      { h: 'Player', k: 'name' },
-      { h: 'Team total', k: 'imp', n: 1, v: (r) => { const x = by[r.nfl]; return x ? x.me.implied ?? null : null; }, f: (v) => (v == null ? '–' : f1(v)), cls: (r) => { const x = by[r.nfl]; const v = x && x.me.implied; return v == null ? '' : v >= 26 ? 'good' : v <= 18 ? 'bad' : ''; } },
-      { h: 'Weather', k: 'wx', v: (r) => wxText(by[r.nfl] && by[r.nfl].g) },
-      { h: 'Game', k: 'g', v: (r) => { const x = by[r.nfl]; return x ? `${x.home ? 'vs' : '@'} ${x.them.abbr} · ${kick(x.g.kickoff)}` : 'Bye'; } },
-      { h: 'Line', k: 'line', n: 1, v: (r) => { const x = by[r.nfl]; return x && x.me.line != null ? x.me.line : null; }, f: (v) => (v == null ? '–' : v > 0 ? '+' + v : v === 0 ? 'PK' : String(v)) }], starters);
+      { h: 'Player', k: 'name', f: (v, r) => (r.pos === 'D/ST' ? v.replace(' D/ST', ' D') : v) },
+      { h: 'Team total', k: 'imp', n: 1, v: vTot, f: (v, r) => (v == null ? '–' : f1(v) + (r.pos === 'D/ST' ? ' opp' : '')),
+        cls: (r) => { const v = vTot(r); if (v == null) return ''; const hi = v >= 26, lo = v <= 18.5; return r.pos === 'D/ST' ? (lo ? 'good' : hi ? 'bad' : '') : hi ? 'good' : lo ? 'bad' : ''; } },
+      { h: 'Line', k: 'line', n: 1, v: (r) => { const x = by[r.nfl]; return x && x.me.line != null ? x.me.line : null; }, f: (v) => (v == null ? '–' : v > 0 ? '+' + v : v === 0 ? 'PK' : String(v)) },
+      { h: 'Game & weather', k: 'g', v: (r) => (by[r.nfl] ? by[r.nfl].g.kickoff : 'z'), node: (r) => { const x = by[r.nfl]; if (!x) return el('span', { text: 'Bye' });
+        const w = wxShort(x.g), bad = x.g.weather && !x.g.indoor && ((x.g.weather.wind || 0) >= 15 || (x.g.weather.precip || 0) >= 60);
+        return el('div', { class: 'gw' }, el('span', { text: `${x.home ? 'vs' : '@'} ${x.them.abbr} · ${kick(x.g.kickoff)}` }), el('small', { class: bad ? 'badt' : '', text: w })); } }], starters, { stick: true });
 
     table($('#t-roster'), [
       { h: 'Slot', k: 'slot' }, { h: 'Player', k: 'name', f: (v, r) => v + (r.inj ? ` (${r.inj})` : '') },
@@ -380,7 +395,7 @@
     const opts = ['ALL', 'QB', 'RB', 'WR', 'TE', 'D/ST', 'K'];
     seg.replaceChildren(...opts.map((p) => { const b = el('button', { 'aria-pressed': String(p === wvPos), text: p }); b.addEventListener('click', () => { wvPos = p; renderWaivers(); }); return b; }));
     const rows = wvPos === 'ALL' ? Object.values(D.waivers).flatMap((l) => l.slice(0, 3)).sort((a, b) => b.ros - a.ros) : D.waivers[wvPos] || [];
-    table($('#t-waivers'), [{ h: 'Player', k: 'name' }, { h: 'Pos', k: 'pos' }, { h: 'NFL', k: 'team' }, { h: 'Bye', k: 'bye_wk', n: 1, f: (v) => v || '–' }, { h: 'ROS', k: 'ros', n: 1 }, { h: 'This wk', k: 'proj', n: 1, f: (v, r) => (r.bye ? 'BYE' : f1(v)), cls: (r) => (r.bye ? 'bad' : '') }, { h: 'Rostered', k: 'owned', n: 1, f: (v) => v + '%' }, { h: '', k: 'status', f: (v) => (v === 'WAIVERS' ? 'Waivers' : 'FA') }], rows);
+    table($('#t-waivers'), [{ h: 'Player', k: 'name' }, { h: 'Pos', k: 'pos' }, { h: 'NFL', k: 'team' }, { h: 'Bye', k: 'bye_wk', n: 1, f: (v) => v || '–' }, { h: 'ROS', k: 'ros', n: 1 }, { h: 'This wk', k: 'proj', n: 1, f: (v, r) => (r.bye ? 'BYE' : f1(v)), cls: (r) => (r.bye ? 'bad' : '') }, { h: 'Rostered', k: 'owned', n: 1, f: (v) => v + '%' }, { h: '', k: 'status', f: (v) => (v === 'WAIVERS' ? 'Waivers' : 'FA') }], rows, { stick: true });
   }
 
   // ---------- THIS WEEK ----------
