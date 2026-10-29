@@ -1026,7 +1026,7 @@
     if (playGame === 'bk') {
       if (!bkInst && window.Breakaway) {
         const mine = team && T[team];
-        bkInst = window.Breakaway.mount($('#play-bk'), { names: D.teams.filter((x) => x.id !== team).map((x) => x.owner), me: mine ? mine.owner : 'Rookie', big: !!(mine && /^justin/i.test(mine.owner)), accent: css('--accent') || '#c2410c',
+        bkInst = window.Breakaway.mount($('#play-bk'), { names: D.teams.filter((x) => x.id !== team).map((x) => x.owner), me: mine ? mine.owner : 'Rookie', big: !!(mine && /^justin/i.test(mine.owner)), hair: mine && /^brandon/i.test(mine.owner) ? '#e2531f' : null, accent: css('--accent') || '#c2410c',
           onLevel: (lv) => { bkLevel = lv; renderLB(); }, onEnd: (lv, yds) => postScore('bk', lv, yds) });
       }
       renderLB();

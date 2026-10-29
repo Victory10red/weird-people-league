@@ -13,7 +13,7 @@
   };
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
-  function mount(host, { names = [], me = 'You', accent = '#c2410c', onEnd = null, onLevel = null, big = false } = {}) {
+  function mount(host, { names = [], me = 'You', accent = '#c2410c', onEnd = null, onLevel = null, big = false, hair = null } = {}) {
     host.replaceChildren();
     const wrap = document.createElement('div'); wrap.className = 'bk';
     const canvas = document.createElement('canvas'); canvas.className = 'bk-cv'; canvas.setAttribute('aria-label', 'Breakaway game field');
@@ -132,9 +132,18 @@
       rr(x - 12.5, y - 12, 25, 7, 3.5); ctx.fill();
       if (big) { ctx.beginPath(); ctx.ellipse(x, y + 3, 11, 5.5, 0, 0, Math.PI * 2); ctx.fillStyle = accent; ctx.fill(); ctx.beginPath(); ctx.ellipse(x, y + 6.5, 8, 2, 0, 0, Math.PI); ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fill(); }
       if (juking) { ctx.lineWidth = 2; ctx.strokeStyle = '#fde047'; rr(x - 12.5, y - 12, 25, 16, 4); ctx.stroke(); }
-      ctx.fillStyle = '#fff'; ctx.font = '700 9px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(big ? '99' : '22', x, y - 3);
+      ctx.fillStyle = '#fff'; ctx.font = '700 9px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(big ? '99' : '22', x, hair ? y : y - 3);
       // neck and helmet (from behind)
       rr(x - 3, y - 15, 6, 4, 1.5); ctx.fillStyle = skin; ctx.fill();
+      if (hair) { // a red mullet flowing out the back of the helmet, bouncing as he runs
+        const bob = Math.sin(ph) * 1.4;
+        ctx.fillStyle = hair; ctx.strokeStyle = '#5a1e08'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(x - 7, y - 19); ctx.quadraticCurveTo(x - 10, y - 8 + bob, x - 5, y - 4 + bob); ctx.lineTo(x - 1.5, y - 7);
+        ctx.lineTo(x, y - 3.5 - bob); ctx.lineTo(x + 1.5, y - 7); ctx.lineTo(x + 5, y - 4 - bob); ctx.quadraticCurveTo(x + 10, y - 8 - bob, x + 7, y - 19); ctx.closePath();
+        ctx.fill(); ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,220,180,.55)'; ctx.lineWidth = 0.8;
+        for (const dx of [-4, 0, 4]) { ctx.beginPath(); ctx.moveTo(x + dx * 0.8, y - 16); ctx.lineTo(x + dx * 1.1, y - 7); ctx.stroke(); }
+      }
       ctx.beginPath(); ctx.arc(x, y - 18, 7, 0, Math.PI * 2); ctx.fillStyle = '#1f2937'; ctx.fill();
       ctx.fillStyle = '#fff'; ctx.fillRect(x - 1, y - 25, 2, 13);
       ctx.restore();
