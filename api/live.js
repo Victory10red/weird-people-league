@@ -3,11 +3,13 @@ import { liveScores } from '../lib/live.js';
 
 export default async function handler(req, res) {
   try {
-    const live = await fetchLive();
+    const want = Number(req.query?.week) || null;
+    const live = await fetchLive({ week: want });
     const clocks = await nflRemaining(live.year, live.week);
     const out = liveScores(live, clocks);
-    // short cache while games are on, longer otherwise
-    res.setHeader('Cache-Control', out.anyLive ? 'public, s-maxage=30, stale-while-revalidate=60' : 'public, s-maxage=300, stale-while-revalidate=900');
+    // finished weeks never change; the current week refreshes fast while games are on
+    const past = out.week < out.current;
+    res.setHeader('Cache-Control', past ? 'public, s-maxage=21600, stale-while-revalidate=86400' : out.anyLive ? 'public, s-maxage=30, stale-while-revalidate=60' : 'public, s-maxage=300, stale-while-revalidate=900');
     res.status(200).json(out);
   } catch (e) {
     const privateLeague = e.status === 401 || e.status === 403;

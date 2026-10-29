@@ -24,7 +24,7 @@
   if (tab === 'live') tab = 'scores';
   if (!TABS.includes(tab)) tab = 'team';
   let wvPos = 'ALL', yrSel = null, bumpFocus = null;
-  let heroOpen = null;
+  let heroOpen = null, heroWeek = null; const weekCache = {};
   let teamView = ['week', 'roster', 'outlook', 'season'].includes(store.get('teamview')) ? store.get('teamview') : 'week';
 
   // ---------- tooltip ----------
@@ -143,11 +143,12 @@
   // ---------- live matchup pieces ----------
   function lineupList(s, opts = {}) {
     const by = D ? nflByAbbr() : {}, avg = (D && D.pavg) || {};
-    const tt = D && D.teams.find((x) => x.id === s.id), ss = (tt && tt.start_sit) || {};
-    const injOf = {}; if (D) for (const r of D.rosters[s.id] || []) if (r.inj) injOf[r.pid] = r.inj;
-    const head = el('div', { class: 'luh' }, el('span'), el('span'), el('span', { text: 'Avg' }), el('span', { text: 'ESPN' }), el('span', { text: 'Vegas', title: 'Season average × how much more or less Vegas expects his team to score this week than usual' }), el('span', { text: 'vs Opp', title: 'Fantasy points per game this opponent allows to the position (this league\'s scoring). Rank 32nd = easiest matchup.' }), el('span', { text: 'Pts' }));
+    const past = !!opts.past;
+    const tt = D && D.teams.find((x) => x.id === s.id), ss = past ? {} : (tt && tt.start_sit) || {};
+    const injOf = {}; if (D && !past) for (const r of D.rosters[s.id] || []) if (r.inj) injOf[r.pid] = r.inj;
+    const head = past ? el('div', { class: 'luh' }, el('span'), el('span'), el('span', { text: 'Avg' }), el('span', { text: 'Proj' }), el('span', { text: 'Pts' })) : el('div', { class: 'luh' }, el('span'), el('span'), el('span', { text: 'Avg' }), el('span', { text: 'ESPN' }), el('span', { text: 'Vegas', title: 'Season average × how much more or less Vegas expects his team to score this week than usual' }), el('span', { text: 'vs Opp', title: 'Fantasy points per game this opponent allows to the position (this league\'s scoring). Rank 32nd = easiest matchup.' }), el('span', { text: 'Pts' }));
     const row = (r) => {
-      const x = by[r.nfl];
+      const x = past ? null : by[r.nfl];
       const opp = x ? `${x.home ? 'vs' : '@'} ${x.them.abbr}` : '';
       const when = r.state === 'pre' ? (x ? kick(x.g.kickoff) : 'Not started') : r.game;
       const wx = x && !x.g.indoor && x.g.weather && r.state === 'pre' ? wxFlag(x.g.weather, r.pos) : '';
@@ -156,19 +157,19 @@
       const tag = ss[r.pid];
       return el('div', { class: 'lur' + (r.state === 'in' ? ' in' : '') + (r.state === 'bye' ? ' bye' : '') + (tag ? ' tag-' + tag.toLowerCase() : '') },
         el('span', { class: 'muted', text: r.slot === 'BN' ? (r.pos === 'D/ST' ? 'D/ST' : r.pos) : r.slot }),
-        el('span', { class: 'who' }, el('span', { class: 'nm' }, r.name, injOf[r.pid] ? el('b', { class: 'inj', title: { Q: 'Questionable', D: 'Doubtful', O: 'Out', IR: 'Injured reserve', SSPD: 'Suspended' }[injOf[r.pid]] || '', text: injOf[r.pid] }) : null, tag ? el('b', { class: 'ss ' + tag.toLowerCase(), text: tag }) : null), el('span', { class: 'st' }, `${r.nfl} ${opp} · ${when}`, wx ? el('em', { text: ' · ' + wx }) : null)),
+        el('span', { class: 'who' }, el('span', { class: 'nm' }, r.name, injOf[r.pid] ? el('b', { class: 'inj', title: { Q: 'Questionable', D: 'Doubtful', O: 'Out', IR: 'Injured reserve', SSPD: 'Suspended' }[injOf[r.pid]] || '', text: injOf[r.pid] }) : null, tag ? el('b', { class: 'ss ' + tag.toLowerCase(), text: tag }) : null), el('span', { class: 'st' }, `${r.nfl}${opp ? ' ' + opp : ''} · ${when}`, wx ? el('em', { text: ' · ' + wx }) : null)),
         el('span', { class: 'num muted', text: a != null ? f1(a) : '–' }),
         el('span', { class: 'num muted', text: r.state === 'bye' ? 'BYE' : f1(r.proj) }),
-        vegCell(r.pid, r.proj),
-        oppCell(x, r.pos),
+        past ? null : vegCell(r.pid, r.proj),
+        past ? null : oppCell(x, r.pos),
         el('span', { class: 'num pts' + (r.state === 'post' && pctOfProj != null ? (pctOfProj >= 0 ? ' up' : ' down') : ''), text: r.state === 'pre' || r.state === 'bye' ? '–' : f1(r.pts) }));
     };
     const bench = (s.bench || []).filter((r) => r.slot !== 'IR');
-    const key = 'bench-' + s.id;
+    const key = 'bench-' + s.id + (past ? '-' + opts.week : '');
     const showBench = !!benchOpen[key];
     const btn = bench.length ? el('button', { class: 'bench-toggle', type: 'button', text: showBench ? `Hide bench ▴` : `Show bench (${bench.length}) ▾` }) : null;
     if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); benchOpen[key] = !benchOpen[key]; const host = btn.closest('.lu'); host.replaceWith(lineupList(s, opts)); });
-    return el('div', { class: 'lu' }, el('b', { text: s.name }), head, ...s.rows.map(row), btn,
+    return el('div', { class: 'lu' + (past ? ' past' : '') }, el('b', { text: s.name }), head, ...s.rows.map(row), btn,
       showBench ? el('div', { class: 'benchrows' }, ...bench.map(row)) : null);
   }
   const benchOpen = {};
@@ -194,10 +195,11 @@
     if (w.temp != null && w.temp <= 25) b.push(`${Math.round(w.temp)}°`);
     return b.join(', ');
   };
-  function sideBlock(s, lead, extra) {
+  function sideBlock(s, lead, extra, past) {
+    const proj = (s.rows || []).reduce((a, r) => a + (r.proj || 0), 0);
     return el('div', { class: 'side' + (lead ? ' lead' : '') },
       el('span', { class: 'nm', text: s.name }), el('span', { class: 'sc', text: f1(s.pts) }),
-      el('span', { class: 'meta', text: `${tm(s.id).owner} · proj ${f1(s.exp)}${extra ? ' · ' + extra : ''} · ${s.playing ? s.playing + ' playing · ' : ''}${s.yetToPlay} to play` }));
+      el('span', { class: 'meta', text: past ? `${tm(s.id).owner} · ESPN projected ${f1(proj)} · final` : `${tm(s.id).owner} · proj ${f1(s.exp)}${extra ? ' · ' + extra : ''} · ${s.playing ? s.playing + ' playing · ' : ''}${s.yetToPlay} to play` }));
   }
   function needLine(me, them, mine) {
     if (me.share === 0 && them.share === 0) return null;
@@ -274,7 +276,41 @@
     const hero = $('#hero');
     const m = myMatch();
     const vm = (D.vegas_matchups || []).find((x) => x.h === team || x.a === team);
-    if (live) {
+    const cur = LIVE ? LIVE.week : D.league.week;
+    const wkSel = el('select', { class: 'wk-pick', 'aria-label': 'Week' }, ...d3.range(cur, 0, -1).map((w) => el('option', { value: w, text: w === cur ? `Week ${w} matchup` : `Week ${w}` })));
+    wkSel.value = heroWeek || cur;
+    wkSel.addEventListener('change', () => { heroWeek = Number(wkSel.value) === cur ? null : Number(wkSel.value); viewWeek(t, myLive()); });
+    const heroHead = el('div', { class: 'hero-h' }, wkSel);
+    if (heroWeek && heroWeek < cur) {
+      const wd = weekCache[heroWeek];
+      if (!wd) {
+        hero.replaceChildren(el('div', { class: 'game hero-card mine' }, heroHead, el('p', { class: 'note', text: `Loading week ${heroWeek}…` })));
+        getJSON(`/api/live?week=${heroWeek}`).then((j) => { weekCache[j.week] = j; if (tab === 'team' && teamView === 'week') viewWeek(t, myLive()); })
+          .catch((e) => { hero.replaceChildren(el('div', { class: 'game hero-card mine' }, heroHead, el('p', { class: 'note', text: `Couldn't load week ${heroWeek} (${e.message}).` }))); });
+      } else {
+        const g = wd.games.find((x) => x.h.id === team || x.a.id === team);
+        if (!g) { hero.replaceChildren(el('div', { class: 'game hero-card mine' }, heroHead, el('p', { class: 'note', text: `No matchup for you in week ${heroWeek}.` }))); }
+        else {
+          const meIsH = g.h.id === team, me = meIsH ? g.h : g.a, them = meIsH ? g.a : g.h;
+          const won = me.pts > them.pts, wk = (t.weeks || []).find((x) => x.wk === heroWeek), ow = (tm(them.id).weeks || []).find((x) => x.wk === heroWeek);
+          const benchBest = (me.bench || []).filter((r) => r.slot !== 'IR').sort((a, b) => b.pts - a.pts)[0];
+          const facts = [];
+          facts.push(`${won ? 'Won' : 'Lost'} by ${f1(Math.abs(me.pts - them.pts))}.`);
+          if (wk) facts.push(`Your best possible lineup: ${f1(wk.opt)}${wk.opt > them.pts && !won ? ' (would have won)' : ''}. ${ord(wk.rank)}-highest score of the week; ESPN projected you for ${f1(wk.proj)}.`);
+          if (ow) facts.push(`${tm(them.id).owner}'s best possible: ${f1(ow.opt)}.`);
+          if (benchBest && benchBest.pts > 0) facts.push(`Top bench score: ${benchBest.name}, ${f1(benchBest.pts)}.`);
+          if (heroOpen == null) heroOpen = window.innerWidth > 700;
+          const tog = el('button', { class: 'lu-toggle', type: 'button', text: heroOpen ? 'Hide lineups ▴' : 'Show both lineups ▾' });
+          tog.addEventListener('click', () => { heroOpen = !heroOpen; viewWeek(t, myLive()); });
+          hero.replaceChildren(el('div', { class: 'game hero-card mine past' + (heroOpen ? ' open' : '') }, heroHead,
+            sideBlock(me, won, '', true), sideBlock(them, !won, '', true),
+            el('div', { class: 'result ' + (won ? 'w' : 'l'), text: won ? 'WIN' : 'LOSS' }),
+            el('p', { class: 'need' }, facts.join(' ')), tog,
+            el('div', { class: 'lineups' }, lineupList(me, { past: true, week: heroWeek }), lineupList(them, { past: true, week: heroWeek })),
+            el('p', { class: 'note legend lineups-only', text: 'Avg = points per game this season. Proj = ESPN projection that week. Green points = beat his projection.' })));
+        }
+      }
+    } else if (live) {
       const meIsH = live.h.id === team;
       const me = meIsH ? live.h : live.a, them = meIsH ? live.a : live.h;
       const hw = Math.round(100 * (meIsH ? live.hwin : 1 - live.hwin));
@@ -287,13 +323,13 @@
       const tog = el('button', { class: 'lu-toggle', type: 'button', text: heroOpen ? 'Hide lineups ▴' : 'Show both lineups ▾' });
       tog.addEventListener('click', () => { heroOpen = !heroOpen; viewWeek(t, myLive()); });
       hero.replaceChildren(el('div', { class: 'game hero-card mine' + (heroOpen ? ' open' : '') },
-        el('div', { class: 'hero-h', text: `Week ${LIVE.week} matchup` }),
+        heroHead,
         sideBlock(me, me.pts > them.pts, vegasMe ? `Vegas ${f1(vegasMe)}` : ''), sideBlock(them, them.pts > me.pts, vegasThem ? `Vegas ${f1(vegasThem)}` : ''),
         ...wpBar(hw, live.done), needLine(me, them, true), stakes, tog,
         el('div', { class: 'lineups' }, lineupList(me), lineupList(them)),
         el('p', { class: 'note legend lineups-only', text: 'Q / D / O = questionable / doubtful / out. Avg = points per game this season. ESPN = ESPN projection. Vegas = his average × how much more or less Vegas expects his team to score than usual (green = Vegas likes him more than ESPN, red = less). vs Opp = points per game the opponent gives up to that position (all of its RBs or WRs combined), ranked 1st (stingiest) to 32nd. Green = soft matchup, red = tough.' })));
     } else if (m) {
-      hero.replaceChildren(el('div', { class: 'game hero-card mine' }, el('div', { class: 'hero-h', text: `Week ${D.league.week}: vs ${tm(m.h === team ? m.a : m.h).name}` }), el('p', { class: 'note', text: 'Loading live lineups…' })));
+      hero.replaceChildren(el('div', { class: 'game hero-card mine' }, heroHead, el('p', { class: 'note', text: `vs ${tm(m.h === team ? m.a : m.h).name}. Loading live lineups…` })));
     } else hero.replaceChildren();
 
     // moves
