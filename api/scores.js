@@ -43,6 +43,11 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
       const b = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
       const game = String(b.game || ''), level = String(b.level || ''), team = Number(b.team), score = Math.floor(Number(b.score));
+      if (b.action === 'remove') { // a manager taking his own score off the board
+        if (!BOARDS[game] || !BOARDS[game].includes(level) || !Number.isInteger(team)) return res.status(400).json({ error: 'Bad request' });
+        await run([['HDEL', `lb:${game}:${level}`, String(team)]]);
+        return res.status(200).json({ ready: true, removed: true, boards: await readBoards(run) });
+      }
       if (!BOARDS[game] || !BOARDS[game].includes(level) || !Number.isInteger(team) || team < 1 || team > 99 || !Number.isFinite(score) || score < 0 || score > MAX[game]) {
         return res.status(400).json({ error: 'Bad score' });
       }

@@ -998,7 +998,22 @@
       el('span', { class: 'lb-r', text: medal[i] || String(i + 1) }),
       el('span', { class: 'lb-n' }, el('b', { text: T[r.id].owner }), el('small', { text: T[r.id].name })),
       el('span', { class: 'lb-s' }, el('b', { text: String(r.score) }), el('small', { text: unit })),
-      el('span', { class: 'lb-d', text: new Date(r.at).toLocaleDateString([], { month: 'short', day: 'numeric' }) })))));
+      el('span', { class: 'lb-d' }, new Date(r.at).toLocaleDateString([], { month: 'short', day: 'numeric' }), r.id === team ? removeBtn(r) : null)))));
+  }
+  function removeBtn(r) {
+    const b = el('button', { class: 'lb-x', type: 'button', text: 'Remove' });
+    b.addEventListener('click', async () => {
+      if (!b.dataset.arm) { b.dataset.arm = '1'; b.textContent = 'Tap again'; setTimeout(() => { if (b.isConnected) { delete b.dataset.arm; b.textContent = 'Remove'; } }, 3000); return; }
+      b.disabled = true;
+      const [g, l] = LB_GAME().split(':');
+      try {
+        const res = await fetch('/api/scores', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'remove', game: g, level: l, team }) });
+        const j = await res.json(); if (j && j.boards) { LB = j; lbAt = Date.now(); }
+        store.set(`lb-synced-${g}:${l}`, String(Number(store.get(`${g}-best-${l}`)) || 0)); // don't offer to re-add it
+      } catch { /* try again later */ }
+      renderLB();
+    });
+    return b;
   }
   function renderWho() {
     const host = $('#play-who');

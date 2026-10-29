@@ -348,7 +348,9 @@ table.cmp td.win { color: var(--good); font-weight: 700; }
 .lb-r { font: 600 18px Oswald, Inter, sans-serif; text-align: center; }
 .lb-n { display: grid; min-width: 0; } .lb-n small { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lb-s { text-align: right; } .lb-s b { font: 600 20px Oswald, Inter, sans-serif; } .lb-s small { color: var(--muted); font-size: 11px; margin-left: 4px; }
-.lb-d { color: var(--muted); font-size: 12px; text-align: right; }
+.lb-d { color: var(--muted); font-size: 12px; text-align: right; display: grid; justify-items: end; gap: 2px; }
+.lb-x { font: 600 11px Inter, sans-serif; color: var(--bad); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
+.lb li { grid-template-columns: 34px 1fr auto 64px; }
 .lb-offer { border: 1px dashed var(--accent); border-radius: 10px; padding: 10px 12px; margin: 8px 0; font-size: 13.5px; }
 .lb-offer p { margin: 0 0 8px; }
 .lb-offer-b { display: flex; gap: 10px; align-items: center; }

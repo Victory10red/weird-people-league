@@ -35,6 +35,7 @@ http.createServer((req, res) => {
     if (req.method === 'POST') {
       let body = ''; req.on('data', (c) => { body += c; }); req.on('end', () => {
         const b = JSON.parse(body || '{}'); const k = `${b.game}:${b.level}`; const bd = (fakeLB[k] ||= {});
+        if (b.action === 'remove') { delete bd[b.team]; return res.end(JSON.stringify({ ready: true, boards: lbOut() })); }
         if (!bd[b.team] || b.score > bd[b.team].s) bd[b.team] = { s: b.score, at: Date.now() };
         res.end(JSON.stringify({ ready: true, boards: lbOut() }));
       }); return;
