@@ -13,7 +13,7 @@
   };
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
-  function mount(host, { names = [], me = 'You', accent = '#c2410c', onEnd = null, onLevel = null } = {}) {
+  function mount(host, { names = [], me = 'You', accent = '#c2410c', onEnd = null, onLevel = null, big = false } = {}) {
     host.replaceChildren();
     const wrap = document.createElement('div'); wrap.className = 'bk';
     const canvas = document.createElement('canvas'); canvas.className = 'bk-cv'; canvas.setAttribute('aria-label', 'Breakaway game field');
@@ -105,7 +105,9 @@
     function drawCarrier(x, y, t, juking) {
       const ph = t * 16, leg = Math.sin(ph) * 4.5, arm = Math.cos(ph) * 3.5;
       ctx.save();
-      ctx.beginPath(); ctx.ellipse(x, y + 17, 13, 5, 0, 0, Math.PI * 2); ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.fill();
+      ctx.beginPath(); ctx.ellipse(x, y + 17, big ? 19 : 13, 5, 0, 0, Math.PI * 2); ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.fill();
+      // big build: widen the body and add a little waddle (cosmetic only; the tackle area is the same)
+      if (big) { ctx.translate(x, y); ctx.rotate(Math.sin(ph / 2) * 0.06); ctx.scale(1.5, 1); ctx.translate(-x, -y); }
       // legs: skin calves, white socks, black cleats
       for (const [dx, off] of [[-5, leg], [5, -leg]]) {
         rr(x + dx - 2.6, y + 6 + off, 5.2, 8, 2); ctx.fillStyle = skin; ctx.fill();
@@ -122,8 +124,9 @@
       // jersey with shoulder pads and number on the back
       rr(x - 10, y - 9, 20, 13, 4); ctx.fillStyle = accent; ctx.fill();
       rr(x - 12.5, y - 12, 25, 7, 3.5); ctx.fill();
+      if (big) { ctx.beginPath(); ctx.ellipse(x, y + 3, 11, 5.5, 0, 0, Math.PI * 2); ctx.fillStyle = accent; ctx.fill(); ctx.beginPath(); ctx.ellipse(x, y + 6.5, 8, 2, 0, 0, Math.PI); ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fill(); }
       if (juking) { ctx.lineWidth = 2; ctx.strokeStyle = '#fde047'; rr(x - 12.5, y - 12, 25, 16, 4); ctx.stroke(); }
-      ctx.fillStyle = '#fff'; ctx.font = '700 9px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('22', x, y - 3);
+      ctx.fillStyle = '#fff'; ctx.font = '700 9px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(big ? '99' : '22', x, y - 3);
       // neck and helmet (from behind)
       rr(x - 3, y - 15, 6, 4, 1.5); ctx.fillStyle = skin; ctx.fill();
       ctx.beginPath(); ctx.arc(x, y - 18, 7, 0, Math.PI * 2); ctx.fillStyle = '#1f2937'; ctx.fill();
