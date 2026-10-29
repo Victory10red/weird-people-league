@@ -970,13 +970,13 @@
     const key = LB_GAME(), host = $('#lb');
     const unit = playGame === 'bk' ? 'yds' : 'in a row';
     $('#lb-title').textContent = playGame === 'bk' ? 'Breakaway leaderboard' : 'Higher or Lower leaderboard';
-    $('#lb-sub').textContent = playGame === 'bk' ? ({ rookie: 'Rookie', pro: 'Pro', hard: 'All-Pro' }[bkLevel]) : HOL_MODES[hol.mode];
+    $('#lb-sub').textContent = playGame === 'bk' ? ({ rookie: 'Rookie', pro: 'Pro', hard: 'All-Pro', extreme: 'Extreme 💀' }[bkLevel]) : HOL_MODES[hol.mode];
     if (!LB) { host.replaceChildren(el('p', { class: 'note', text: 'Loading…' })); loadLB(); return; }
     if (!LB.ready) { host.replaceChildren(el('p', { class: 'note', text: 'The league leaderboard isn\'t switched on yet (it needs a free database in Vercel). Your best score is still saved on this device.' })); return; }
     // scores set on this device before the board existed (or while offline): offer to add them once
     const pending = [];
     if (team && T[team]) {
-      for (const [g, lvls, lab] of [['bk', ['rookie', 'pro', 'hard'], { rookie: 'Breakaway Rookie', pro: 'Breakaway Pro', hard: 'Breakaway All-Pro' }], ['hol', ['week', 'any', 'season'], { week: 'Higher or Lower (same week)', any: 'Higher or Lower (any week)', season: 'Higher or Lower (season)' }]]) {
+      for (const [g, lvls, lab] of [['bk', ['rookie', 'pro', 'hard', 'extreme'], { rookie: 'Breakaway Rookie', pro: 'Breakaway Pro', hard: 'Breakaway All-Pro', extreme: 'Breakaway Extreme' }], ['hol', ['week', 'any', 'season'], { week: 'Higher or Lower (same week)', any: 'Higher or Lower (any week)', season: 'Higher or Lower (season)' }]]) {
         for (const l of lvls) {
           const local = Number(store.get(`${g}-best-${l}`)) || 0, done = Number(store.get(`lb-synced-${g}:${l}`)) || 0;
           const mine = (LB.boards[`${g}:${l}`] || []).find((r) => r.id === team);

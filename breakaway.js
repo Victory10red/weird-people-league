@@ -6,6 +6,8 @@
     rookie: { name: 'Rookie', scroll: 145, spawn: 1.15, chase: 80, turn: 1.8, lead: 0, wave: 1, grow: 0.06 },
     pro: { name: 'Pro', scroll: 185, spawn: 0.8, chase: 125, turn: 2.6, lead: 0.15, wave: 2, grow: 0.08 },
     hard: { name: 'All-Pro (hard)', scroll: 235, spawn: 0.55, chase: 175, turn: 3.6, lead: 0.35, wave: 3, grow: 0.1 },
+    // Extreme: faster field, packs of 4, blitzers that sprint once they're close, and a slower juke recharge
+    extreme: { name: 'Extreme 💀', scroll: 285, spawn: 0.42, chase: 205, turn: 4.4, lead: 0.5, wave: 4, grow: 0.12, blitz: 0.3, jukeCD: 3 },
   };
   const store = {
     get(k) { try { return localStorage.getItem(k); } catch { return null; } },
@@ -32,7 +34,7 @@
     };
     size();
 
-    let level = ['rookie', 'pro', 'hard'].includes(store.get('bk-level')) ? store.get('bk-level') : 'hard';
+    let level = ['rookie', 'pro', 'hard', 'extreme'].includes(store.get('bk-level')) ? store.get('bk-level') : 'hard';
     const SKINS = ['#3d2516', '#5c3a21', '#8d5524', '#c68642', '#f1c27d'];
     let skin = SKINS.includes(store.get('bk-skin')) ? store.get('bk-skin') : '#5c3a21';
     let S = null, raf = 0, last = 0, running = false;
@@ -58,13 +60,13 @@
     juke.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); doJuke(); });
     const onKey = (e) => { if (!running || !host.isConnected) return; if (e.code === 'Space') { e.preventDefault(); doJuke(); } };
     document.addEventListener('keydown', onKey);
-    function doJuke() { if (!running || !S || S.over || S.jukeCD > 0) return; S.jukeT = 0.38; S.jukeCD = 2.2; }
+    function doJuke() { if (!running || !S || S.over || S.jukeCD > 0) return; S.jukeT = 0.38; S.jukeCD = S.L.jukeCD || 2.2; }
 
     // ---------- loop ----------
     function spawn() {
       const L = S.L, n = 1 + Math.floor(Math.random() * L.wave * Math.min(1, 0.35 + S.td * 0.25 + S.t / 60));
       for (let i = 0; i < n; i++) {
-        const kind = Math.random() < L.lead ? 'safety' : 'lb';
+        const roll = Math.random(), kind = roll < (L.blitz || 0) ? 'blitz' : roll < (L.blitz || 0) + L.lead ? 'safety' : 'lb';
         S.defs.push({ x: 20 + Math.random() * (W - 40), y: -20 - i * 26, vx: 0, vy: 0, r: kind === 'safety' ? 12 : 13, kind,
           name: names.length ? names[Math.floor(Math.random() * names.length)] : 'D', spd: L.chase * (0.85 + Math.random() * 0.3) * (kind === 'safety' ? 1.08 : 1) });
       }
@@ -96,7 +98,8 @@
         const want = Math.atan2(ay, ax), cur = Math.atan2(e.vy, e.vx || 0.0001);
         let diff = want - cur; while (diff > Math.PI) diff -= 2 * Math.PI; while (diff < -Math.PI) diff += 2 * Math.PI;
         const ang = (e.vx === 0 && e.vy === 0) ? want : cur + clamp(diff, -L.turn * dt, L.turn * dt);
-        const sp = e.spd * Math.sqrt(S.speedMul) * (S.jukeT > 0 ? 0.55 : 1); // a juke freezes them for a beat
+        const burst = e.kind === 'blitz' ? (ad < 170 ? 1.75 : 0.85) : 1; // blitzers close the last few yards in a hurry
+        const sp = e.spd * burst * Math.sqrt(S.speedMul) * (S.jukeT > 0 ? 0.55 : 1); // a juke freezes them for a beat
         e.vx = Math.cos(ang) * sp; e.vy = Math.sin(ang) * sp;
         e.x += e.vx * dt; e.y += (e.vy + scroll) * dt;
         if (Math.hypot(e.x - S.px, e.y - (S.py - 3)) < e.r + 11 && S.jukeT <= 0.12) { S.over = true; S.tackler = e.name; }
@@ -171,7 +174,7 @@
       // defenders
       for (const e of S.defs) {
         ctx.beginPath(); ctx.arc(e.x, e.y + 3, e.r, 0, Math.PI * 2); ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fill();
-        ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2); ctx.fillStyle = e.kind === 'safety' ? '#111827' : '#1e3a8a'; ctx.fill();
+        ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2); ctx.fillStyle = e.kind === 'blitz' ? '#991b1b' : e.kind === 'safety' ? '#111827' : '#1e3a8a'; ctx.fill();
         ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke();
         ctx.fillStyle = '#fff'; ctx.font = '700 9px Inter, sans-serif'; ctx.fillText(e.name.slice(0, 5).toUpperCase(), e.x, e.y + 0.5);
       }
@@ -188,7 +191,7 @@
       // juke meter
       const ready = S.jukeCD <= 0;
       juke.classList.toggle('ready', ready);
-      juke.style.setProperty('--cd', String(1 - S.jukeCD / 2.2));
+      juke.style.setProperty('--cd', String(1 - S.jukeCD / (S.L.jukeCD || 2.2)));
       if (S.flash > 0) {
         ctx.globalAlpha = Math.min(1, S.flash); ctx.fillStyle = '#fde047'; ctx.font = '600 42px Oswald, Inter, sans-serif'; ctx.textAlign = 'center';
         ctx.fillText('TOUCHDOWN!', W / 2, H * 0.32); ctx.font = '600 14px Inter, sans-serif'; ctx.fillStyle = '#fff'; ctx.fillText('Defense is getting faster…', W / 2, H * 0.32 + 34); ctx.globalAlpha = 1;
@@ -237,11 +240,11 @@
       const go = document.createElement('button'); go.className = 'btn big'; go.type = 'button'; go.textContent = S && S.over ? 'Run it back' : 'Kick off';
       go.addEventListener('click', start);
       const how = document.createElement('p'); how.className = 'bk-how';
-      how.textContent = 'Steer with your mouse or finger. Click, press Space, or tap JUKE to burst past defenders (they freeze for a beat). Run 100 yards, goal line to goal line, for a touchdown; the defense gets faster after each one.';
+      how.textContent = (level === 'extreme' ? 'EXTREME: red blitzers sprint at you once they get close, and your juke takes longer to recharge. ' : '') + 'Steer with your mouse or finger. Click, press Space, or tap JUKE to burst past defenders (they freeze for a beat). Run 100 yards, goal line to goal line, for a touchdown; the defense gets faster after each one.';
       const els = [h, p]; if (sub) { const s2 = document.createElement('div'); s2.className = 'bk-s'; s2.textContent = sub; els.push(s2); }
       els.push(seg, sk, go, how);
       const bb = document.createElement('div'); bb.className = 'bk-best';
-      bb.textContent = `Best on this device: Rookie ${best('rookie')} · Pro ${best('pro')} · All-Pro ${best('hard')} yds`;
+      bb.textContent = `Best on this device: Rookie ${best('rookie')} · Pro ${best('pro')} · All-Pro ${best('hard')} · Extreme ${best('extreme')} yds`;
       els.push(bb);
       overlay.append(...els); overlay.hidden = false; go.focus();
     }

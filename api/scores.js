@@ -3,7 +3,7 @@
 // GET  /api/scores            -> { ready, boards: { 'bk:hard': [{ id, score, at }], ... } }
 // POST /api/scores {game, level, team, score} -> same shape, after saving a personal best
 
-const BOARDS = { bk: ['rookie', 'pro', 'hard'], hol: ['week', 'any', 'season'] };
+const BOARDS = { bk: ['rookie', 'pro', 'hard', 'extreme'], hol: ['week', 'any', 'season'] };
 const MAX = { bk: 20000, hol: 500 }; // sanity caps so a typo or a tampered request can't top the board forever
 
 function redis() {
