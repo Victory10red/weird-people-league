@@ -468,7 +468,7 @@
     const opts = ['ALL', 'QB', 'RB', 'WR', 'TE', 'D/ST', 'K'];
     seg.replaceChildren(...opts.map((p) => { const b = el('button', { 'aria-pressed': String(p === wvPos), text: p }); b.addEventListener('click', () => { wvPos = p; renderWaivers(); }); return b; }));
     const rows = wvPos === 'ALL' ? Object.values(D.waivers).flatMap((l) => l.slice(0, 3)).sort((a, b) => b.ros - a.ros) : D.waivers[wvPos] || [];
-    table($('#t-waivers'), [{ h: 'Player', k: 'name' }, { h: 'Pos', k: 'pos' }, { h: 'NFL', k: 'team' }, { h: 'Bye', k: 'bye_wk', n: 1, f: (v) => v || '–' }, { h: 'ROS', k: 'ros', n: 1 }, { h: 'This wk', k: 'proj', n: 1, f: (v, r) => (r.bye ? 'BYE' : f1(v)), cls: (r) => (r.bye ? 'bad' : '') }, { h: 'Rostered', k: 'owned', n: 1, f: (v) => v + '%' }, { h: '', k: 'status', f: (v) => (v === 'WAIVERS' ? 'Waivers' : 'FA') }], rows, { stick: true });
+    table($('#t-waivers'), [{ h: 'Player', k: 'name' }, { h: 'Pos', k: 'pos' }, { h: 'NFL', k: 'team' }, { h: 'Bye', k: 'bye_wk', n: 1, f: (v) => v || '–' }, { h: 'ROS', k: 'ros', n: 1 }, { h: 'ESPN', k: 'proj', n: 1, f: (v, r) => (r.bye ? 'BYE' : f1(v)), cls: (r) => (r.bye ? 'bad' : '') }, { h: 'Vegas', k: 'vg', n: 1, v: (r) => (r.bye ? -1 : (D.vproj || {})[r.id] ?? null), f: (v, r) => (r.bye ? 'BYE' : v == null ? '–' : f1(v)), cls: (r) => { const v = (D.vproj || {})[r.id]; return r.bye ? 'bad' : v != null && v - r.proj >= 2 ? 'good' : ''; } }, { h: 'Rostered', k: 'owned', n: 1, f: (v) => v + '%' }, { h: '', k: 'status', f: (v) => (v === 'WAIVERS' ? 'Waivers' : 'FA') }], rows, { stick: true });
   }
 
   // ---------- THIS WEEK ----------
