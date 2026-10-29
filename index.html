@@ -28,6 +28,7 @@
     <nav class="tabs wrap" role="tablist">
       <button role="tab" data-tab="team" aria-selected="true">My Team</button>
       <button role="tab" data-tab="scores" aria-selected="false">Scores</button>
+      <button role="tab" data-tab="play" aria-selected="false">🎮 Play</button>
       <button role="tab" data-tab="week" aria-selected="false">This Week</button>
       <button role="tab" data-tab="league" aria-selected="false">League</button>
       <button role="tab" data-tab="trades" aria-selected="false">Trades</button>
@@ -171,6 +172,19 @@
         <div class="card"><h3>Record book</h3><div class="tbl" id="t-records"></div></div>
       </div>
       <div class="card"><h3>All-time standings</h3><div class="tbl" id="t-alltime"></div></div>
+    </section>
+
+    <!-- PLAY -->
+    <section id="play" class="tab" hidden>
+      <div class="hol">
+        <div class="hol-top">
+          <div><h2>Higher or Lower</h2><p class="note">Real fantasy points from this league, in this league's scoring. Does the next player have more or less?</p></div>
+          <div class="hol-score"><div><small>Streak</small><b id="hol-streak">0</b></div><div><small>Best</small><b id="hol-best">0</b></div></div>
+        </div>
+        <div class="seg" id="hol-mode"></div>
+        <div class="hol-board" id="hol-board"></div>
+        <p class="note hol-keys">Tip: on a keyboard, ↑ = Higher, ↓ = Lower.</p>
+      </div>
     </section>
 
     <footer class="foot">Data from ESPN (league, projections, NFL odds feed from DraftKings) and Open-Meteo (weather), refreshed every few minutes. Odds, luck, moves and grades are this app's math. For fun; not affiliated with ESPN or DraftKings.</footer>
