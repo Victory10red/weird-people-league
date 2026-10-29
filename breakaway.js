@@ -33,6 +33,8 @@
     size();
 
     let level = ['rookie', 'pro', 'hard'].includes(store.get('bk-level')) ? store.get('bk-level') : 'hard';
+    const SKINS = ['#3d2516', '#5c3a21', '#8d5524', '#c68642', '#f1c27d'];
+    let skin = SKINS.includes(store.get('bk-skin')) ? store.get('bk-skin') : '#5c3a21';
     let S = null, raf = 0, last = 0, running = false;
     const best = (lv) => Number(store.get('bk-best-' + lv)) || 0;
 
@@ -91,13 +93,43 @@
         const sp = e.spd * Math.sqrt(S.speedMul) * (S.jukeT > 0 ? 0.55 : 1); // a juke freezes them for a beat
         e.vx = Math.cos(ang) * sp; e.vy = Math.sin(ang) * sp;
         e.x += e.vx * dt; e.y += (e.vy + scroll) * dt;
-        if (Math.hypot(e.x - S.px, e.y - S.py) < e.r + 10 && S.jukeT <= 0.12) { S.over = true; S.tackler = e.name; }
+        if (Math.hypot(e.x - S.px, e.y - (S.py - 3)) < e.r + 11 && S.jukeT <= 0.12) { S.over = true; S.tackler = e.name; }
       }
       S.defs = S.defs.filter((e) => e.y < H + 40 && e.x > -40 && e.x < W + 40);
     }
 
     // ---------- drawing ----------
     const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+    // the ball carrier, seen from behind as he runs up the field
+    const rr = (x, y, w, h, r) => { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); };
+    function drawCarrier(x, y, t, juking) {
+      const ph = t * 16, leg = Math.sin(ph) * 4.5, arm = Math.cos(ph) * 3.5;
+      ctx.save();
+      ctx.beginPath(); ctx.ellipse(x, y + 17, 13, 5, 0, 0, Math.PI * 2); ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.fill();
+      // legs: skin calves, white socks, black cleats
+      for (const [dx, off] of [[-5, leg], [5, -leg]]) {
+        rr(x + dx - 2.6, y + 6 + off, 5.2, 8, 2); ctx.fillStyle = skin; ctx.fill();
+        rr(x + dx - 2.8, y + 12 + off, 5.6, 3, 1); ctx.fillStyle = '#f3f4f6'; ctx.fill();
+        rr(x + dx - 3, y + 14.5 + off, 6, 3, 1.5); ctx.fillStyle = '#111'; ctx.fill();
+      }
+      // pants
+      rr(x - 9, y + 2, 18, 7, 3); ctx.fillStyle = '#e5e7eb'; ctx.fill();
+      // swinging arm (left) and ball arm (right)
+      rr(x - 15, y - 7 + arm, 5.5, 12, 2.8); ctx.fillStyle = skin; ctx.fill();
+      rr(x + 9.5, y - 7, 5.5, 10, 2.8); ctx.fillStyle = skin; ctx.fill();
+      ctx.save(); ctx.translate(x + 13, y - 1); ctx.rotate(-0.5); ctx.beginPath(); ctx.ellipse(0, 0, 5.5, 3.4, 0, 0, Math.PI * 2); ctx.fillStyle = '#7c3f12'; ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(-2, 0); ctx.lineTo(2, 0); ctx.stroke(); ctx.restore();
+      // jersey with shoulder pads and number on the back
+      rr(x - 10, y - 9, 20, 13, 4); ctx.fillStyle = accent; ctx.fill();
+      rr(x - 12.5, y - 12, 25, 7, 3.5); ctx.fill();
+      if (juking) { ctx.lineWidth = 2; ctx.strokeStyle = '#fde047'; rr(x - 12.5, y - 12, 25, 16, 4); ctx.stroke(); }
+      ctx.fillStyle = '#fff'; ctx.font = '700 9px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('22', x, y - 3);
+      // neck and helmet (from behind)
+      rr(x - 3, y - 15, 6, 4, 1.5); ctx.fillStyle = skin; ctx.fill();
+      ctx.beginPath(); ctx.arc(x, y - 18, 7, 0, Math.PI * 2); ctx.fillStyle = '#1f2937'; ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.fillRect(x - 1, y - 25, 2, 13);
+      ctx.restore();
+    }
     function draw() {
       const yp = yardPx(), fy = fieldYard(), Y = (k) => YREF() - (k - fy) * yp;
       ctx.fillStyle = '#2f7d32'; ctx.fillRect(0, 0, W, H);
@@ -127,10 +159,7 @@
       }
       // ball carrier
       S.trail.forEach(([x, y], i) => { ctx.beginPath(); ctx.arc(x, y, 3 + i, 0, Math.PI * 2); ctx.fillStyle = `rgba(255,255,255,${S.jukeT > 0 ? 0.08 * i : 0.03 * i})`; ctx.fill(); });
-      ctx.beginPath(); ctx.arc(S.px, S.py + 3, 12, 0, Math.PI * 2); ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fill();
-      ctx.beginPath(); ctx.arc(S.px, S.py, 12, 0, Math.PI * 2); ctx.fillStyle = accent; ctx.fill();
-      ctx.lineWidth = 2.5; ctx.strokeStyle = S.jukeT > 0 ? '#fde047' : '#fff'; ctx.stroke();
-      ctx.save(); ctx.translate(S.px, S.py - 1); ctx.rotate(-0.6); ctx.beginPath(); ctx.ellipse(0, 0, 6, 3.6, 0, 0, Math.PI * 2); ctx.fillStyle = '#7c3f12'; ctx.fill(); ctx.restore();
+      drawCarrier(S.px, S.py, S.t, S.jukeT > 0);
       // HUD
       const yards = Math.floor(S.dist / yp);
       ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(0, 0, W, 34);
@@ -180,12 +209,18 @@
         b.addEventListener('click', () => { level = k; store.set('bk-level', k); showMenu(title, line, sub); });
         seg.append(b);
       }
+      const sk = document.createElement('div'); sk.className = 'bk-skins'; sk.setAttribute('aria-label', 'Player skin tone');
+      for (const c of SKINS) {
+        const b = document.createElement('button'); b.type = 'button'; b.style.background = c; b.setAttribute('aria-pressed', String(c === skin)); b.setAttribute('aria-label', 'Skin tone');
+        b.addEventListener('click', () => { skin = c; store.set('bk-skin', c); showMenu(title, line, sub); });
+        sk.append(b);
+      }
       const go = document.createElement('button'); go.className = 'btn big'; go.type = 'button'; go.textContent = S && S.over ? 'Run it back' : 'Kick off';
       go.addEventListener('click', start);
       const how = document.createElement('p'); how.className = 'bk-how';
       how.textContent = 'Steer with your mouse or finger. Click, press Space, or tap JUKE to burst past defenders (they freeze for a beat). Score every 100 yards; the defense gets faster after each touchdown.';
       const els = [h, p]; if (sub) { const s2 = document.createElement('div'); s2.className = 'bk-s'; s2.textContent = sub; els.push(s2); }
-      els.push(seg, go, how);
+      els.push(seg, sk, go, how);
       const bb = document.createElement('div'); bb.className = 'bk-best';
       bb.textContent = `Best on this device: Rookie ${best('rookie')} · Pro ${best('pro')} · All-Pro ${best('hard')} yds`;
       els.push(bb);
