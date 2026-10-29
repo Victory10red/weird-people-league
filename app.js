@@ -949,9 +949,22 @@
       el('div', { class: 'hval', id: side === 'b' ? 'hol-bval' : null, text: hidden ? '?' : f1(x.v) }),
       el('div', { class: 'hunit', text: 'fantasy points' }));
   }
+  let playGame = ['bk', 'hol'].includes(store.get('play-game')) ? store.get('play-game') : 'bk', bkInst = null;
   function renderPlay() {
+    $$('#play-pick button').forEach((b) => { b.setAttribute('aria-pressed', String(b.dataset.game === playGame)); b.onclick = () => { playGame = b.dataset.game; store.set('play-game', playGame); renderPlay(); }; });
+    $('#play-bk').hidden = playGame !== 'bk'; $('#play-hol').hidden = playGame !== 'hol';
+    if (playGame === 'bk') {
+      if (!bkInst && window.Breakaway) {
+        const mine = team && T[team];
+        bkInst = window.Breakaway.mount($('#play-bk'), { names: D.teams.filter((x) => x.id !== team).map((x) => x.owner), me: mine ? mine.owner : 'Rookie', accent: css('--accent') || '#c2410c' });
+      }
+      return;
+    }
+    renderHol();
+  }
+  function renderHol() {
     if (!D.game || !D.game.players.length) { $('#hol-board').replaceChildren(el('p', { class: 'note', text: 'No games played yet this season.' })); return; }
-    $('#hol-mode').replaceChildren(...Object.entries(HOL_MODES).map(([k, lab]) => { const b = el('button', { 'aria-pressed': String(k === hol.mode), text: lab }); b.addEventListener('click', () => { hol.mode = k; store.set('hol-mode', k); hol.a = null; renderPlay(); }); return b; }));
+    $('#hol-mode').replaceChildren(...Object.entries(HOL_MODES).map(([k, lab]) => { const b = el('button', { 'aria-pressed': String(k === hol.mode), text: lab }); b.addEventListener('click', () => { hol.mode = k; store.set('hol-mode', k); hol.a = null; renderHol(); }); return b; }));
     if (!hol.a || !hol.b) holNew();
     $('#hol-streak').textContent = hol.streak;
     $('#hol-best').textContent = holBest(hol.mode);
@@ -960,7 +973,7 @@
       const s = hol.streak, best = holBest(hol.mode);
       const rank = s >= 15 ? 'Hall of Famer' : s >= 10 ? 'League winner' : s >= 6 ? 'Playoff team' : s >= 3 ? 'Waiver-wire hero' : 'Bench warmer';
       const again = el('button', { class: 'btn big', type: 'button', text: 'Play again' });
-      again.addEventListener('click', () => { holNew(); renderPlay(); });
+      again.addEventListener('click', () => { holNew(); renderHol(); });
       board.replaceChildren(el('div', { class: 'hover' },
         el('div', { class: 'hover-k', text: 'Game over' }),
         el('div', { class: 'hover-s', text: String(s) }),
@@ -998,13 +1011,13 @@
           if (!hol.b) { hol.used = new Set([hol.a.n + hol.a.label]); hol.b = holPick(pool, hol.a); }
           if (hol.b) hol.used.add(hol.b.n + hol.b.label);
         } else hol.over = true;
-        hol.busy = false; renderPlay();
+        hol.busy = false; renderHol();
       }, right ? 700 : 1100);
     };
     requestAnimationFrame(step);
   }
   document.addEventListener('keydown', (e) => {
-    if (tab !== 'play' || e.target.closest('select, input')) return;
+    if (tab !== 'play' || playGame !== 'hol' || e.target.closest('select, input')) return;
     if (e.key === 'ArrowUp') { e.preventDefault(); holGuess(true); }
     if (e.key === 'ArrowDown') { e.preventDefault(); holGuess(false); }
   });

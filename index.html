@@ -176,7 +176,9 @@
 
     <!-- PLAY -->
     <section id="play" class="tab" hidden>
-      <div class="hol">
+      <div class="seg play-pick" id="play-pick"><button data-game="bk">🏈 Breakaway</button><button data-game="hol">⬆⬇ Higher or Lower</button></div>
+      <div id="play-bk" class="play-game" hidden></div>
+      <div class="hol play-game" id="play-hol" hidden>
         <div class="hol-top">
           <div><h2>Higher or Lower</h2><p class="note">Real fantasy points from this league, in this league's scoring. Does the next player have more or less?</p></div>
           <div class="hol-score"><div><small>Streak</small><b id="hol-streak">0</b></div><div><small>Best</small><b id="hol-best">0</b></div></div>
@@ -191,6 +193,7 @@
   </main>
   <div id="tip" class="tip" hidden></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+  <script src="/breakaway.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>
