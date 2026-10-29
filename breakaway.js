@@ -41,13 +41,15 @@
     const reset = () => {
       const L = LEVELS[level];
       S = { L, t: 0, dist: 0, td: 0, speedMul: 1, px: W / 2, py: H * 0.78, tx: W / 2, ty: H * 0.78,
-        defs: [], spawnT: 0.6, jukeT: 0, jukeCD: 0, flash: 0, over: false, tackler: '', trail: [], driveStart: 0 };
+        defs: [], spawnT: 0.6, jukeT: 0, jukeCD: 0, flash: 0, over: false, tackler: '', trail: [], driveStart: 0, driveMax: 0 };
     };
     const yardPx = () => H / 38; // ~38 yards visible
     const YREF = () => H * 0.78; // screen line that marks the ball's field position
     const fieldYard = () => (S.dist - S.driveStart) / yardPx(); // every drive starts on your own goal line: 100 yards to score
     // where the runner himself is on the field (he can be ahead of or behind the reference line)
     const runnerYard = () => fieldYard() + (YREF() - S.py) / yardPx();
+    // yards gained = 100 per touchdown + the furthest the runner has reached on this drive
+    const gained = () => S.td * 100 + Math.floor(clamp(S.driveMax, 0, 100));
 
     // ---------- input ----------
     const setTarget = (cx, cy) => { const r = canvas.getBoundingClientRect(); if (!S) return; S.tx = clamp(cx - r.left, 14, W - 14); S.ty = clamp(cy - r.top, H * 0.35, H - 18); };
@@ -81,7 +83,8 @@
       S.dist += scroll * dt;
       // each drive starts on your own goal line; reaching theirs is a touchdown
       // touchdown the moment the runner crosses their goal line; the next drive starts back on your own goal line
-      if (runnerYard() >= 100) { S.td++; S.flash = 1.4; S.speedMul *= 1 + L.grow; S.defs = []; S.spawnT = 0.9; S.driveStart = S.dist + (YREF() - S.py); }
+      S.driveMax = Math.max(S.driveMax, runnerYard());
+      if (runnerYard() >= 100) { S.td++; S.flash = 1.4; S.speedMul *= 1 + L.grow; S.defs = []; S.spawnT = 0.9; S.driveStart = S.dist + (YREF() - S.py); S.driveMax = 0; }
       S.flash = Math.max(0, S.flash - dt);
       // defenders pursue (in field coordinates they also drift down with the scroll)
       S.spawnT -= dt;
@@ -167,7 +170,7 @@
       S.trail.forEach(([x, y], i) => { ctx.beginPath(); ctx.arc(x, y, 3 + i, 0, Math.PI * 2); ctx.fillStyle = `rgba(255,255,255,${S.jukeT > 0 ? 0.08 * i : 0.03 * i})`; ctx.fill(); });
       drawCarrier(S.px, S.py, S.t, S.jukeT > 0);
       // HUD
-      const yards = Math.floor(S.dist / yp);
+      const yards = gained();
       ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(0, 0, W, 34);
       ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.font = '600 16px Oswald, Inter, sans-serif';
       ctx.fillText(`${yards} YDS`, 12, 17);
@@ -186,7 +189,7 @@
     function frame(now) {
       if (!running) return;
       if (!host.isConnected) { stop(); return; }
-      if (host.offsetParent === null) { stop(); showMenu('Paused', `${Math.floor(S.dist / yardPx())} yards so far`, 'You left the field. Kick off to start a new run.'); return; }
+      if (host.offsetParent === null) { stop(); showMenu('Paused', `${gained()} yards so far`, 'You left the field. Kick off to start a new run.'); return; }
       const dt = Math.min(0.033, (now - last) / 1000 || 0.016); last = now;
       step(dt); draw();
       if (S.over) { endGame(); return; }
@@ -199,7 +202,7 @@
     function stop() { running = false; cancelAnimationFrame(raf); }
     function endGame() {
       stop();
-      const yards = Math.floor(S.dist / yardPx());
+      const yards = gained();
       const prev = best(level), newBest = yards > prev;
       if (newBest) store.set('bk-best-' + level, String(yards));
       if (onEnd) { try { onEnd(level, yards); } catch { /* leaderboard is optional */ } }
@@ -237,7 +240,7 @@
     reset(); draw();
     if (onLevel) onLevel(level);
     showMenu('Breakaway', `${me}, take it to the house.`, 'Defenders are your league-mates.');
-    const onVis = () => { if (document.hidden && running) { stop(); showMenu('Paused', `${Math.floor(S.dist / yardPx())} yards so far`, 'Your run restarts when you kick off.'); } };
+    const onVis = () => { if (document.hidden && running) { stop(); showMenu('Paused', `${gained()} yards so far`, 'Your run restarts when you kick off.'); } };
     document.addEventListener('visibilitychange', onVis);
     return { setName(n) { me = n; }, level: () => level, destroy() { stop(); document.removeEventListener('keydown', onKey); document.removeEventListener('visibilitychange', onVis); } };
   }
