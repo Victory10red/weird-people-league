@@ -349,6 +349,9 @@ table.cmp td.win { color: var(--good); font-weight: 700; }
 .lb-n { display: grid; min-width: 0; } .lb-n small { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lb-s { text-align: right; } .lb-s b { font: 600 20px Oswald, Inter, sans-serif; } .lb-s small { color: var(--muted); font-size: 11px; margin-left: 4px; }
 .lb-d { color: var(--muted); font-size: 12px; text-align: right; }
+.lb-offer { border: 1px dashed var(--accent); border-radius: 10px; padding: 10px 12px; margin: 8px 0; font-size: 13.5px; }
+.lb-offer p { margin: 0 0 8px; }
+.lb-offer-b { display: flex; gap: 10px; align-items: center; }
 .foot { color: var(--muted); font-size: 12px; text-align: center; padding: 20px 0; }
 .skel { height: 90px; border-radius: 12px; background: linear-gradient(90deg, var(--panel) 0%, var(--panel-2) 50%, var(--panel) 100%); background-size: 200% 100%; animation: sk 1.2s infinite; }
 @keyframes sk { to { background-position: -200% 0; } }

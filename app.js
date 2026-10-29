@@ -959,6 +959,7 @@
   }
   async function postScore(game, level, score) {
     if (!team || !(score > 0)) return;
+    if (score > (Number(store.get(`lb-synced-${game}:${level}`)) || 0)) store.set(`lb-synced-${game}:${level}`, String(score));
     try {
       const r = await fetch('/api/scores', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ game, level, team, score }) });
       const j = await r.json(); if (j && j.boards) { LB = j; lbAt = Date.now(); }
@@ -972,10 +973,28 @@
     $('#lb-sub').textContent = playGame === 'bk' ? ({ rookie: 'Rookie', pro: 'Pro', hard: 'All-Pro' }[bkLevel]) : HOL_MODES[hol.mode];
     if (!LB) { host.replaceChildren(el('p', { class: 'note', text: 'Loading…' })); loadLB(); return; }
     if (!LB.ready) { host.replaceChildren(el('p', { class: 'note', text: 'The league leaderboard isn\'t switched on yet (it needs a free database in Vercel). Your best score is still saved on this device.' })); return; }
+    // scores set on this device before the board existed (or while offline): offer to add them once
+    const pending = [];
+    if (team && T[team]) {
+      for (const [g, lvls, lab] of [['bk', ['rookie', 'pro', 'hard'], { rookie: 'Breakaway Rookie', pro: 'Breakaway Pro', hard: 'Breakaway All-Pro' }], ['hol', ['week', 'any', 'season'], { week: 'Higher or Lower (same week)', any: 'Higher or Lower (any week)', season: 'Higher or Lower (season)' }]]) {
+        for (const l of lvls) {
+          const local = Number(store.get(`${g}-best-${l}`)) || 0, done = Number(store.get(`lb-synced-${g}:${l}`)) || 0;
+          const mine = (LB.boards[`${g}:${l}`] || []).find((r) => r.id === team);
+          if (local > 0 && local > done && (!mine || mine.score < local)) pending.push({ g, l, v: local, lab: lab[l], unit: g === 'bk' ? 'yds' : 'in a row' });
+        }
+      }
+    }
+    const offer = pending.length ? (() => {
+      const add = el('button', { class: 'btn', type: 'button', text: `Add as ${T[team].owner}` });
+      const no = el('button', { class: 'linkbtn', type: 'button', text: 'Not mine' });
+      add.addEventListener('click', async () => { add.disabled = true; for (const p of pending) { store.set(`lb-synced-${p.g}:${p.l}`, String(p.v)); await postScore(p.g, p.l, p.v); } renderLB(); });
+      no.addEventListener('click', () => { for (const p of pending) store.set(`lb-synced-${p.g}:${p.l}`, String(p.v)); renderLB(); });
+      return el('div', { class: 'lb-offer' }, el('p', {}, 'Earlier scores on this device: ', el('b', { text: pending.map((p) => `${p.lab} ${p.v} ${p.unit}`).join(', ') }), `. Put them on the board under ${T[team].owner}?`), el('div', { class: 'lb-offer-b' }, add, no));
+    })() : null;
     const rows = (LB.boards[key] || []).filter((r) => T[r.id]);
-    if (!rows.length) { host.replaceChildren(el('p', { class: 'note', text: 'No scores yet. Be the first on the board.' })); return; }
+    if (!rows.length) { host.replaceChildren(...[offer, el('p', { class: 'note', text: 'No scores yet. Be the first on the board.' })].filter(Boolean)); return; }
     const medal = ['🥇', '🥈', '🥉'];
-    host.replaceChildren(el('ol', { class: 'lb' }, ...rows.map((r, i) => el('li', { class: r.id === team ? 'me' : '' },
+    host.replaceChildren(...[offer].filter(Boolean), el('ol', { class: 'lb' }, ...rows.map((r, i) => el('li', { class: r.id === team ? 'me' : '' },
       el('span', { class: 'lb-r', text: medal[i] || String(i + 1) }),
       el('span', { class: 'lb-n' }, el('b', { text: T[r.id].owner }), el('small', { text: T[r.id].name })),
       el('span', { class: 'lb-s' }, el('b', { text: String(r.score) }), el('small', { text: unit })),
