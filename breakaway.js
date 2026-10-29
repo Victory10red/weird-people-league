@@ -45,7 +45,7 @@
     };
     const yardPx = () => H / 38; // ~38 yards visible
     const YREF = () => H * 0.78; // screen line that marks the ball's field position
-    const fieldYard = () => 25 + (S.dist - S.driveStart) / yardPx();
+    const fieldYard = () => (S.dist - S.driveStart) / yardPx(); // every drive starts on your own goal line: 100 yards to score
     // where the runner himself is on the field (he can be ahead of or behind the reference line)
     const runnerYard = () => fieldYard() + (YREF() - S.py) / yardPx();
 
@@ -79,8 +79,8 @@
       S.trail.push([S.px, S.py]); if (S.trail.length > 8) S.trail.shift();
       // field moves down = you gain yards
       S.dist += scroll * dt;
-      // each drive starts at your own 25; reaching their goal line is a touchdown
-      // touchdown the moment the runner crosses the goal line; next drive starts at your own 25
+      // each drive starts on your own goal line; reaching theirs is a touchdown
+      // touchdown the moment the runner crosses their goal line; the next drive starts back on your own goal line
       if (runnerYard() >= 100) { S.td++; S.flash = 1.4; S.speedMul *= 1 + L.grow; S.defs = []; S.spawnT = 0.9; S.driveStart = S.dist + (YREF() - S.py); }
       S.flash = Math.max(0, S.flash - dt);
       // defenders pursue (in field coordinates they also drift down with the scroll)
@@ -203,7 +203,7 @@
       const prev = best(level), newBest = yards > prev;
       if (newBest) store.set('bk-best-' + level, String(yards));
       if (onEnd) { try { onEnd(level, yards); } catch { /* leaderboard is optional */ } }
-      const spot = clamp(Math.round(runnerYard()), 1, 99), where = spot === 50 ? 'midfield' : spot < 50 ? `your own ${spot}` : `their ${100 - spot}`;
+      const spot = clamp(Math.round(runnerYard()), 0, 99), where = spot === 50 ? 'midfield' : spot <= 0 ? 'your own goal line' : spot < 50 ? `your own ${spot}` : `their ${100 - spot}`;
       showMenu(`Tackled by ${S.tackler}!`, `${yards} yards · ${S.td} TD${S.td === 1 ? '' : 's'}${newBest ? ' · new best!' : ` · best ${prev}`}`, `Brought down at ${where}.`);
     }
     function showMenu(title, line, sub) {
@@ -225,7 +225,7 @@
       const go = document.createElement('button'); go.className = 'btn big'; go.type = 'button'; go.textContent = S && S.over ? 'Run it back' : 'Kick off';
       go.addEventListener('click', start);
       const how = document.createElement('p'); how.className = 'bk-how';
-      how.textContent = 'Steer with your mouse or finger. Click, press Space, or tap JUKE to burst past defenders (they freeze for a beat). Score every 100 yards; the defense gets faster after each touchdown.';
+      how.textContent = 'Steer with your mouse or finger. Click, press Space, or tap JUKE to burst past defenders (they freeze for a beat). Run 100 yards, goal line to goal line, for a touchdown; the defense gets faster after each one.';
       const els = [h, p]; if (sub) { const s2 = document.createElement('div'); s2.className = 'bk-s'; s2.textContent = sub; els.push(s2); }
       els.push(seg, sk, go, how);
       const bb = document.createElement('div'); bb.className = 'bk-best';
