@@ -950,21 +950,75 @@
       el('div', { class: 'hunit', text: 'fantasy points' }));
   }
   let playGame = ['bk', 'hol'].includes(store.get('play-game')) ? store.get('play-game') : 'bk', bkInst = null;
+  let LB = null, lbAt = 0, bkLevel = 'hard';
+  const LB_GAME = () => (playGame === 'bk' ? `bk:${bkLevel}` : `hol:${hol.mode}`);
+  async function loadLB(force) {
+    if (!force && LB && Date.now() - lbAt < 60000) return;
+    try { LB = await getJSON('/api/scores'); lbAt = Date.now(); } catch { LB = { ready: false, boards: {} }; }
+    if (tab === 'play') renderLB();
+  }
+  async function postScore(game, level, score) {
+    if (!team || !(score > 0)) return;
+    try {
+      const r = await fetch('/api/scores', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ game, level, team, score }) });
+      const j = await r.json(); if (j && j.boards) { LB = j; lbAt = Date.now(); }
+    } catch { /* offline: personal best is still saved on the device */ }
+    if (tab === 'play') renderLB();
+  }
+  function renderLB() {
+    const key = LB_GAME(), host = $('#lb');
+    const unit = playGame === 'bk' ? 'yds' : 'in a row';
+    $('#lb-title').textContent = playGame === 'bk' ? 'Breakaway leaderboard' : 'Higher or Lower leaderboard';
+    $('#lb-sub').textContent = playGame === 'bk' ? ({ rookie: 'Rookie', pro: 'Pro', hard: 'All-Pro' }[bkLevel]) : HOL_MODES[hol.mode];
+    if (!LB) { host.replaceChildren(el('p', { class: 'note', text: 'Loading…' })); loadLB(); return; }
+    if (!LB.ready) { host.replaceChildren(el('p', { class: 'note', text: 'The league leaderboard isn\'t switched on yet (it needs a free database in Vercel). Your best score is still saved on this device.' })); return; }
+    const rows = (LB.boards[key] || []).filter((r) => T[r.id]);
+    if (!rows.length) { host.replaceChildren(el('p', { class: 'note', text: 'No scores yet. Be the first on the board.' })); return; }
+    const medal = ['🥇', '🥈', '🥉'];
+    host.replaceChildren(el('ol', { class: 'lb' }, ...rows.map((r, i) => el('li', { class: r.id === team ? 'me' : '' },
+      el('span', { class: 'lb-r', text: medal[i] || String(i + 1) }),
+      el('span', { class: 'lb-n' }, el('b', { text: T[r.id].owner }), el('small', { text: T[r.id].name })),
+      el('span', { class: 'lb-s' }, el('b', { text: String(r.score) }), el('small', { text: unit })),
+      el('span', { class: 'lb-d', text: new Date(r.at).toLocaleDateString([], { month: 'short', day: 'numeric' }) })))));
+  }
+  function renderWho() {
+    const host = $('#play-who');
+    if (team && T[team]) {
+      const chg = el('button', { class: 'linkbtn', type: 'button', text: 'Not you?' });
+      chg.addEventListener('click', () => { whoOpen = true; renderPlay(); });
+      if (!whoOpen) { host.replaceChildren(el('div', { class: 'who-bar' }, el('span', {}, 'Playing as ', el('b', { text: T[team].owner }), ` · ${T[team].name}`), chg)); return true; }
+    }
+    host.replaceChildren(el('div', { class: 'who-pick' }, el('h2', { text: 'Who are you?' }), el('p', { class: 'note', text: 'Your scores go on the league leaderboard under this name.' }),
+      el('div', { class: 'pickgrid' }, ...[...D.teams].sort((a, b) => a.owner.localeCompare(b.owner)).map((t) => {
+        const b = el('button', { class: 'pickbtn' }, el('b', { text: t.owner }), el('span', { text: t.name }));
+        b.addEventListener('click', () => { whoOpen = false; if (bkInst) { bkInst.destroy(); bkInst = null; } setTeam(t.id); });
+        return b;
+      }))));
+    return false;
+  }
+  let whoOpen = false;
   function renderPlay() {
+    const ok = renderWho();
+    $('#play-pick').hidden = !ok; $$('.play-game').forEach((g) => { if (!ok) g.hidden = true; }); $('.play-lb').hidden = !ok;
+    if (!ok) return;
+    loadLB();
     $$('#play-pick button').forEach((b) => { b.setAttribute('aria-pressed', String(b.dataset.game === playGame)); b.onclick = () => { playGame = b.dataset.game; store.set('play-game', playGame); renderPlay(); }; });
     $('#play-bk').hidden = playGame !== 'bk'; $('#play-hol').hidden = playGame !== 'hol';
     if (playGame === 'bk') {
       if (!bkInst && window.Breakaway) {
         const mine = team && T[team];
-        bkInst = window.Breakaway.mount($('#play-bk'), { names: D.teams.filter((x) => x.id !== team).map((x) => x.owner), me: mine ? mine.owner : 'Rookie', accent: css('--accent') || '#c2410c' });
+        bkInst = window.Breakaway.mount($('#play-bk'), { names: D.teams.filter((x) => x.id !== team).map((x) => x.owner), me: mine ? mine.owner : 'Rookie', accent: css('--accent') || '#c2410c',
+          onLevel: (lv) => { bkLevel = lv; renderLB(); }, onEnd: (lv, yds) => postScore('bk', lv, yds) });
       }
+      renderLB();
       return;
     }
     renderHol();
+    renderLB();
   }
   function renderHol() {
     if (!D.game || !D.game.players.length) { $('#hol-board').replaceChildren(el('p', { class: 'note', text: 'No games played yet this season.' })); return; }
-    $('#hol-mode').replaceChildren(...Object.entries(HOL_MODES).map(([k, lab]) => { const b = el('button', { 'aria-pressed': String(k === hol.mode), text: lab }); b.addEventListener('click', () => { hol.mode = k; store.set('hol-mode', k); hol.a = null; renderHol(); }); return b; }));
+    $('#hol-mode').replaceChildren(...Object.entries(HOL_MODES).map(([k, lab]) => { const b = el('button', { 'aria-pressed': String(k === hol.mode), text: lab }); b.addEventListener('click', () => { hol.mode = k; store.set('hol-mode', k); hol.a = null; renderHol(); renderLB(); }); return b; }));
     if (!hol.a || !hol.b) holNew();
     $('#hol-streak').textContent = hol.streak;
     $('#hol-best').textContent = holBest(hol.mode);
@@ -1010,7 +1064,7 @@
           hol.a = hol.b; hol.b = holPick(pool, hol.a);
           if (!hol.b) { hol.used = new Set([hol.a.n + hol.a.label]); hol.b = holPick(pool, hol.a); }
           if (hol.b) hol.used.add(hol.b.n + hol.b.label);
-        } else hol.over = true;
+        } else { hol.over = true; postScore('hol', hol.mode, hol.streak); }
         hol.busy = false; renderHol();
       }, right ? 700 : 1100);
     };
@@ -1038,6 +1092,7 @@
     if (!keepScroll) window.scrollTo(0, 0);
   }
   function setTeam(id) {
+    if (bkInst && Number(id) !== team) { bkInst.destroy(); bkInst = null; }
     team = Number(id) || null;
     if (team) store.set('team', String(team));
     const u = new URL(location.href); if (team) u.searchParams.set('team', team); else u.searchParams.delete('team');

@@ -13,7 +13,7 @@
   };
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
-  function mount(host, { names = [], me = 'You', accent = '#c2410c' } = {}) {
+  function mount(host, { names = [], me = 'You', accent = '#c2410c', onEnd = null, onLevel = null } = {}) {
     host.replaceChildren();
     const wrap = document.createElement('div'); wrap.className = 'bk';
     const canvas = document.createElement('canvas'); canvas.className = 'bk-cv'; canvas.setAttribute('aria-label', 'Breakaway game field');
@@ -196,6 +196,7 @@
       const yards = Math.floor(S.dist / yardPx());
       const prev = best(level), newBest = yards > prev;
       if (newBest) store.set('bk-best-' + level, String(yards));
+      if (onEnd) { try { onEnd(level, yards); } catch { /* leaderboard is optional */ } }
       const spot = Math.round(fieldYard()), where = spot === 50 ? 'midfield' : spot < 50 ? `your own ${spot}` : `their ${100 - spot}`;
       showMenu(`Tackled by ${S.tackler}!`, `${yards} yards · ${S.td} TD${S.td === 1 ? '' : 's'}${newBest ? ' · new best!' : ` · best ${prev}`}`, `Brought down at ${where}.`);
     }
@@ -206,7 +207,7 @@
       const seg = document.createElement('div'); seg.className = 'seg bk-seg';
       for (const [k, v] of Object.entries(LEVELS)) {
         const b = document.createElement('button'); b.textContent = v.name; b.setAttribute('aria-pressed', String(k === level));
-        b.addEventListener('click', () => { level = k; store.set('bk-level', k); showMenu(title, line, sub); });
+        b.addEventListener('click', () => { level = k; store.set('bk-level', k); if (onLevel) onLevel(level); showMenu(title, line, sub); });
         seg.append(b);
       }
       const sk = document.createElement('div'); sk.className = 'bk-skins'; sk.setAttribute('aria-label', 'Player skin tone');
@@ -228,10 +229,11 @@
     }
 
     reset(); draw();
+    if (onLevel) onLevel(level);
     showMenu('Breakaway', `${me}, take it to the house.`, 'Defenders are your league-mates.');
     const onVis = () => { if (document.hidden && running) { stop(); showMenu('Paused', `${Math.floor(S.dist / yardPx())} yards so far`, 'Your run restarts when you kick off.'); } };
     document.addEventListener('visibilitychange', onVis);
-    return { destroy() { stop(); document.removeEventListener('keydown', onKey); document.removeEventListener('visibilitychange', onVis); } };
+    return { setName(n) { me = n; }, level: () => level, destroy() { stop(); document.removeEventListener('keydown', onKey); document.removeEventListener('visibilitychange', onVis); } };
   }
   window.Breakaway = { mount };
 })();
