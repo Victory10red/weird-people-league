@@ -46,6 +46,8 @@
     const yardPx = () => H / 38; // ~38 yards visible
     const YREF = () => H * 0.78; // screen line that marks the ball's field position
     const fieldYard = () => 25 + (S.dist - S.driveStart) / yardPx();
+    // where the runner himself is on the field (he can be ahead of or behind the reference line)
+    const runnerYard = () => fieldYard() + (YREF() - S.py) / yardPx();
 
     // ---------- input ----------
     const setTarget = (cx, cy) => { const r = canvas.getBoundingClientRect(); if (!S) return; S.tx = clamp(cx - r.left, 14, W - 14); S.ty = clamp(cy - r.top, H * 0.35, H - 18); };
@@ -78,7 +80,8 @@
       // field moves down = you gain yards
       S.dist += scroll * dt;
       // each drive starts at your own 25; reaching their goal line is a touchdown
-      if (fieldYard() >= 100) { S.td++; S.flash = 1.4; S.speedMul *= 1 + L.grow; S.defs = []; S.driveStart = S.dist; S.spawnT = 0.9; }
+      // touchdown the moment the runner crosses the goal line; next drive starts at your own 25
+      if (runnerYard() >= 100) { S.td++; S.flash = 1.4; S.speedMul *= 1 + L.grow; S.defs = []; S.spawnT = 0.9; S.driveStart = S.dist + (YREF() - S.py); }
       S.flash = Math.max(0, S.flash - dt);
       // defenders pursue (in field coordinates they also drift down with the scroll)
       S.spawnT -= dt;
@@ -200,7 +203,7 @@
       const prev = best(level), newBest = yards > prev;
       if (newBest) store.set('bk-best-' + level, String(yards));
       if (onEnd) { try { onEnd(level, yards); } catch { /* leaderboard is optional */ } }
-      const spot = Math.round(fieldYard()), where = spot === 50 ? 'midfield' : spot < 50 ? `your own ${spot}` : `their ${100 - spot}`;
+      const spot = clamp(Math.round(runnerYard()), 1, 99), where = spot === 50 ? 'midfield' : spot < 50 ? `your own ${spot}` : `their ${100 - spot}`;
       showMenu(`Tackled by ${S.tackler}!`, `${yards} yards · ${S.td} TD${S.td === 1 ? '' : 's'}${newBest ? ' · new best!' : ` · best ${prev}`}`, `Brought down at ${where}.`);
     }
     function showMenu(title, line, sub) {
