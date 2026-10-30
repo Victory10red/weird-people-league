@@ -35,7 +35,7 @@ export default async function handler(req, res) {
       if (b.action === 'remove') {
         if (!BOARDS[game] || !BOARDS[game].includes(level) || !Number.isInteger(team)) return res.status(400).json({ error: 'Bad request' });
         // only the commissioner (unlocked with his PIN) can take scores off the board
-        if (!(await verify(run, ADMIN_TEAM, b.token))) return res.status(403).json({ error: 'Commissioner only' });
+        if (!(await verify(run, ADMIN_TEAM, b.token))) return res.status(403).json({ error: 'App admin only' });
         await run([['HDEL', `lb:${game}:${level}`, String(team)]]);
         return res.status(200).json({ ready: true, removed: true, boards: await readBoards(run) });
       }

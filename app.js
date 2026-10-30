@@ -1071,7 +1071,7 @@
       chg.addEventListener('click', () => { whoOpen = true; renderPlay(); });
       if (!whoOpen) { host.replaceChildren(el('div', { class: 'who-bar' }, el('span', {}, 'Playing as ', el('b', { text: T[ME].owner }), ` · ${T[ME].name}`), chg)); return true; }
     }
-    host.replaceChildren(el('div', { class: 'who-pick' }, el('h2', { text: 'Who are you?' }), el('p', { class: 'note', text: 'Your scores and Dump Log entries go under this name. The commissioner can see when each name last opened the app.' }),
+    host.replaceChildren(el('div', { class: 'who-pick' }, el('h2', { text: 'Who are you?' }), el('p', { class: 'note', text: 'Your scores and Dump Log entries go under this name. The app admin can see when each name last opened the app.' }),
       el('div', { class: 'pickgrid' }, ...[...D.teams].sort((a, b) => a.owner.localeCompare(b.owner)).map((t) => {
         const b = el('button', { class: 'pickbtn' }, el('b', { text: t.owner }), el('span', { text: t.name }));
         b.addEventListener('click', () => { whoOpen = false; setMe(t.id); });
@@ -1112,8 +1112,8 @@
       go.disabled = false; a.value = ''; if (b2) b2.value = ''; a.focus();
     });
     host.replaceChildren(el('div', { class: 'who-pick pin-box' },
-      el('h3', { text: creating ? 'Set a commissioner PIN' : 'Enter your commissioner PIN' }),
-      el('p', { class: 'note', text: creating ? 'Locks the commissioner tools so only you can remove scores or see who’s been on. Type it twice. Needed once per device.' : 'Needed once per device.' }),
+      el('h3', { text: creating ? 'Set your admin PIN' : 'Enter your admin PIN' }),
+      el('p', { class: 'note', text: creating ? 'Locks the admin tools so only you can remove scores or see who’s been on. Type it twice. Needed once per device.' : 'Needed once per device.' }),
       form, err));
   }
   let adminOpen = false;
@@ -1132,14 +1132,14 @@
     if (ME !== ADMIN) { host.replaceChildren(); return; }
     if (!pinTok()) {
       const inner = el('div');
-      const det = el('details', { class: 'card admin' }, el('summary', { text: 'Commissioner tools' }), inner);
+      const det = el('details', { class: 'card admin' }, el('summary', { text: 'Admin tools' }), inner);
       if (adminOpen) det.open = true;
       det.addEventListener('toggle', () => { adminOpen = det.open; });
       host.replaceChildren(det); renderPin(inner);
       return;
     }
     const seenHost = el('div', { class: 'seen' }, el('p', { class: 'note', text: 'Loading…' }));
-    const det = el('details', { class: 'card admin' }, el('summary', { text: 'Commissioner tools' }),
+    const det = el('details', { class: 'card admin' }, el('summary', { text: 'Admin tools' }),
       el('h3', { text: 'Who’s been on' }), el('p', { class: 'note', text: 'By the name each person picked in the app (honor system). Visits count once per 10 minutes.' }), seenHost,
       el('p', { class: 'note', text: 'You can remove any leaderboard score below.' }));
     if (adminOpen) det.open = true;

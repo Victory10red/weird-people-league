@@ -20,7 +20,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true });
     }
     const team = Number(req.query?.team);
-    if (team !== ADMIN_TEAM || !(await verify(run, team, req.query?.token))) return res.status(403).json({ error: 'Commissioner only' });
+    if (team !== ADMIN_TEAM || !(await verify(run, team, req.query?.token))) return res.status(403).json({ error: 'App admin only' });
     const [last, first, visits, pins] = await run([['HGETALL', 'seen:last'], ['HGETALL', 'seen:first'], ['HGETALL', 'seen:visits'], ['HKEYS', 'pins']]);
     const obj = (flat) => { const o = {}; for (let i = 0; i < (flat || []).length; i += 2) o[flat[i]] = Number(flat[i + 1]); return o; };
     const L = obj(last), F = obj(first), V = obj(visits), P = new Set((pins || []).map(String));

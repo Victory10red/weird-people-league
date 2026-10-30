@@ -19,13 +19,13 @@ export default async function handler(req, res) {
     const team = Number(b.team);
     if (!Number.isInteger(team) || team < 1 || team > 99) return res.status(400).json({ error: 'Pick who you are first' });
     if (b.action === 'reset') {
-      if (team !== ADMIN_TEAM || !(await verify(run, team, b.token))) return res.status(403).json({ error: 'Commissioner only' });
+      if (team !== ADMIN_TEAM || !(await verify(run, team, b.token))) return res.status(403).json({ error: 'App admin only' });
       const target = Number(b.target);
       if (!Number.isInteger(target)) return res.status(400).json({ error: 'Who?' });
       await run([['HDEL', 'pins', String(target)], ['DEL', `pinfail:${target}`]]);
       return res.status(200).json({ ok: true });
     }
-    if (team !== ADMIN_TEAM) return res.status(403).json({ error: 'Only the commissioner uses a PIN' });
+    if (team !== ADMIN_TEAM) return res.status(403).json({ error: 'Only the app admin uses a PIN' });
     const pin = String(b.pin || '');
     if (!/^\d{4}$/.test(pin)) return res.status(400).json({ error: 'PIN must be 4 digits' });
     const [h, fails] = await run([['HGET', 'pins', String(team)], ['GET', `pinfail:${team}`]]);
