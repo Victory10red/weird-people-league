@@ -1,7 +1,7 @@
 // NFL Pick'em: everyone picks the winner of every NFL game each week. Picks lock at kickoff.
 // GET  /api/picks?year=2026&week=8&team=4  -> { ready, games, mine, picked, board: { week, season } }
 //      (other people's picks for a game are only revealed once that game kicks off)
-// POST /api/picks { year, week, team, game, pick }   pick = a team abbreviation, or null to clear
+// POST /api/picks { year, week, team, picks: { gameId: abbr } }  locks those picks in for good (games not yet started only)
 import { redis } from '../lib/kv.js';
 import { fetchSlate } from '../lib/week.js';
 
@@ -37,17 +37,23 @@ export default async function handler(req, res) {
     const year = Number(q.year), week = Number(q.week), team = Number(q.team);
     if (!Number.isInteger(year) || year < 2020 || !Number.isInteger(week) || week < 1 || week > 18) return res.status(400).json({ error: 'Bad week' });
     const key = `pick:${year}:${week}`;
-    let games = await fetchSlate(year, week);
+    let games = await fetchSlate(year, week), skippedN = 0;
     if (req.method === 'POST') {
       if (!Number.isInteger(team) || team < 1 || team > 99) return res.status(400).json({ error: 'Pick who you are first' });
       games = await fetchSlate(year, week, 15000); // fresh enough to enforce kickoff
-      const g = games.find((x) => x.id === String(q.game));
-      if (!g) return res.status(400).json({ error: 'No such game' });
-      if (locked(g)) return res.status(409).json({ error: `${g.away.abbr} @ ${g.home.abbr} already kicked off. Picks are locked.` });
-      if (q.pick != null && q.pick !== g.home.abbr && q.pick !== g.away.abbr) return res.status(400).json({ error: 'Pick one of the two teams' });
+      const want = q.picks && typeof q.picks === 'object' ? q.picks : {};
+      if (!Object.keys(want).length) return res.status(400).json({ error: 'Pick at least one game first' });
       const [cur] = await run([['HGET', key, String(team)]]);
       const mine = cur ? JSON.parse(cur) : {};
-      if (q.pick == null) delete mine[g.id]; else mine[g.id] = q.pick;
+      const skipped = [];
+      for (const [gid, abbr] of Object.entries(want)) {
+        const g = games.find((x) => x.id === String(gid));
+        if (!g || (abbr !== g.home.abbr && abbr !== g.away.abbr)) continue;
+        if (mine[g.id]) continue; // already locked in: locked picks never change
+        if (locked(g)) { skipped.push(`${g.away.abbr} @ ${g.home.abbr}`); continue; }
+        mine[g.id] = abbr;
+      }
+      skippedN = skipped.length;
       await run([['HSET', key, String(team), JSON.stringify(mine)], ['EXPIRE', key, 400 * 86400]]);
     }
     // this week's picks, other people's hidden until each game locks
@@ -72,7 +78,7 @@ export default async function handler(req, res) {
       for (const [t, v] of Object.entries(tally(p, r))) { const s = (season[t] ||= { c: 0, n: 0, wk: 0 }); s.c += v.c; s.n += v.n; s.wk++; }
     }
     const rows = (o) => Object.entries(o).map(([t, v]) => ({ id: Number(t), ...v, made: count[t] || 0 })).sort((a, b) => b.c - a.c || a.n - b.n);
-    return res.status(200).json({ ready: true, year, week, games, mine: Number.isInteger(team) ? (all[team] || {}) : {}, picked, made: count,
+    return res.status(200).json({ ready: true, year, week, games, skipped: skippedN, mine: Number.isInteger(team) ? (all[team] || {}) : {}, picked, made: count,
       board: { week: rows(weekBoard), season: rows(season) } });
   } catch (e) {
     return res.status(502).json({ ready: false, error: `Pick'em unavailable (${e.message})` });

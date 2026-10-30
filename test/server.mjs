@@ -58,11 +58,9 @@ http.createServer((req, res) => {
   if (u.pathname === '/api/picks') {
     res.setHeader('content-type', 'application/json');
     if (req.method === 'POST') { let body = ''; req.on('data', (c) => { body += c; }); req.on('end', () => {
-      const b = JSON.parse(body || '{}'); const g = slate.find((x) => x.id === String(b.game));
-      if (!g) { res.statusCode = 400; return res.end('{"error":"No such game"}'); }
-      if (g.state !== 'pre') { res.statusCode = 409; return res.end(JSON.stringify({ error: `${g.away.abbr} @ ${g.home.abbr} already kicked off. Picks are locked.` })); }
-      const m = (fakePicks[b.team] ||= {}); if (b.pick == null) delete m[g.id]; else m[g.id] = b.pick;
-      res.end(JSON.stringify(picksOut(b.team))); }); return; }
+      const b = JSON.parse(body || '{}'); const m = (fakePicks[b.team] ||= {}); let sk = 0;
+      for (const [gid, ab] of Object.entries(b.picks || {})) { const g = slate.find((x) => x.id === gid); if (!g || m[gid]) continue; if (g.state !== 'pre') { sk++; continue; } m[gid] = ab; }
+      res.end(JSON.stringify({ ...picksOut(b.team), skipped: sk })); }); return; }
     return res.end(JSON.stringify(picksOut(Number(u.searchParams.get('team')))));
   }
   if (u.pathname === '/api/talk') {

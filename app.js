@@ -1174,53 +1174,67 @@
   async function loadPickem() {
     const wk = pkWeek || D.league.week;
     try { PK = await getJSON(`/api/picks?year=${D.league.year}&week=${wk}&team=${ME}`); } catch (e) { PK = { ready: false, error: e.message }; }
-    PK.wk = wk; if (tab === 'play' && playGame === 'pick') renderPickem();
+    PK.wk = wk; PK.me = ME; if (tab === 'play' && playGame === 'pick') renderPickem();
   }
-  async function pickTeam(g, abbr) {
+  // picks are a draft on this phone until you lock them in; locked picks never change
+  let pkConfirm = false;
+  const draftKey = () => `pk-draft-${D.league.year}-${PK.wk}-${ME}`;
+  const getDraft = () => { try { return JSON.parse(store.get(draftKey()) || '{}'); } catch { return {}; } };
+  const setDraft = (d) => store.set(draftKey(), JSON.stringify(d));
+  function pickTeam(g, abbr) {
+    const d = getDraft();
+    if (d[g.id] === abbr) delete d[g.id]; else d[g.id] = abbr; // tap again to un-pick
+    setDraft(d); pkMsg = ''; pkConfirm = false; renderPickem();
+  }
+  async function lockIn() {
     if (pkBusy) return;
-    const prev = PK.mine[g.id]; const next = prev === abbr ? null : abbr; // tap your pick again to clear it
-    if (next) PK.mine[g.id] = next; else delete PK.mine[g.id];
-    pkMsg = ''; renderPickem();
+    const d = getDraft(); const n = Object.keys(d).length; if (!n) return;
+    if (!pkConfirm) { pkConfirm = true; renderPickem(); return; }
+    pkBusy = true; pkConfirm = false; pkMsg = '';
     try {
-      const r = await fetch('/api/picks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ year: D.league.year, week: PK.wk, team: ME, game: g.id, pick: next }) });
+      const r = await fetch('/api/picks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ year: D.league.year, week: PK.wk, team: ME, picks: d }) });
       const j = await r.json();
-      if (!r.ok) throw new Error(j.error || 'Could not save that pick');
-      const wk = PK.wk; PK = j; PK.wk = wk;
-    } catch (e) { if (prev) PK.mine[g.id] = prev; else delete PK.mine[g.id]; pkMsg = e.message; }
-    renderPickem();
+      if (!r.ok) throw new Error(j.error || 'Could not lock in your picks');
+      const wk = PK.wk; PK = j; PK.wk = wk; PK.me = ME;
+      const nd = getDraft(); for (const gid of Object.keys(nd)) if (PK.mine[gid] || (PK.games.find((x) => x.id === gid) || {}).state !== 'pre') delete nd[gid]; setDraft(nd);
+      const got = n - (j.skipped || 0);
+      pkMsg = `🔒 Locked in ${got} pick${got === 1 ? '' : 's'}.` + (j.skipped ? ` ${j.skipped} game${j.skipped === 1 ? '' : 's'} had already kicked off.` : '');
+    } catch (e) { pkMsg = e.message; }
+    pkBusy = false; renderPickem();
   }
   function renderPickem() {
     const host = $('#play-pickem');
-    if (!PK || (PK.wk !== (pkWeek || D.league.week))) { host.replaceChildren(el('div', { class: 'card' }, el('p', { class: 'note', text: 'Loading this week’s games…' }))); if (!pkBusy) { pkBusy = true; loadPickem().finally(() => { pkBusy = false; }); } return; }
+    if (!PK || PK.wk !== (pkWeek || D.league.week) || PK.me !== ME) { host.replaceChildren(el('div', { class: 'card' }, el('p', { class: 'note', text: 'Loading this week’s games…' }))); if (!pkBusy) { pkBusy = true; loadPickem().finally(() => { pkBusy = false; }); } return; }
     if (!PK.ready) { host.replaceChildren(el('div', { class: 'card' }, el('p', { class: 'note', text: PK.error || 'Pick’em needs the league database (same one as the leaderboards).' }))); return; }
-    const wk = PK.wk, games = PK.games || [], mine = PK.mine || {};
+    const wk = PK.wk, games = PK.games || [], mine = PK.mine || {}, draft = getDraft();
     const isLocked = (g) => g.state !== 'pre' || Date.now() >= new Date(g.kickoff).getTime();
     const graded = games.filter((g) => g.winner && g.winner !== 'TIE' && mine[g.id]);
     const right = graded.filter((g) => mine[g.id] === g.winner).length;
-    const open = games.filter((g) => !isLocked(g)), openLeft = open.filter((g) => !mine[g.id]).length;
+    for (const gid of Object.keys(draft)) { const g = games.find((x) => x.id === gid); if (!g || mine[gid] || isLocked(g)) delete draft[gid]; }
+    const open = games.filter((g) => !isLocked(g) && !mine[g.id]), openLeft = open.filter((g) => !draft[g.id]).length, nDraft = Object.keys(draft).length;
     const nav = (d, lab) => { const b = el('button', { class: 'btn ghost pk-nav', type: 'button', text: lab, disabled: (wk + d < 1 || wk + d > 18) ? 'disabled' : null }); b.addEventListener('click', () => { pkWeek = wk + d; PK = null; renderPickem(); }); return b; };
     const head = el('div', { class: 'card pk-head' },
-      el('div', { class: 'pk-title' }, nav(-1, '‹'), el('div', {}, el('h2', { text: `Week ${wk} Pick’em` }), el('small', { text: `${Object.keys(mine).length} of ${games.length} picked${graded.length ? ` · ${right}-${graded.length - right} so far` : ''}` })), nav(1, '›')),
-      el('p', { class: 'note', text: openLeft ? `Tap the team you think wins. ${openLeft} game${openLeft === 1 ? '' : 's'} still need${openLeft === 1 ? 's' : ''} a pick. Each pick locks at kickoff; everyone’s picks show once a game starts.` : open.length ? 'All open games picked. You can change any pick until that game kicks off.' : 'Every game this week has kicked off. Picks are locked.' }),
+      el('div', { class: 'pk-title' }, nav(-1, '‹'), el('div', {}, el('h2', { text: `Week ${wk} Pick’em` }), el('small', { text: `${Object.keys(mine).length} of ${games.length} locked in${nDraft ? ` · ${nDraft} not locked yet` : ''}${graded.length ? ` · ${right}-${graded.length - right} so far` : ''}` })), nav(1, '›')),
+      el('p', { class: 'note', text: open.length ? `Tap the team you think wins, then hit Lock in picks. Locked picks can’t be changed. ${openLeft ? `${openLeft} game${openLeft === 1 ? '' : 's'} still open.` : 'Every open game has a pick.'} Everyone’s picks show once a game kicks off.` : 'Every game this week is locked in or has kicked off.' }),
       pkMsg ? el('p', { class: 'pin-err', text: pkMsg }) : null);
     // games grouped by kickoff day
     const day = (g) => new Date(g.kickoff).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
     const groups = []; for (const g of games) { const d = day(g); if (!groups.length || groups[groups.length - 1][0] !== d) groups.push([d, []]); groups[groups.length - 1][1].push(g); }
     const card = (g) => {
-      const lk = isLocked(g), my = mine[g.id], who = (PK.picked && PK.picked[g.id]) || {};
+      const started = isLocked(g), lockedIn = !!mine[g.id], lk = started || lockedIn, my = mine[g.id] || draft[g.id], who = (PK.picked && PK.picked[g.id]) || {};
       const side = (s) => {
         const chosen = my === s.abbr, won = g.winner === s.abbr;
-        const b = el('button', { class: 'pk-team' + (chosen ? ' on' : '') + (g.done ? (won ? ' won' : ' lost') : ''), type: 'button', disabled: lk ? 'disabled' : null, 'aria-pressed': String(chosen) },
+        const b = el('button', { class: 'pk-team' + (chosen ? (lockedIn ? ' on' : ' draft') : '') + (g.done ? (won ? ' won' : ' lost') : ''), type: 'button', disabled: lk ? 'disabled' : null, 'aria-pressed': String(chosen) },
           logo(s.abbr),
           el('div', { class: 'pk-tn' }, el('b', { text: s.abbr }), el('small', { text: s.name })),
           s.score != null ? el('span', { class: 'pk-sc', text: String(s.score) }) : null,
-          chosen ? el('span', { class: 'pk-mark', text: g.done ? (won ? '✅' : '❌') : lk ? '🔒' : '✓' }) : null);
+          chosen ? el('span', { class: 'pk-mark', text: g.done ? (won ? '✅' : '❌') : lockedIn ? '🔒' : '✓' }) : null);
         if (!lk) b.addEventListener('click', () => pickTeam(g, s.abbr));
         return b;
       };
       const t = new Date(g.kickoff).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-      const split = lk && Object.keys(who).length ? el('div', { class: 'pk-split' }, ...[g.away.abbr, g.home.abbr].filter((a) => who[a]).map((a) => el('span', {}, el('b', { text: `${a}: ` }), who[a].map((id) => (T[id] ? T[id].owner : '?')).join(', ')))) : null;
-      return el('div', { class: 'card pk-game' + (my ? ' picked' : '') + (lk ? ' locked' : '') },
+      const split = started && Object.keys(who).length ? el('div', { class: 'pk-split' }, ...[g.away.abbr, g.home.abbr].filter((a) => who[a]).map((a) => el('span', {}, el('b', { text: `${a}: ` }), who[a].map((id) => (T[id] ? T[id].owner : '?')).join(', ')))) : null;
+      return el('div', { class: 'card pk-game' + (my ? ' picked' : '') + (started ? ' locked' : '') },
         el('div', { class: 'pk-meta' }, el('span', { text: g.state === 'pre' ? t : g.status || (g.done ? 'Final' : 'Live') }), g.fav && g.line != null && !g.done ? el('span', { text: `Vegas: ${g.fav} by ${g.line}` }) : null),
         el('div', { class: 'pk-teams' }, side(g.away), el('span', { class: 'pk-at', text: '@' }), side(g.home)), split);
     };
@@ -1236,7 +1250,13 @@
         el('span', { class: 'lb-s' }, el('b', { text: `${r.c}-${r.n - r.c}` })),
         el('span', { class: 'lb-d', text: pkBoard === 'season' ? `${r.wk} wk${r.wk === 1 ? '' : 's'}` : `${r.made} picked` }))))
         : el('p', { class: 'note', text: pkBoard === 'week' ? 'Nobody has picked yet this week. Be first.' : 'No picks yet this season.' }));
-    host.replaceChildren(head, ...body, lb);
+    let bar = null;
+    if (nDraft) {
+      const go = el('button', { class: 'btn big pk-lockbtn' + (pkConfirm ? ' confirm' : ''), type: 'button', text: pkBusy ? 'Locking in…' : pkConfirm ? `Tap again to lock ${nDraft} pick${nDraft === 1 ? '' : 's'} for good` : `🔒 Lock in ${nDraft} pick${nDraft === 1 ? '' : 's'}` });
+      go.addEventListener('click', lockIn);
+      bar = el('div', { class: 'pk-bar' }, el('small', { text: openLeft ? `${openLeft} open game${openLeft === 1 ? '' : 's'} not picked yet. You can lock these now and the rest later.` : 'Locked picks can’t be changed.' }), go);
+    }
+    host.replaceChildren(...[head, ...body, lb, bar].filter(Boolean));
   }
   function renderHol() {
     if (!D.game || !D.game.players.length) { $('#hol-board').replaceChildren(el('p', { class: 'note', text: 'No games played yet this season.' })); return; }

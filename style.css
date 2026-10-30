@@ -565,3 +565,11 @@ table.cmp td.win { color: var(--good); font-weight: 700; }
 .pk-lb .row-head { flex-wrap: wrap; gap: 8px; }
 .pk-lb .seg { margin: 0; }
 @media (max-width: 420px) { .pk-team { grid-template-columns: 28px 1fr auto; padding: 8px; gap: 6px; } .pk-logo { width: 28px; height: 28px; } .pk-tn small { display: none; } }
+
+.pk-team.draft { border-color: var(--accent); border-style: dashed; background: color-mix(in srgb, var(--accent) 7%, var(--panel)); }
+.pk-team.draft .pk-mark { background: var(--panel); color: var(--accent); font-weight: 700; font-size: 12px; padding: 0 5px; border: 1px dashed var(--accent); }
+.pk-bar { position: sticky; bottom: 10px; z-index: 5; margin-top: 12px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 8px 24px rgba(0,0,0,.18); display: grid; gap: 6px; text-align: center; }
+.pk-bar small { color: var(--muted); font-size: 12px; }
+.pk-lockbtn { width: 100%; }
+.pk-lockbtn.confirm { background: #15803d; border-color: #15803d; }
+@media (max-width: 700px) { .pk-bar { bottom: calc(76px + env(safe-area-inset-bottom)); } }
