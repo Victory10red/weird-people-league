@@ -1504,7 +1504,7 @@
     add(F.car && !F.titles.length, F.at && `${o}: ${F.at.w}-${F.at.l} all-time, zero rings. A legacy of absolutely fucking nothing.`);
     add(F.titles.length, `${o} won one title in ${F.titles[0]} and has been riding it like a washed-up high school QB ever since. ${rec} now, champ.`);
     F.recs.filter((r) => r.kind === 'Lowest score').slice(0, 1).forEach((r) => L.push(`${o} owns a league record: lowest score ever, ${f1(r.pts)} in ${r.season} week ${r.wk}. Frame it, hang it over the toilet.`));
-    F.recs.filter((r) => r.kind === 'Closest loss').slice(0, 1).forEach((r) => L.push(`${o} once lost by ${f1(r.margin)} points (${r.season} week ${r.wk}). ${F.He} still checks the box score at night hoping it changed.`));
+    F.recs.filter((r) => r.kind === 'Closest loss').slice(0, 1).forEach((r) => L.push(`${o} once lost by ${f1(Math.abs(r.margin))} points (${r.season} week ${r.wk}). ${F.He} still checks the box score at night hoping it changed.`));
     add(F.paRank <= 3 && !F.winning, `${o} wants you to know ${F.he}'s ${ord(F.paRank)} in points against. Nobody asked, you whiny little bitch. ${rec}.`);
     add(F.myWp != null, `${o}, I'm ${F.myWp}% to beat your ass this week, and honestly that's me being humble.`);
     add(true, F.poops ? `${o} has logged ${F.poops} 💩 on the Dump Log. Finally, something ${F.he}'s productive at.` : `${o} hasn't logged a single 💩 on the Dump Log. Full of shit, literally and figuratively.`);
@@ -1535,7 +1535,7 @@
     { re: /^jacky/i, lines: (F) => [
       `${F.o} is 5'2" and his playoff odds (${F.po}%) are somehow even shorter.`,
       `${F.o} has to stand on the bench to see over his lineup. Makes sense, that's where his ${F.bench} points are.`,
-      `${F.o} can't reach the top shelf or the top half of the standings. ${F.place} place, short king.`,
+      F.seed > 5 ? `${F.o} can't reach the top shelf or the top half of the standings. ${F.place} place, short king.` : `${F.o} is ${F.place} and still can't reach the top shelf. Short king, short-lived.`,
       `${F.n} averages ${F.avg} a week. Like its manager, it comes up short.`,
       F.worst && `${F.o} scored ${f1(F.worst.pts)} in week ${F.worst.wk}. Even his lowlights are 5'2".`,
     ] },
