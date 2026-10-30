@@ -1465,11 +1465,17 @@
       if (st && (!benchSeason || bp.avg - st.avg > benchSeason.diff)) benchSeason = { b: bp, s: st, diff: bp.avg - st.avg };
     }
     const lostLast = last && last.opt ? last.opt - last.pts : 0;
+    const margins = wk.map((w) => ({ ...w, m: w.pts - w.opp_pts }));
+    const closeWins = margins.filter((w) => w.m > 0 && w.m < 5);
+    const skinniest = closeWins.sort((a, b) => a.m - b.m)[0] || null;
+    const beatdown = margins.filter((w) => w.m <= -20).sort((a, b) => a.m - b.m)[0] || null;
+    const lostFinal = (D.champs || []).filter((c) => c.runner_up === t.owner);
+    const benchRank = by('bench_lost');
     const she = /^(darla|jacky)\b/i.test(t.owner);
     return {
       he: she ? 'she' : 'he', He: she ? 'She' : 'He', his: she ? 'her' : 'his', him: she ? 'her' : 'him', guy: she ? 'girl' : 'guy',
       ns: t.name + (/s$/i.test(t.name) ? '’' : '’s'),
-      benchLive, benchSeason, lostLast,
+      benchLive, benchSeason, lostLast, closeWins, skinniest, beatdown, lostFinal, benchRank, top3: (t.seed || 9) <= 3 && t.w > t.l,
       o: t.owner, n: t.name, w: t.w, l: t.l, rec: `${t.w}-${t.l}`, winning: t.w > t.l, place: ord(t.seed || by('w')),
       seed: t.seed, pfRank: ord(t.pf_rank || by('pf')), pfRankN: t.pf_rank || by('pf'), pf: f1(t.pf), pa: f1(t.pa), paRank: by('pa'), avg: f1(t.avg),
       po: Math.round(t.playoffs), luck: t.luck, xw: t.exp_w, bench: Math.round(t.bench_lost), eff: f1(t.eff), effRank: by('eff'),
@@ -1478,9 +1484,31 @@
       lastLine: last ? `${last.pts > last.opp_pts ? 'beat' : 'lost to'} ${own(last.opp)} ${f1(last.pts)}-${f1(last.opp_pts)} in week ${last.wk}` : '',
     };
   }
+  // teams at the top: roast the history, the luck and the choke, not this year's numbers
+  function frontrunner(F) {
+    const { o, n, rec } = F; const L = [];
+    const add = (cond, s) => { if (cond) L.push(s); };
+    const c = F.car || {}, at = F.at || {};
+    add(!F.titles.length && c.playoffs, `${o} has made the playoffs ${c.playoffs} time${c.playoffs === 1 ? '' : 's'} and won exactly zero titles. ${rec} in October means nothing. Ask ${F.his} empty trophy case.`);
+    add(!F.titles.length && !c.playoffs, `${o} is ${rec} and acting brand new. ${F.He}'s never even made the playoffs in this league. Enjoy the view, it's a rental.`);
+    add(!F.titles.length, `Nobody gives a shit about ${rec}. ${o}'s ring count: zero. Talk to me in December.`);
+    F.lostFinal.slice(0, 1).forEach((cf) => L.push(`${o} lost the ${cf.year} championship ${cf.final.replace('–', '-')} to ${cf.owner}. Regular-season merchant. Choke artist. Same movie, new year.`));
+    add(at.w != null && at.l > at.w, `${o} is ${rec} this year and ${at.w}-${at.l} all-time. One hot October doesn't erase a career of absolute dogshit.`);
+    add(c.avg_finish >= 5, `${o}'s average finish in this league is ${ord(Math.round(c.avg_finish))}. ${F.He}'s not a contender, ${F.he}'s a regression waiting to happen.`);
+    add(F.skinniest, F.skinniest && `${o} beat ${F.own(F.skinniest.opp)} by ${f1(F.skinniest.m)} in week ${F.skinniest.wk}. That's not a win, that's a clerical error.`);
+    add(F.closeWins.length >= 2, `${o} has won ${F.closeWins.length} games by less than 5 points. That's not dominance, that's a coin that keeps landing on its edge.`);
+    add(F.beatdown, F.beatdown && `Remember week ${F.beatdown.wk}? ${F.own(F.beatdown.opp)} beat ${o} by ${f1(-F.beatdown.m)}. Bring it up every time ${F.he} starts running ${F.his} mouth.`);
+    add(F.luck > 0.3, `${o} is ${rec} with ${F.xw} expected wins. Lucky ${F.he === 'she' ? 'bitch' : 'son of a bitch'}, and the luck runs out in December.`);
+    add(F.top && F.top.share > 12, F.top && `${o}'s whole season is ${F.top.name} (${f1(F.top.share)}% of ${F.his} points). One tweaked hamstring and ${n} is a ${F.place === '1st' ? 'first-round exit' : 'punchline'}.`);
+    add(true, `Every year somebody peaks in October and gets bounced in round one. ${o}, ${rec}, this is your official notice.`);
+    add(F.myWp != null, `${o}, I'm ${F.myWp}% to beat your ass this week, and I'm sending you back to earth.`);
+    add(F.benchLive, F.benchLive && `${o} is ${rec} and STILL has ${F.benchLive.b.name} (${f1(F.benchLive.b.pts)}) rotting on the bench behind ${F.benchLive.s.name} (${f1(F.benchLive.s.pts)}). Lucky, not good.`);
+    return L.filter(Boolean);
+  }
   const an = (g) => (/^[AEF]/.test(g) ? 'an ' : 'a ') + g;
   function roastLines(F) {
     const { o, n, rec } = F; const L = [];
+    if (F.top3) return frontrunner(F);
     const add = (cond, s) => { if (cond) L.push(s); };
     const gr = (k) => (F.card[k] && F.card[k].g) || '?';
     const bl = F.benchLive, bs = F.benchSeason;
@@ -1494,12 +1522,12 @@
     add(F.worst, F.worst && `${o} dropped a ${f1(F.worst.pts)} in week ${F.worst.wk}. ${F.own(F.worst.opp)} didn't beat ${F.him}, ${F.he} got a forfeit with extra steps.`);
     add(F.last && F.last.pts < F.last.opp_pts, F.last && `${o} ${F.lastLine}. Somebody check on ${F.him}, ${F.he}'s been staring at the box score since Monday.`);
     add(F.last && F.last.pts > F.last.opp_pts, F.last && `${o} ${F.lastLine} and won't shut the fuck up about it. Even a broken clock, bitch.`);
-    add(F.bench > 60, `${o} has left ${F.bench} points on ${F.his} bench this season. That's not a lineup, that's a fucking hostage situation.`);
+    add(F.benchRank <= 5, `${o} has left ${F.bench} points on ${F.his} bench this season. That's not a lineup, that's a fucking hostage situation.`);
     add(F.effRank >= 6, `${o} starts ${F.eff}% of ${F.his} best possible lineup. ${ord(F.effRank)} in the league. A golden retriever picking names out of a hat does better.`);
     add(F.po < 50, `Vegas gives ${o} a ${F.po}% shot at the playoffs. Vegas also takes bets on a seagull winning the Kentucky Derby, and I like the seagull.`);
     add(F.po >= 50, `${o} has ${F.po}% playoff odds and thinks ${F.he}'s safe. Same thing the Titanic said, you overconfident dipshit.`);
     add(F.apl > F.apw, `If ${o} played everyone every week ${F.he}'d be ${F.apw}-${F.apl}. The schedule isn't the problem, ${o}. You are.`);
-    add(F.card.gpa != null, `${o}'s report card: draft ${gr('draft')}, waivers ${gr('wire')}, lineups ${gr('lineup')}. Mom's not putting that one on the fridge.`);
+    add(F.card.gpa != null && F.card.rank >= 5, `${o}'s report card: draft ${gr('draft')}, waivers ${gr('wire')}, lineups ${gr('lineup')}. Mom's not putting that one on the fridge.`);
     add(F.top && F.top.share > 13, F.top && `${F.top.name} is ${f1(F.top.share)}% of ${F.ns} points. Without ${F.him} ${o} is just a ${F.guy} paying league dues for the group chat.`);
     add(F.car && !F.titles.length, F.at && `${o}: ${F.at.w}-${F.at.l} all-time, zero rings. A legacy of absolutely fucking nothing.`);
     add(F.titles.length, `${o} won one title in ${F.titles[0]} and has been riding it like a washed-up high school QB ever since. ${rec} now, champ.`);
@@ -1533,7 +1561,7 @@
       ...F.recs.filter((r) => r.kind === 'Biggest blowout').slice(0, 1).map((r) => `${F.o} has the biggest blowout in league history (${r.season}) and peaked right there, like every bodybuilder at 25. ${F.rec} now.`),
     ] },
     { re: /^jacky/i, lines: (F) => [
-      `${F.o} is 5'2" and her playoff odds (${F.po}%) are somehow even shorter.`,
+      F.po < 50 ? `${F.o} is 5'2" and her playoff odds (${F.po}%) are somehow even shorter.` : `${F.o} is 5'2" and her trophy case is even emptier. ${F.po}% playoff odds, 0 rings, 0 inches of growth since 8th grade.`,
       `${F.o} has to stand on the bench to see over her lineup. Makes sense, that's where her ${F.bench} points are.`,
       F.seed > 5 ? `${F.o} can't reach the top shelf or the top half of the standings. ${F.place} place, short queen.` : `${F.o} is ${F.place} and still can't reach the top shelf. Short queen, short-lived.`,
       `${F.n} averages ${F.avg} a week. Like its manager, it comes up short.`,
@@ -1548,13 +1576,13 @@
     { re: /^justin/i, lines: (F) => [
       `${F.o}'s lineup is like ${F.o}: big, slow, and ${F.bench} points of it sitting on the bench.`,
       `Somebody call SeaWorld, a whale just set his lineup. ${F.o} is ${F.rec}${F.winning ? ' and it is pure luck' : ', it still sucks'}.`,
-      F.winning ? `${F.o} is ${F.rec} and eating it up. Literally. The whole buffet.` : `${F.o} isn't on a losing streak, he's on a buffet streak. Same results: ${F.rec}.`,
+      F.winning ? `${F.o} is ${F.rec} and eating it up. Literally, the whole buffet. Save room for the playoff choke, big man.` : `${F.o} isn't on a losing streak, he's on a buffet streak. Same results: ${F.rec}.`,
       `${F.n} averages ${F.avg} points a week. ${F.o} averages about that many chicken nuggets a sitting.`,
       `${F.o} squints at his lineup every Sunday and still can't see the ${F.bench} points sitting on his bench.`,
-      `${F.o}'s eyes are so squinty he set his lineup by Braille. ${F.rec}, and it shows.`,
+      `${F.o}'s eyes are so squinty he set his lineup by Braille. ${F.winning ? `${F.rec} anyway. Even a blind squirrel finds a nut once a decade.` : `${F.rec}, and it shows.`}`,
       F.benchLive ? `${F.o} squinted at his lineup, missed ${F.benchLive.b.name} going for ${f1(F.benchLive.b.pts)} on the bench, and started ${F.benchLive.s.name} (${f1(F.benchLive.s.pts)}). Open your eyes, big man.` : `${F.o} squints at the waiver wire like it's the fine print on a buffet coupon.`,
-      `Somebody get ${F.o} some glasses. Big, squinty and ${F.place} place.`,
-      `${F.o} drafts like he eats: everything in sight, no plan, ${an((F.card.draft || {}).g || 'F')} by Sunday night.`,
+      `Somebody get ${F.o} some glasses so he can finally see a trophy. Big, squinty and ${F.titles.length ? 'lucky once' : 'zero rings'}.`,
+      ((F.card.draft || {}).gp || 0) >= 3 ? `${F.o} drafts like he eats: everything in sight, no plan, and somehow lucked into ${an(F.card.draft.g)}. Even a whale swallows a good fish sometimes.` : `${F.o} drafts like he eats: everything in sight, no plan, ${an((F.card.draft || {}).g || 'F')} by Sunday night.`,
       ...F.recs.filter((r) => r.kind === 'Lowest score').slice(0, 1).map((r) => `${F.o} owns the record for lowest score ever (${f1(r.pts)}). Only time in his life he went that light.`),
     ] },
     { re: /^mirza/i, lines: (F) => [
