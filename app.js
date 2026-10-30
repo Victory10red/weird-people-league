@@ -1465,7 +1465,7 @@
       if (st && (!benchSeason || bp.avg - st.avg > benchSeason.diff)) benchSeason = { b: bp, s: st, diff: bp.avg - st.avg };
     }
     const lostLast = last && last.opt ? last.opt - last.pts : 0;
-    const she = /^(darla)\b/i.test(t.owner);
+    const she = /^(darla|jacky)\b/i.test(t.owner);
     return {
       he: she ? 'she' : 'he', He: she ? 'She' : 'He', his: she ? 'her' : 'his', him: she ? 'her' : 'him', guy: she ? 'girl' : 'guy',
       ns: t.name + (/s$/i.test(t.name) ? '’' : '’s'),
@@ -1533,11 +1533,11 @@
       ...F.recs.filter((r) => r.kind === 'Biggest blowout').slice(0, 1).map((r) => `${F.o} has the biggest blowout in league history (${r.season}) and peaked right there, like every bodybuilder at 25. ${F.rec} now.`),
     ] },
     { re: /^jacky/i, lines: (F) => [
-      `${F.o} is 5'2" and his playoff odds (${F.po}%) are somehow even shorter.`,
-      `${F.o} has to stand on the bench to see over his lineup. Makes sense, that's where his ${F.bench} points are.`,
-      F.seed > 5 ? `${F.o} can't reach the top shelf or the top half of the standings. ${F.place} place, short king.` : `${F.o} is ${F.place} and still can't reach the top shelf. Short king, short-lived.`,
+      `${F.o} is 5'2" and her playoff odds (${F.po}%) are somehow even shorter.`,
+      `${F.o} has to stand on the bench to see over her lineup. Makes sense, that's where her ${F.bench} points are.`,
+      F.seed > 5 ? `${F.o} can't reach the top shelf or the top half of the standings. ${F.place} place, short queen.` : `${F.o} is ${F.place} and still can't reach the top shelf. Short queen, short-lived.`,
       `${F.n} averages ${F.avg} a week. Like its manager, it comes up short.`,
-      F.worst && `${F.o} scored ${f1(F.worst.pts)} in week ${F.worst.wk}. Even his lowlights are 5'2".`,
+      F.worst && `${F.o} scored ${f1(F.worst.pts)} in week ${F.worst.wk}. Even her lowlights are 5'2".`,
     ] },
     { re: /^carlos/i, lines: (F) => [
       `${F.o} sucks at video games, and fantasy football is just a video game with spreadsheets. Do the math: ${F.rec}.`,
