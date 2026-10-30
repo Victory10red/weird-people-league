@@ -55,8 +55,27 @@
 
     // ---------- input ----------
     const setTarget = (cx, cy) => { const r = canvas.getBoundingClientRect(); if (!S) return; S.tx = clamp(cx - r.left, 14, W - 14); S.ty = clamp(cy - r.top, H * 0.35, H - 18); };
-    canvas.addEventListener('pointermove', (e) => setTarget(e.clientX, e.clientY));
-    canvas.addEventListener('pointerdown', (e) => { setTarget(e.clientX, e.clientY); if (e.pointerType === 'mouse') doJuke(); });
+    // Mouse: the runner chases the cursor. Touch: works like a trackpad, so your thumb can sit anywhere
+    // (below or beside him) and he moves the way you slide it, instead of hiding under your finger.
+    const SENS = 1.35; let drag = null;
+    const isTouch = (e) => e.pointerType === 'touch' || e.pointerType === 'pen';
+    canvas.addEventListener('pointerdown', (e) => {
+      if (!S) return;
+      if (isTouch(e)) { drag = { id: e.pointerId, fx: e.clientX, fy: e.clientY, x: S.px, y: S.py }; S.tx = S.px; S.ty = S.py; try { canvas.setPointerCapture(e.pointerId); } catch { /* fine */ } return; }
+      setTarget(e.clientX, e.clientY); doJuke();
+    });
+    canvas.addEventListener('pointermove', (e) => {
+      if (!S) return;
+      if (isTouch(e)) {
+        if (!drag || drag.id !== e.pointerId) return;
+        S.tx = clamp(drag.x + (e.clientX - drag.fx) * SENS, 14, W - 14);
+        S.ty = clamp(drag.y + (e.clientY - drag.fy) * SENS, H * 0.35, H - 18);
+        return;
+      }
+      setTarget(e.clientX, e.clientY);
+    });
+    const endDrag = (e) => { if (drag && drag.id === e.pointerId) drag = null; };
+    canvas.addEventListener('pointerup', endDrag); canvas.addEventListener('pointercancel', endDrag);
     juke.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); doJuke(); });
     const onKey = (e) => { if (!running || !host.isConnected) return; if (e.code === 'Space') { e.preventDefault(); doJuke(); } };
     document.addEventListener('keydown', onKey);
@@ -240,7 +259,7 @@
       const go = document.createElement('button'); go.className = 'btn big'; go.type = 'button'; go.textContent = S && S.over ? 'Run it back' : 'Kick off';
       go.addEventListener('click', start);
       const how = document.createElement('p'); how.className = 'bk-how';
-      how.textContent = (level === 'extreme' ? 'EXTREME: red blitzers sprint at you once they get close, and your juke takes longer to recharge. ' : '') + 'Steer with your mouse or finger. Click, press Space, or tap JUKE to burst past defenders (they freeze for a beat). Run 100 yards, goal line to goal line, for a touchdown; the defense gets faster after each one.';
+      how.textContent = (level === 'extreme' ? 'EXTREME: red blitzers sprint at you once they get close, and your juke takes longer to recharge. ' : '') + (matchMedia('(pointer: coarse)').matches ? 'Put your thumb anywhere on the field and slide: the runner moves the way you slide, so your finger never covers him. Tap JUKE' : 'Steer with your mouse. Click or press Space') + ' to burst past defenders (they freeze for a beat). Run 100 yards, goal line to goal line, for a touchdown; the defense gets faster after each one.';
       const els = [h, p]; if (sub) { const s2 = document.createElement('div'); s2.className = 'bk-s'; s2.textContent = sub; els.push(s2); }
       els.push(seg, sk, go, how);
       const bb = document.createElement('div'); bb.className = 'bk-best';
