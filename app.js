@@ -1564,6 +1564,16 @@
       `${F.o} walks in like he's got locker-room inside info. The only inside info he has is his boss's Starbucks order. ${F.po}% playoff odds.`,
       `${F.o} acts like he's above this league. ${F.n} is ${F.place}. Sit down.`,
     ] },
+    { re: /^edwin/i, lines: (F) => [
+      `${F.o} has 18 kids and somehow still can't field a full lineup of starters. ${F.bench} points on the bench, ${F.rec}.`,
+      `${F.o} spends every year at Disney, which explains it: ${F.n} is a fucking Mickey Mouse operation.`,
+      `${F.o} sets his lineup like he's managing 18 kids: whoever's yelling loudest starts. ${F.eff}% lineup efficiency.`,
+      `${F.o} has more kids (18) than ${F.n} has ${F.winning ? 'losses' : 'wins'} (${F.winning ? F.l : F.w}). Priorities.`,
+      `Disney calls itself the Happiest Place on Earth because ${F.o} is there instead of setting his lineup. ${F.po}% playoff odds.`,
+      `${F.o} drops a fortune on Disney every year and still drafted ${an((F.card.draft || {}).g || 'F')}. Should've bought a fast pass to the waiver wire.`,
+      F.last && `${F.o} ${F.lastLine}. Even his 18 kids are embarrassed, and they think Goofy is a real dog.`,
+      F.benchLive ? `${F.o} left ${F.benchLive.b.name} (${f1(F.benchLive.b.pts)}) on the bench like he leaves a kid at the Magic Kingdom. Happens every year.` : `${F.o} has lost track of 18 kids at Disney World. Losing track of his roster was easy by comparison.`,
+    ] },
     { re: /^tanner/i, lines: (F) => [
       `${F.o}'s hairline and his playoff odds (${F.po}%) are retreating at the same speed.`,
       `${F.o}'s hairline goes back faster than ${F.ns} ${F.avg} points a week go forward.`,
