@@ -1327,7 +1327,7 @@
   // loads, or you opened a link to a specific tab, it stays away (and tries again next fresh open).
   let welcomeData = null, touched = false;
   const forced = location.hash.includes('welcome');
-  const deepLinked = !!location.hash && !forced;
+  const deepLinked = !!location.hash && !forced && location.hash !== '#team'; // #team is the home-screen app's normal start
   ['pointerdown', 'keydown', 'wheel', 'touchmove'].forEach((ev) => window.addEventListener(ev, () => { touched = true; }, { once: true, passive: true, capture: true }));
   function maybeWelcome() {
     if (!D || !LIVE || welcomeData === 'done') return;
