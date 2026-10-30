@@ -1042,7 +1042,7 @@
       el('span', { class: 'lb-r', text: medal[i] || String(i + 1) }),
       el('span', { class: 'lb-n' }, el('b', { text: T[r.id].owner }), el('small', { text: T[r.id].name })),
       el('span', { class: 'lb-s' }, el('b', { text: String(r.score) }), el('small', { text: unit })),
-      el('span', { class: 'lb-d' }, new Date(r.at).toLocaleDateString([], { month: 'short', day: 'numeric' }), r.id === team || team === ADMIN ? removeBtn(r) : null)))));
+      el('span', { class: 'lb-d' }, new Date(r.at).toLocaleDateString([], { month: 'short', day: 'numeric' }), team === ADMIN && pinTok() ? removeBtn(r) : null)))));
   }
   function removeBtn(r) {
     const b = el('button', { class: 'lb-x', type: 'button', text: 'Remove' });
@@ -1051,7 +1051,7 @@
       b.disabled = true;
       const [g, l] = LB_GAME().split(':');
       try {
-        const res = await fetch('/api/scores', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'remove', game: g, level: l, team: r.id, admin: team === ADMIN && r.id !== team ? ADMIN : undefined, token: pinTok() }) });
+        const res = await fetch('/api/scores', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'remove', game: g, level: l, team: r.id, admin: ADMIN, token: pinTok() }) });
         const j = await res.json(); if (pinFail(j)) return; if (j && j.boards) { LB = j; lbAt = Date.now(); }
         store.set(`lb-synced-${g}:${l}`, String(Number(store.get(`${g}-best-${l}`)) || 0)); // don't offer to re-add it
       } catch { /* try again later */ }
@@ -1064,10 +1064,9 @@
     if (team && T[team]) {
       const chg = el('button', { class: 'linkbtn', type: 'button', text: 'Not you?' });
       chg.addEventListener('click', () => { whoOpen = true; renderPlay(); });
-      if (!whoOpen && pinTok()) { host.replaceChildren(el('div', { class: 'who-bar' }, el('span', {}, '🔒 Playing as ', el('b', { text: T[team].owner }), ` · ${T[team].name}`), chg)); return true; }
-      if (!whoOpen) { renderPin(host, chg); return false; }
+      if (!whoOpen) { host.replaceChildren(el('div', { class: 'who-bar' }, el('span', {}, 'Playing as ', el('b', { text: T[team].owner }), ` · ${T[team].name}`), chg)); return true; }
     }
-    host.replaceChildren(el('div', { class: 'who-pick' }, el('h2', { text: 'Who are you?' }), el('p', { class: 'note', text: 'Your scores go on the league leaderboard under this name.' }),
+    host.replaceChildren(el('div', { class: 'who-pick' }, el('h2', { text: 'Who are you?' }), el('p', { class: 'note', text: 'Your scores and Dump Log entries go under this name. The commissioner can see when each name last opened the app.' }),
       el('div', { class: 'pickgrid' }, ...[...D.teams].sort((a, b) => a.owner.localeCompare(b.owner)).map((t) => {
         const b = el('button', { class: 'pickbtn' }, el('b', { text: t.owner }), el('span', { text: t.name }));
         b.addEventListener('click', () => { whoOpen = false; if (bkInst) { bkInst.destroy(); bkInst = null; } setTeam(t.id); });
@@ -1084,7 +1083,7 @@
     const t = team, who = T[t].owner;
     if (pinHas[t] == null) {
       host.replaceChildren(el('p', { class: 'note', text: 'Checking…' }));
-      getJSON(`/api/pin?team=${t}`).then((j) => { pinHas[t] = j.ready ? !!j.has : 'off'; renderPlay(); }).catch(() => { pinHas[t] = 'off'; renderPlay(); });
+      getJSON(`/api/pin?team=${t}`).then((j) => { pinHas[t] = j.ready ? !!j.has : 'off'; renderAdmin(); }).catch(() => { pinHas[t] = 'off'; renderAdmin(); });
       return;
     }
     if (pinHas[t] === 'off') { host.replaceChildren(el('p', { class: 'note', text: 'Can’t check PINs right now. Try again in a minute.' })); return; }
@@ -1102,16 +1101,15 @@
       try {
         const r = await fetch('/api/pin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ team: t, pin: a.value }) });
         const j = await r.json();
-        if (j.ok && j.token) { store.set('pin-tok-' + t, j.token); pinHas[t] = true; seenAt = 0; pingSeen(); renderPlay(); return; }
+        if (j.ok && j.token) { store.set('pin-tok-' + t, j.token); pinHas[t] = true; adminOpen = true; renderPlay(); return; }
         err.textContent = j.error || 'That didn’t work.';
       } catch { err.textContent = 'Couldn’t reach the server.'; }
       go.disabled = false; a.value = ''; if (b2) b2.value = ''; a.focus();
     });
     host.replaceChildren(el('div', { class: 'who-pick pin-box' },
-      el('h2', { text: creating ? `${who}, pick a 4-digit PIN` : `Hey ${who}, enter your PIN` }),
-      el('p', { class: 'note', text: (creating ? 'It locks your name so nobody else can post scores or logs as you. You’ll only need it once per device. Don’t use your bank PIN.' : 'Only needed once per device.') + ' Unlocking also lets the commissioner see when you last opened the app.' }),
-      creating ? el('p', { class: 'note', text: 'Type it twice.' }) : null, form, err, el('p', { class: 'note' }, (chg.textContent = `Not ${who}?`, chg), creating ? '' : ' · Forgot it? Ask Trevor to reset it.')));
-    setTimeout(() => a.focus(), 50);
+      el('h3', { text: creating ? 'Set a commissioner PIN' : 'Enter your commissioner PIN' }),
+      el('p', { class: 'note', text: creating ? 'Locks the commissioner tools so only you can remove scores or see who’s been on. Type it twice. Needed once per device.' : 'Needed once per device.' }),
+      form, err));
   }
   let adminOpen = false;
   const ago = (ms) => { if (!ms) return 'never'; const m = Math.round((Date.now() - ms) / 60000); if (m < 2) return 'just now'; if (m < 60) return `${m} min ago`; const h = Math.round(m / 60); if (h < 24) return `${h} hr ago`; const d = Math.round(h / 24); return d === 1 ? 'yesterday' : `${d} days ago`; };
@@ -1120,30 +1118,25 @@
       const j = await getJSON(`/api/seen?team=${team}&token=${encodeURIComponent(pinTok())}`);
       const by = Object.fromEntries((j.rows || []).map((r) => [r.id, r]));
       const rows = D.teams.map((x) => ({ x, r: by[x.id] || { last: null, visits: 0, pin: false } })).sort((a, b) => (b.r.last || 0) - (a.r.last || 0));
-      host.replaceChildren(el('table', { class: 'seen-t' }, el('thead', {}, el('tr', {}, el('th', { text: 'Manager' }), el('th', { text: 'Last seen' }), el('th', { class: 'n', text: 'Visits' }), el('th', { text: 'PIN' }))),
-        el('tbody', {}, ...rows.map(({ x, r }) => el('tr', { class: x.id === team ? 'me' : '' }, el('td', { text: x.owner }), el('td', { class: r.last && Date.now() - r.last < 3600000 ? 'good' : '', text: ago(r.last) }), el('td', { class: 'n', text: String(r.visits || 0) }), el('td', { text: r.pin ? '🔒 set' : '— not yet' }))))));
+      host.replaceChildren(el('table', { class: 'seen-t' }, el('thead', {}, el('tr', {}, el('th', { text: 'Manager' }), el('th', { text: 'Last seen' }), el('th', { class: 'n', text: 'Visits' }), el('th', { text: '' }))),
+        el('tbody', {}, ...rows.map(({ x, r }) => el('tr', { class: x.id === team ? 'me' : '' }, el('td', { text: x.owner }), el('td', { class: r.last && Date.now() - r.last < 3600000 ? 'good' : '', text: ago(r.last) }), el('td', { class: 'n', text: String(r.visits || 0) }), el('td', { text: '' }))))));
     } catch (e) { host.replaceChildren(el('p', { class: 'note', text: `Couldn’t load (${e.message}).` })); }
   }
   function renderAdmin() {
     const host = $('#play-admin');
-    if (team !== ADMIN || !pinTok()) { host.replaceChildren(); return; }
-    const sel = el('select', { class: 'wk-pick', 'aria-label': 'Manager' }, ...D.teams.filter((x) => x.id !== ADMIN).sort((a, b) => a.owner.localeCompare(b.owner)).map((x) => el('option', { value: x.id, text: x.owner })));
-    const btn = el('button', { class: 'btn', type: 'button', text: 'Reset PIN' }), msg = el('span', { class: 'note' });
-    btn.addEventListener('click', async () => {
-      if (!btn.dataset.arm) { btn.dataset.arm = '1'; btn.textContent = `Reset ${T[sel.value].owner}'s PIN?`; return; }
-      delete btn.dataset.arm; btn.disabled = true;
-      try {
-        const r = await fetch('/api/pin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'reset', target: Number(sel.value), team, token: pinTok() }) });
-        const j = await r.json(); msg.textContent = j.ok ? `${T[sel.value].owner} can set a new PIN next time he plays.` : (j.error || 'Didn’t work.');
-        delete pinHas[Number(sel.value)];
-      } catch { msg.textContent = 'Couldn’t reach the server.'; }
-      btn.disabled = false; btn.textContent = 'Reset PIN';
-    });
+    if (team !== ADMIN) { host.replaceChildren(); return; }
+    if (!pinTok()) {
+      const inner = el('div');
+      const det = el('details', { class: 'card admin' }, el('summary', { text: 'Commissioner tools' }), inner);
+      if (adminOpen) det.open = true;
+      det.addEventListener('toggle', () => { adminOpen = det.open; });
+      host.replaceChildren(det); renderPin(inner);
+      return;
+    }
     const seenHost = el('div', { class: 'seen' }, el('p', { class: 'note', text: 'Loading…' }));
     const det = el('details', { class: 'card admin' }, el('summary', { text: 'Commissioner tools' }),
-      el('h3', { text: 'Who’s been on' }), el('p', { class: 'note', text: 'Managers who unlocked with their PIN. Visits count once per 10 minutes.' }), seenHost,
-      el('h3', { class: 'tp-sub', text: 'Reset a PIN' }), el('p', { class: 'note', text: 'For a forgotten PIN or a name someone else grabbed. You can also remove any leaderboard score below.' }),
-      el('div', { class: 'admin-row' }, sel, btn, msg));
+      el('h3', { text: 'Who’s been on' }), el('p', { class: 'note', text: 'By the name each person picked in the app (honor system). Visits count once per 10 minutes.' }), seenHost,
+      el('p', { class: 'note', text: 'You can remove any leaderboard score below.' }));
     if (adminOpen) det.open = true;
     det.addEventListener('toggle', () => { adminOpen = det.open; if (det.open) loadSeen(seenHost); });
     if (det.open) loadSeen(seenHost);
@@ -1337,6 +1330,7 @@
     if (!keepScroll) window.scrollTo(0, 0);
   }
   function setTeam(id) {
+    seenAt = 0; setTimeout(pingSeen, 0);
     if (bkInst && Number(id) !== team) { bkInst.destroy(); bkInst = null; }
     team = Number(id) || null;
     if (team) store.set('team', String(team));
@@ -1360,10 +1354,9 @@
   let loadedOnce = false;
   let seenAt = 0;
   function pingSeen() {
-    const tok = team && store.get('pin-tok-' + team);
-    if (!tok || Date.now() - seenAt < 10 * 60000) return;
+    if (!team || Date.now() - seenAt < 10 * 60000) return;
     seenAt = Date.now();
-    fetch('/api/seen', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ team, token: tok }) }).catch(() => {});
+    fetch('/api/seen', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ team }) }).catch(() => {});
   }
   document.addEventListener('visibilitychange', () => { if (!document.hidden) pingSeen(); });
   async function loadLeague() {

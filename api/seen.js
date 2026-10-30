@@ -1,5 +1,5 @@
-// "Last seen" for the commissioner. Only managers who unlocked with their PIN are recorded.
-// POST /api/seen { team, token }            -> records a visit (at most one per 10 minutes)
+// "Last seen" for the commissioner, by the name each person picked in the app (honor system).
+// POST /api/seen { team }                    -> records a visit (at most one per 10 minutes)
 // GET  /api/seen?team=4&token=...           -> commissioner only: { rows: [{ id, last, first, visits, pin }] }
 import { redis } from '../lib/kv.js';
 import { verify, ADMIN_TEAM } from '../lib/auth.js';
@@ -12,7 +12,7 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
       const b = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
       const team = Number(b.team);
-      if (!Number.isInteger(team) || !(await verify(run, team, b.token))) return res.status(401).json({ error: 'PIN needed' });
+      if (!Number.isInteger(team) || team < 1 || team > 99) return res.status(400).json({ error: 'team?' });
       const now = Date.now(), k = String(team);
       const [last] = await run([['HGET', 'seen:last', k]]);
       if (!last || now - Number(last) > 10 * 60000) await run([['HINCRBY', 'seen:visits', k, 1]]);

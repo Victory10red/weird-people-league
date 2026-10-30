@@ -25,6 +25,7 @@ export default async function handler(req, res) {
       await run([['HDEL', 'pins', String(target)], ['DEL', `pinfail:${target}`]]);
       return res.status(200).json({ ok: true });
     }
+    if (team !== ADMIN_TEAM) return res.status(403).json({ error: 'Only the commissioner uses a PIN' });
     const pin = String(b.pin || '');
     if (!/^\d{4}$/.test(pin)) return res.status(400).json({ error: 'PIN must be 4 digits' });
     const [h, fails] = await run([['HGET', 'pins', String(team)], ['GET', `pinfail:${team}`]]);
