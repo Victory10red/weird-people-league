@@ -443,6 +443,7 @@ table.cmp td.win { color: var(--good); font-weight: 700; }
 .wl-nm { display: grid; min-width: 0; } .wl-nm b { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .wl-nm small { color: var(--muted); font-size: 11.5px; }
 .wl-pts { font: 600 18px Oswald, Inter, sans-serif; }
 .wl-poopbox { text-align: center; }
+.wl-off { display: block; margin: 10px auto 0; font-size: 13px; color: var(--muted); }
 .wl-poop { width: 100%; font: 700 16px Inter, sans-serif; color: #fff; background: radial-gradient(circle at 30% 30%, #a16207, #78350f 75%); border: 0; border-radius: 14px; padding: 14px; cursor: pointer; }
 .wl-poop:disabled { opacity: .8; }
 .wl-pb { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; font-weight: 600; font-size: 13.5px; }

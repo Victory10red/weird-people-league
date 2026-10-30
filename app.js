@@ -1322,13 +1322,21 @@
   }
 
 
-  // ---------- welcome sheet: opens once a day with the week's top performers and the Dump Log ----------
-  let welcomeData = null;
+  // ---------- welcome sheet: only on the first open of the day, before you start using the app ----------
+  // It never interrupts: if you've already tapped, scrolled or switched tabs by the time the data
+  // loads, or you opened a link to a specific tab, it stays away (and tries again next fresh open).
+  let welcomeData = null, touched = false;
+  const forced = location.hash.includes('welcome');
+  const deepLinked = !!location.hash && !forced;
+  ['pointerdown', 'keydown', 'wheel', 'touchmove'].forEach((ev) => window.addEventListener(ev, () => { touched = true; }, { once: true, passive: true, capture: true }));
   function maybeWelcome() {
     if (!D || !LIVE || welcomeData === 'done') return;
+    welcomeData = 'done'; // at most once per open; returning to the app later never brings it back
     const today = dayKey(Date.now());
-    if (ME && store.get('welcome-day') === today && !location.hash.includes('welcome')) { welcomeData = 'done'; return; }
-    welcomeData = 'done'; store.set('welcome-day', today);
+    if (ME && !forced) { // first-timers still get it, since that's where they pick who they are
+      if (store.get('welcome-off') === '1' || store.get('welcome-day') === today || touched || deepLinked) return;
+    }
+    store.set('welcome-day', today);
     $('#welcome').hidden = false; document.body.classList.add('noscroll');
     loadPoop(); renderWelcome();
   }
@@ -1389,6 +1397,8 @@
     }
     const go = el('button', { class: 'btn big', type: 'button', text: 'Let’s go' });
     go.addEventListener('click', closeWelcome);
+    const off = el('button', { class: 'linkbtn wl-off', type: 'button', text: 'Don’t show this anymore' });
+    off.addEventListener('click', () => { store.set('welcome-off', '1'); closeWelcome(); });
     const x = el('button', { class: 'install-x wl-x', type: 'button', 'aria-label': 'Close', text: '✕' });
     x.addEventListener('click', closeWelcome);
     host.onclick = (e) => { if (e.target === host) closeWelcome(); };
@@ -1397,8 +1407,9 @@
       mline,
       el('h3', { text: `Top performers · Week ${wk}${wk === cur && LIVE.anyLive ? ' (live)' : ''}` }), topsEl,
       el('h3', { text: '💩 Dump Log' }), poopEl,
-      go));
+      go, off));
   }
+  function openWelcome() { store.set('welcome-off', ''); welcomeData = null; $('#more-sheet').hidden = true; $('#welcome').hidden = false; document.body.classList.add('noscroll'); welcomeData = 'done'; loadPoop(); renderWelcome(); }
 
 
   // ---------- TRASH TALK ----------
@@ -1599,7 +1610,8 @@
   }
   $$('.tabs button').forEach((b) => b.addEventListener('click', () => show(b.dataset.tab)));
   // phone: bottom tab bar + "More" sheet
-  $$('.bnav button[data-tab], .more-card button').forEach((b) => b.addEventListener('click', () => show(b.dataset.tab)));
+  $$('.bnav button[data-tab], .more-card button[data-tab]').forEach((b) => b.addEventListener('click', () => show(b.dataset.tab)));
+  $('#more-welcome').addEventListener('click', openWelcome);
   $('#bnav-more').addEventListener('click', () => { $('#more-sheet').hidden = !$('#more-sheet').hidden; });
   $('#more-sheet').addEventListener('click', (e) => { if (e.target.id === 'more-sheet') $('#more-sheet').hidden = true; });
   // "add to home screen" nudge on phones, once, unless already installed
