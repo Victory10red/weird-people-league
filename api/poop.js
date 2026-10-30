@@ -3,6 +3,7 @@
 // POST /api/poop { team }              -> log one (at most one per 2 minutes per person)
 // POST /api/poop { team, action:'undo'} -> remove that person's most recent entry if it's under 10 minutes old
 import { redis } from '../lib/kv.js';
+import { verify } from '../lib/auth.js';
 
 const KEY = 'poop:log', KEEP = 20000;
 const parse = (arr) => (arr || []).map((x) => { try { return JSON.parse(x); } catch { return null; } }).filter(Boolean);
@@ -16,6 +17,7 @@ export default async function handler(req, res) {
       const b = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
       const team = Number(b.team);
       if (!Number.isInteger(team) || team < 1 || team > 99) return res.status(400).json({ error: 'Pick who you are first' });
+      if (!(await verify(run, team, b.token))) return res.status(401).json({ error: 'Enter your PIN first', pin: true });
       const [recent] = await run([['LRANGE', KEY, 0, 199]]);
       const raw = recent || [], mineIdx = parse(raw).findIndex((e) => e.t === team);
       const last = mineIdx >= 0 ? parse([raw[mineIdx]])[0] : null;
