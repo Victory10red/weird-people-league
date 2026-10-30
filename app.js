@@ -1574,13 +1574,6 @@
       F.last && `${F.o} ${F.lastLine}. Even his 18 kids are embarrassed, and they think Goofy is a real dog.`,
       F.benchLive ? `${F.o} left ${F.benchLive.b.name} (${f1(F.benchLive.b.pts)}) on the bench like he leaves a kid at the Magic Kingdom. Happens every year.` : `${F.o} has lost track of 18 kids at Disney World. Losing track of his roster was easy by comparison.`,
     ] },
-    { re: /^tanner/i, lines: (F) => [
-      `${F.o}'s hairline and his playoff odds (${F.po}%) are retreating at the same speed.`,
-      `${F.o}'s hairline goes back faster than ${F.ns} ${F.avg} points a week go forward.`,
-      `${F.o}'s forehead has more real estate than his win column (${F.w}).`,
-      `${F.n} is like ${F.o}'s hairline: there at the start of the season, gone by week ${(F.last && F.last.wk) || 8}.`,
-      ...F.recs.filter((r) => r.kind === 'Lowest score').slice(0, 1).map((r) => `${F.o} put up ${f1(r.pts)} in ${r.season}, a league record low. Even lower than his hairline. Barely.`),
-    ] },
   ];
   let lastRoast = '';
   function roast(tid) {
