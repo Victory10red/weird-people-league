@@ -1127,6 +1127,31 @@
         el('tbody', {}, ...rows.map(({ x, r }) => el('tr', { class: x.id === ME ? 'me' : '' }, el('td', { text: x.owner }), el('td', { class: r.last && Date.now() - r.last < 3600000 ? 'good' : '', text: ago(r.last) }), el('td', { class: 'n', text: String(r.visits || 0) }), el('td', { text: '' }))))));
     } catch (e) { host.replaceChildren(el('p', { class: 'note', text: `Couldn’t load (${e.message}).` })); }
   }
+  // admin: wipe one person's Pick'em picks for the week being viewed (they can re-pick games not yet started)
+  let pkResetArm = null;
+  function pickAdmin() {
+    const box = el('div', { class: 'pk-admin' }, el('h3', { text: 'Pick’em picks' }));
+    if (!PK || !PK.ready) { box.append(el('p', { class: 'note', text: 'Open Pick’em once to manage picks.' })); return box; }
+    const who = Object.entries(PK.made || {}).filter(([, n]) => n > 0).map(([t, n]) => [Number(t), n]).filter(([t]) => T[t]);
+    if (!who.length) { box.append(el('p', { class: 'note', text: `Nobody has locked in picks for week ${PK.wk} yet.` })); return box; }
+    box.append(el('p', { class: 'note', text: `Week ${PK.wk}. Reset wipes that person’s picks for the week; they can re-pick any game that hasn’t kicked off.` }));
+    for (const [t, n] of who) {
+      const b = el('button', { class: 'linkbtn', type: 'button', text: pkResetArm === t ? `Tap again to wipe ${T[t].owner}’s picks` : 'Reset' });
+      b.addEventListener('click', async () => {
+        if (pkResetArm !== t) { pkResetArm = t; renderAdmin(); return; }
+        pkResetArm = null; b.disabled = true; b.textContent = 'Resetting…';
+        try {
+          const r = await fetch('/api/picks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'reset', year: D.league.year, week: PK.wk, target: t, team: ME, token: pinTok() }) });
+          const j = await r.json(); if (pinFail(j)) return;
+          if (!r.ok) throw new Error(j.error || 'Reset failed');
+          const wk = PK.wk; PK = null; pkWeek = wk; await loadPickem();
+        } catch (e) { pkMsg = e.message; }
+        renderAdmin(); if (playGame === 'pick') renderPickem();
+      });
+      box.append(el('div', { class: 'admin-row' }, el('span', { text: `${T[t].owner}: ${n} pick${n === 1 ? '' : 's'}` }), b));
+    }
+    return box;
+  }
   function renderAdmin() {
     const host = $('#play-admin');
     if (ME !== ADMIN) { host.replaceChildren(); return; }
@@ -1141,7 +1166,7 @@
     const seenHost = el('div', { class: 'seen' }, el('p', { class: 'note', text: 'Loading…' }));
     const det = el('details', { class: 'card admin' }, el('summary', { text: 'Admin tools' }),
       el('h3', { text: 'Who’s been on' }), el('p', { class: 'note', text: 'By the name each person picked in the app (honor system). Visits count once per 10 minutes.' }), seenHost,
-      el('p', { class: 'note', text: 'You can remove any leaderboard score below.' }));
+      el('p', { class: 'note', text: 'You can remove any leaderboard score below.' }), pickAdmin());
     if (adminOpen) det.open = true;
     det.addEventListener('toggle', () => { adminOpen = det.open; if (det.open) loadSeen(seenHost); });
     if (det.open) loadSeen(seenHost);
@@ -1174,7 +1199,7 @@
   async function loadPickem() {
     const wk = pkWeek || D.league.week;
     try { PK = await getJSON(`/api/picks?year=${D.league.year}&week=${wk}&team=${ME}`); } catch (e) { PK = { ready: false, error: e.message }; }
-    PK.wk = wk; PK.me = ME; if (tab === 'play' && playGame === 'pick') renderPickem();
+    PK.wk = wk; PK.me = ME; if (tab === 'play' && playGame === 'pick') { renderPickem(); if (ME === ADMIN && pinTok()) renderAdmin(); }
   }
   // picks are a draft on this phone until you lock them in; locked picks never change
   let pkConfirm = false;

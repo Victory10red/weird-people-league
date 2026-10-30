@@ -58,7 +58,8 @@ http.createServer((req, res) => {
   if (u.pathname === '/api/picks') {
     res.setHeader('content-type', 'application/json');
     if (req.method === 'POST') { let body = ''; req.on('data', (c) => { body += c; }); req.on('end', () => {
-      const b = JSON.parse(body || '{}'); const m = (fakePicks[b.team] ||= {}); let sk = 0;
+      const b = JSON.parse(body || '{}'); if (b.action === 'reset') { delete fakePicks[b.target]; return res.end(JSON.stringify(picksOut(b.team))); }
+      const m = (fakePicks[b.team] ||= {}); let sk = 0;
       for (const [gid, ab] of Object.entries(b.picks || {})) { const g = slate.find((x) => x.id === gid); if (!g || m[gid]) continue; if (g.state !== 'pre') { sk++; continue; } m[gid] = ab; }
       res.end(JSON.stringify({ ...picksOut(b.team), skipped: sk })); }); return; }
     return res.end(JSON.stringify(picksOut(Number(u.searchParams.get('team')))));
