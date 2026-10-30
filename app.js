@@ -1159,7 +1159,7 @@
     if (playGame === 'bk') {
       if (!bkInst && window.Breakaway) {
         const mine = ME && T[ME];
-        bkInst = window.Breakaway.mount($('#play-bk'), { names: D.teams.filter((x) => x.id !== ME).map((x) => x.owner), me: mine ? mine.owner : 'Rookie', big: !!(mine && /^justin/i.test(mine.owner)), hair: mine && /^brandon/i.test(mine.owner) ? '#e2531f' : null, accent: css('--accent') || '#c2410c',
+        bkInst = window.Breakaway.mount($('#play-bk'), { names: D.teams.filter((x) => x.id !== ME).map((x) => x.owner), me: mine ? mine.owner : 'Rookie', big: !!(mine && /^justin/i.test(mine.owner)), hair: mine && /^(brandon|wes)/i.test(mine.owner) ? '#e2531f' : null, accent: css('--accent') || '#c2410c',
           onLevel: (lv) => { bkLevel = lv; renderLB(); }, onEnd: (lv, yds) => postScore('bk', lv, yds) });
       }
       renderLB();
@@ -1431,39 +1431,151 @@
     } catch { talkMsg = 'Couldn’t reach the server.'; return false; }
   }
   // the roast generator: absurd, stat-powered, R-rated
-  function roast(tid) {
-    const t = T[tid]; if (!t) return '';
-    const o = t.owner, n = t.name, rec = `${t.w}-${t.l}`, po = Math.round(t.playoffs), luck = t.luck, bench = Math.round(t.bench_lost);
+  // ---- roast generator: every line is built from the target's real numbers ----
+  function roastFacts(tid) {
+    const t = T[tid]; const teams = D.teams;
+    const wk = (t.weeks || []).filter((w) => w.pts != null);
+    const by = (k, dir = -1) => [...teams].sort((a, b) => dir * (a[k] - b[k])).findIndex((x) => x.id === tid) + 1;
+    const worst = wk.length ? wk.reduce((m, w) => (w.pts < m.pts ? w : m)) : null;
+    const best = wk.length ? wk.reduce((m, w) => (w.pts > m.pts ? w : m)) : null;
+    const last = wk[wk.length - 1] || null;
+    const own = (id) => (T[id] ? T[id].owner : 'some scrub');
+    const recs = (D.records || []).filter((r) => r.owner === t.owner);
+    const card = t.card || (D.cards || []).find((c) => c.id === tid) || {};
+    const at = (D.alltime || []).find((x) => x.id === tid);
+    const car = ((D.history && D.history.career) || []).find((x) => x.id === tid);
+    const titles = at && at.titles ? at.titles : [];
+    const bk = LB && LB.boards ? ['extreme', 'hard', 'pro', 'rookie'].map((l) => ({ l, r: (LB.boards[`bk:${l}`] || []).find((x) => x.id === tid) })).find((x) => x.r) : null;
     const poops = POOP && POOP.log ? POOP.log.filter((e) => e.t === tid).length : 0;
-    const g = LIVE && LIVE.games.find((x) => (x.h.id === tid || x.a.id === tid) && (x.h.id === ME || x.a.id === ME));
-    const myWp = g ? Math.round(100 * (g.h.id === ME ? g.hwin : 1 - g.hwin)) : null;
-    const lines = [
-      `${o}, your team plays like it's being managed by a raccoon who found a calculator in a dumpster. ${rec}. Absolute dogshit.`,
-      `Breaking news: ${o}'s playoff odds (${po}%) have been officially downgraded from "lol" to "lmao."`,
-      `${o} has left ${bench} points on the bench this season. That's not a lineup, that's a fucking hostage situation.`,
-      `I've seen better roster management from a Roomba stuck under the couch, ${o}.`,
-      `If ${n} were a Waffle House, it'd be the one that's somehow closed.`,
-      `Somewhere a fantasy football god just read ${o}'s lineup and quietly unplugged the simulation.`,
-      `${o}, your lineup has the energy of a gas station hot dog at 3 a.m. Technically food. Spiritually garbage.`,
-      `Vegas gives ${o} a ${po}% shot at the playoffs. Vegas also takes bets on a seagull winning the Kentucky Derby, and I like the seagull.`,
-      `${o} drafts like he's blindfolded, three Twisted Teas deep, spinning a Wheel of Fortune made of expired coupons.`,
-      `Scientists have discovered a new unit of failure. They're calling it "the ${n}."`,
-      `${o}'s waiver strategy: close eyes, pick a name, cry, repeat.`,
-      `${o} plays fantasy football like a goat trying to operate a forklift. Loud, confident, wrong.`,
-      `I'd talk more shit about ${o} but his roster already does it for me every Sunday.`,
-      `${o}, I've seen more upside in a fucking parking ticket.`,
-      `If losing were a sport, ${o} would still somehow finish second.`,
-      `${n}'s game plan: start the injured guy, bench the guy who goes for 30, blame the refs. Chef's kiss, you clown.`,
-      `${o}, your team is the human equivalent of a "Reply All." Nobody asked and everyone suffers.`,
-      `Fun fact: ${rec} is also the score of every argument ${o} has ever lost to his own GPS.`,
-      `${o}, you couldn't set a winning lineup with a cheat code, a time machine and a note from your mom.`,
-      poops ? `${o} has logged ${poops} 💩 on the Dump Log. Finally, something he's productive at.` : `${o} hasn't logged a single 💩 on the Dump Log. Full of shit, literally and figuratively.`,
-      luck < 0 ? `${o} is the unluckiest bastard in the league (${luck} wins). The universe looked at ${n} and said "nah, not you, bitch."` : `${o} is ${luck} wins LUCKY. Enjoy it while it lasts, you horseshoe-up-the-ass son of a bitch.`,
-      myWp != null ? `${o}, I'm ${myWp}% to beat your ass this week, and honestly that's me being humble.` : `${o}, your team is a participation trophy that learned to talk.`,
-      `They should rename ${n} to "Bye Week" because nobody on that roster shows the hell up.`,
-      `${o}'s lineup decisions are why aliens won't talk to us.`,
-    ];
-    return lines[Math.floor(Math.random() * lines.length)];
+    const g = LIVE && LIVE.games && LIVE.games.find((x) => (x.h.id === tid || x.a.id === tid) && (x.h.id === ME || x.a.id === ME));
+    // bench guys going off: live this week, all season, and points left on the bench last week
+    const lg = LIVE && LIVE.games && LIVE.games.map((x) => (x.h.id === tid ? x.h : x.a.id === tid ? x.a : null)).find(Boolean);
+    let benchLive = null;
+    if (lg && lg.bench) {
+      for (const bp of lg.bench) {
+        if (!(bp.pts >= 12)) continue;
+        const st = (lg.rows || []).filter((r) => r.pos === bp.pos && r.state !== 'pre' && r.pts < bp.pts).sort((a, b) => a.pts - b.pts)[0];
+        if (st && (!benchLive || bp.pts - st.pts > benchLive.diff)) benchLive = { b: bp, s: st, diff: bp.pts - st.pts, wk: LIVE.week };
+      }
+    }
+    let benchSeason = null;
+    const ros = (D.rosters && D.rosters[tid]) || [];
+    for (const bp of ros.filter((r) => r.slot === 'BN' && !r.inj && !r.bye && r.avg)) {
+      const st = ros.filter((r) => r.starter && r.pos === bp.pos && r.avg && r.avg + 3 <= bp.avg).sort((a, b) => a.avg - b.avg)[0];
+      if (st && (!benchSeason || bp.avg - st.avg > benchSeason.diff)) benchSeason = { b: bp, s: st, diff: bp.avg - st.avg };
+    }
+    const lostLast = last && last.opt ? last.opt - last.pts : 0;
+    const she = /^(darla)\b/i.test(t.owner);
+    return {
+      he: she ? 'she' : 'he', He: she ? 'She' : 'He', his: she ? 'her' : 'his', him: she ? 'her' : 'him', guy: she ? 'girl' : 'guy',
+      ns: t.name + (/s$/i.test(t.name) ? '’' : '’s'),
+      benchLive, benchSeason, lostLast,
+      o: t.owner, n: t.name, w: t.w, l: t.l, rec: `${t.w}-${t.l}`, winning: t.w > t.l, place: ord(t.seed || by('w')),
+      seed: t.seed, pfRank: ord(t.pf_rank || by('pf')), pfRankN: t.pf_rank || by('pf'), pf: f1(t.pf), pa: f1(t.pa), paRank: by('pa'), avg: f1(t.avg),
+      po: Math.round(t.playoffs), luck: t.luck, xw: t.exp_w, bench: Math.round(t.bench_lost), eff: f1(t.eff), effRank: by('eff'),
+      apw: t.allplay_w, apl: t.allplay_l, worst, best, last, own, recs, card, at, car, titles, bk, poops,
+      top: (t.top_players || [])[0], myWp: g ? Math.round(100 * (g.h.id === ME ? g.hwin : 1 - g.hwin)) : null,
+      lastLine: last ? `${last.pts > last.opp_pts ? 'beat' : 'lost to'} ${own(last.opp)} ${f1(last.pts)}-${f1(last.opp_pts)} in week ${last.wk}` : '',
+    };
+  }
+  const an = (g) => (/^[AEF]/.test(g) ? 'an ' : 'a ') + g;
+  function roastLines(F) {
+    const { o, n, rec } = F; const L = [];
+    const add = (cond, s) => { if (cond) L.push(s); };
+    const gr = (k) => (F.card[k] && F.card[k].g) || '?';
+    const bl = F.benchLive, bs = F.benchSeason;
+    add(bl, bl && `${o} has ${bl.b.name} going for ${f1(bl.b.pts)} on ${F.his} BENCH while ${F.he} starts ${bl.s.name} with ${f1(bl.s.pts)}. Genius. Absolute fucking genius.`);
+    add(bl, bl && `Breaking: ${bl.b.name} just put up ${f1(bl.b.pts)} for ${o}'s bench. ${bl.s.name} (${f1(bl.s.pts)}) would like to thank ${o} for the start.`);
+    add(bs, bs && `${o} is benching ${bs.b.name} (${f1(bs.b.avg)} a game) to start ${bs.s.name} (${f1(bs.s.avg)}). Bold. Stupid, but bold.`);
+    add(bs, bs && `${bs.b.name} averages ${f1(bs.b.avg)} and lives on ${F.ns} bench. That's a waste of talent, like ${o} owning a fantasy team.`);
+    add(F.lostLast >= 15, F.last && `${o} left ${f1(F.lostLast)} points on ${F.his} bench in week ${F.last.wk}. Coach of the year, if the year is a dumpster fire.`);
+    add(!F.winning, `${o} is ${rec}, ${F.place} place and ${F.pfRank} in points. That's not a slump, that's a lifestyle.`);
+    add(F.winning, `${o} is ${rec} with ${F.xw} "expected" wins. ${F.He}'s not good, ${F.he}'s a horseshoe-up-the-ass lucky ${F.he === 'she' ? 'witch' : 'son of a bitch'}.`);
+    add(F.worst, F.worst && `${o} dropped a ${f1(F.worst.pts)} in week ${F.worst.wk}. ${F.own(F.worst.opp)} didn't beat ${F.him}, ${F.he} got a forfeit with extra steps.`);
+    add(F.last && F.last.pts < F.last.opp_pts, F.last && `${o} ${F.lastLine}. Somebody check on ${F.him}, ${F.he}'s been staring at the box score since Monday.`);
+    add(F.last && F.last.pts > F.last.opp_pts, F.last && `${o} ${F.lastLine} and won't shut the fuck up about it. Even a broken clock, bitch.`);
+    add(F.bench > 60, `${o} has left ${F.bench} points on ${F.his} bench this season. That's not a lineup, that's a fucking hostage situation.`);
+    add(F.effRank >= 6, `${o} starts ${F.eff}% of ${F.his} best possible lineup. ${ord(F.effRank)} in the league. A golden retriever picking names out of a hat does better.`);
+    add(F.po < 50, `Vegas gives ${o} a ${F.po}% shot at the playoffs. Vegas also takes bets on a seagull winning the Kentucky Derby, and I like the seagull.`);
+    add(F.po >= 50, `${o} has ${F.po}% playoff odds and thinks ${F.he}'s safe. Same thing the Titanic said, you overconfident dipshit.`);
+    add(F.apl > F.apw, `If ${o} played everyone every week ${F.he}'d be ${F.apw}-${F.apl}. The schedule isn't the problem, ${o}. You are.`);
+    add(F.card.gpa != null, `${o}'s report card: draft ${gr('draft')}, waivers ${gr('wire')}, lineups ${gr('lineup')}. Mom's not putting that one on the fridge.`);
+    add(F.top && F.top.share > 13, F.top && `${F.top.name} is ${f1(F.top.share)}% of ${F.ns} points. Without ${F.him} ${o} is just a ${F.guy} paying league dues for the group chat.`);
+    add(F.car && !F.titles.length, F.at && `${o}: ${F.at.w}-${F.at.l} all-time, zero rings. A legacy of absolutely fucking nothing.`);
+    add(F.titles.length, `${o} won one title in ${F.titles[0]} and has been riding it like a washed-up high school QB ever since. ${rec} now, champ.`);
+    F.recs.filter((r) => r.kind === 'Lowest score').slice(0, 1).forEach((r) => L.push(`${o} owns a league record: lowest score ever, ${f1(r.pts)} in ${r.season} week ${r.wk}. Frame it, hang it over the toilet.`));
+    F.recs.filter((r) => r.kind === 'Closest loss').slice(0, 1).forEach((r) => L.push(`${o} once lost by ${f1(r.margin)} points (${r.season} week ${r.wk}). ${F.He} still checks the box score at night hoping it changed.`));
+    add(F.paRank <= 3 && !F.winning, `${o} wants you to know ${F.he}'s ${ord(F.paRank)} in points against. Nobody asked, you whiny little bitch. ${rec}.`);
+    add(F.myWp != null, `${o}, I'm ${F.myWp}% to beat your ass this week, and honestly that's me being humble.`);
+    add(true, F.poops ? `${o} has logged ${F.poops} 💩 on the Dump Log. Finally, something ${F.he}'s productive at.` : `${o} hasn't logged a single 💩 on the Dump Log. Full of shit, literally and figuratively.`);
+    return L.filter(Boolean);
+  }
+  // personal material on top of the numbers: these come up about two times in three
+  const PERSONAL = [
+    { re: /^brandon/i, lines: (F) => [
+      `Same old same old: ${F.rec}, ${F.pfRank} in points, ${F.bench} points rotting on the bench. Same old ginger bitch.`,
+      `${F.o} doesn't play fantasy football, he fulfills an obligation. ${F.eff}% lineup efficiency says he's half-assing that too.`,
+      F.last && `${F.o} sets his lineup out of obligation, ${F.lastLine}, then blames the sun for burning his ginger ass. Same old same old.`,
+      F.benchSeason && `Same old same old: ${F.o} benches ${F.benchSeason.b.name} (${f1(F.benchSeason.b.avg)} a game) out of some sense of obligation to ${F.benchSeason.s.name}. Ginger logic.`,
+      F.benchLive && `${F.benchLive.b.name} is going off on ${F.o}'s bench (${f1(F.benchLive.b.pts)}). Same old same old.`,
+      `${F.o}, your red hair has more fire than ${F.ns} ${F.avg} points a game.`,
+      `${F.o} showed up to the draft out of obligation and it shows: draft grade ${(F.card.draft || {}).g || 'F'}. Same old same old.`,
+      `Ask ${F.o} how his week went and you already know: "same old same old." Translation: ${F.po}% playoff odds, red hair, zero soul.`,
+      ...F.recs.filter((r) => r.kind === 'Lowest score').slice(0, 1).map((r) => `${F.o} holds the league record for lowest score (${f1(r.pts)} in ${r.season}). Same old same old since day one, you obligated ginger.`),
+    ] },
+    { re: /^wes/i, lines: (F) => [
+      `${F.o} can bench 315 but can't bench the right fucking player. ${F.bench} points left on the pine.`,
+      F.benchSeason && `${F.o} is benching ${F.benchSeason.b.name} (${f1(F.benchSeason.b.avg)} a game). The only time he's ever benched the heavy one.`,
+      `${F.o} is the only bodybuilder in history whose team still has no legs: ${F.pfRank} in points.`,
+      `${F.o} spends two hours a day in the gym and gets ${an((F.card.wire || {}).g || 'F')} on the waiver wire. Huge biceps, tiny brain, ${F.rec}.`,
+      `Protein shakes won't fix ${F.avg} points a week, ${F.o}, you redheaded meathead.`,
+      `Two redheads in this league and somehow ${F.o} is the one getting burned: ${F.po}% playoff odds.`,
+      ...F.recs.filter((r) => r.kind === 'Biggest blowout').slice(0, 1).map((r) => `${F.o} has the biggest blowout in league history (${r.season}) and peaked right there, like every bodybuilder at 25. ${F.rec} now.`),
+    ] },
+    { re: /^jacky/i, lines: (F) => [
+      `${F.o} is 5'2" and his playoff odds (${F.po}%) are somehow even shorter.`,
+      `${F.o} has to stand on the bench to see over his lineup. Makes sense, that's where his ${F.bench} points are.`,
+      `${F.o} can't reach the top shelf or the top half of the standings. ${F.place} place, short king.`,
+      `${F.n} averages ${F.avg} a week. Like its manager, it comes up short.`,
+      F.worst && `${F.o} scored ${f1(F.worst.pts)} in week ${F.worst.wk}. Even his lowlights are 5'2".`,
+    ] },
+    { re: /^carlos/i, lines: (F) => [
+      `${F.o} sucks at video games, and fantasy football is just a video game with spreadsheets. Do the math: ${F.rec}.`,
+      F.bk ? `${F.o}'s best Breakaway run is ${F.bk.r.score} yards on ${F.bk.l}. The commissioner, ladies and gentlemen.` : `${F.o} hasn't even posted a Breakaway score. Scared of a mouse game, commissioner?`,
+      `${F.o} plays Madden on Rookie and still throws picks. ${F.n} is that, but with ${F.bench} points on the bench.`,
+      `Give ${F.o} a controller and he loses to the tutorial. Give him a roster and he goes ${F.rec}. Consistent, at least.`,
+    ] },
+    { re: /^justin/i, lines: (F) => [
+      `${F.o}'s lineup is like ${F.o}: big, slow, and ${F.bench} points of it sitting on the bench.`,
+      `Somebody call SeaWorld, a whale just set his lineup. ${F.o} is ${F.rec}${F.winning ? ' and it is pure luck' : ', it still sucks'}.`,
+      F.winning ? `${F.o} is ${F.rec} and eating it up. Literally. The whole buffet.` : `${F.o} isn't on a losing streak, he's on a buffet streak. Same results: ${F.rec}.`,
+      `${F.n} averages ${F.avg} points a week. ${F.o} averages about that many chicken nuggets a sitting.`,
+      `${F.o} drafts like he eats: everything in sight, no plan, ${an((F.card.draft || {}).g || 'F')} by Sunday night.`,
+      ...F.recs.filter((r) => r.kind === 'Lowest score').slice(0, 1).map((r) => `${F.o} owns the record for lowest score ever (${f1(r.pts)}). Only time in his life he went that light.`),
+    ] },
+    { re: /^mirza/i, lines: (F) => [
+      `${F.o} works for an NFL player and still has ${an((F.card.draft || {}).g || 'F')} draft grade. The bag guy, everyone.`,
+      `${F.o} thinks he's better than everyone. ${F.rec}, ${F.pfRank} in points. He isn't.`,
+      F.titles.length ? `${F.o} won it all in ${F.titles[0]} and has been acting like an NFL owner ever since. You fetch a player's dry cleaning, Mirza.` : `${F.o}, carrying an NFL player's bags doesn't make you a GM.`,
+      `${F.o} walks in like he's got locker-room inside info. The only inside info he has is his boss's Starbucks order. ${F.po}% playoff odds.`,
+      `${F.o} acts like he's above this league. ${F.n} is ${F.place}. Sit down.`,
+    ] },
+    { re: /^tanner/i, lines: (F) => [
+      `${F.o}'s hairline and his playoff odds (${F.po}%) are retreating at the same speed.`,
+      `${F.o}'s hairline goes back faster than ${F.ns} ${F.avg} points a week go forward.`,
+      `${F.o}'s forehead has more real estate than his win column (${F.w}).`,
+      `${F.n} is like ${F.o}'s hairline: there at the start of the season, gone by week ${(F.last && F.last.wk) || 8}.`,
+      ...F.recs.filter((r) => r.kind === 'Lowest score').slice(0, 1).map((r) => `${F.o} put up ${f1(r.pts)} in ${r.season}, a league record low. Even lower than his hairline. Barely.`),
+    ] },
+  ];
+  let lastRoast = '';
+  function roast(tid) {
+    if (!T[tid]) return '';
+    const F = roastFacts(tid);
+    const mine = PERSONAL.find((p) => p.re.test(F.o));
+    const pick = (pool) => { pool = pool.filter((x) => x && x !== lastRoast); return pool[Math.floor(Math.random() * pool.length)]; };
+    const out = (mine && Math.random() < 0.65 && pick(mine.lines(F))) || pick(roastLines(F)) || '';
+    lastRoast = out; return out;
   }
   // ---- sharing to the group chat (Messenger has no API for group chats, so we use the phone's share sheet) ----
   const APP_URL = 'https://weird-people-league.vercel.app/#talk';
