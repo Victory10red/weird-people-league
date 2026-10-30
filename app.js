@@ -1230,6 +1230,7 @@
     if (!force && POOP && Date.now() - poopAt < 30000) return;
     try { POOP = await getJSON('/api/poop'); poopAt = Date.now(); } catch { POOP = { ready: false, log: [] }; }
     if (tab === 'play' && playGame === 'poop') renderPoop();
+    if (!$('#welcome').hidden) renderWelcome();
   }
   async function sendPoop(action) {
     try {
@@ -1238,6 +1239,7 @@
       if (!r.ok && j.error) poopMsg = j.error;
     } catch { poopMsg = 'Couldn’t reach the server. Try again.'; }
     renderPoop();
+    if (!$('#welcome').hidden) renderWelcome();
   }
   const dayKey = (ms) => { const d = new Date(ms); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; };
   const hhmm = (ms) => new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
@@ -1312,6 +1314,69 @@
         el('div', { class: 'card' }, el('h3', { text: 'Rush hour' }), el('p', { class: 'note', text: log.length ? `League-wide, the busiest hour is ${peak % 12 || 12}${peak < 12 ? ' AM' : ' PM'}.` : 'Every log by hour of day.' }), chart)),
       facts.length ? el('div', { class: 'card' }, el('h3', { text: 'Bathroom awards' }), el('div', { class: 'poop-facts' }, ...facts.map(([a, b]) => el('div', {}, el('small', { text: a }), el('b', { text: b }))))) : null);
     poopMsg = '';
+  }
+
+
+  // ---------- welcome sheet: opens once a day with the week's top performers and the Dump Log ----------
+  let welcomeData = null;
+  function maybeWelcome() {
+    if (!D || !LIVE || welcomeData === 'done') return;
+    const today = dayKey(Date.now());
+    if (store.get('welcome-day') === today && !location.hash.includes('welcome')) { welcomeData = 'done'; return; }
+    welcomeData = 'done'; store.set('welcome-day', today);
+    $('#welcome').hidden = false; document.body.classList.add('noscroll');
+    loadPoop(); renderWelcome();
+  }
+  function closeWelcome() { $('#welcome').hidden = true; document.body.classList.remove('noscroll'); }
+  function renderWelcome() {
+    const host = $('#welcome');
+    const hr = new Date().getHours(), hi = hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening';
+    const me = team && T[team];
+    // which week to feature: this one once games have started, otherwise last week
+    const cur = LIVE.week, started = LIVE.games.some((g) => g.h.pts > 0 || g.a.pts > 0);
+    const wk = started ? cur : Math.max(1, cur - 1), data = wk === cur ? LIVE : weekCache[wk];
+    if (!data && wk !== cur) getJSON(`/api/live?week=${wk}`).then((j) => { weekCache[j.week] = j; if (!host.hidden) renderWelcome(); }).catch(() => {});
+    // my matchup line
+    const g = me && LIVE.games.find((x) => x.h.id === team || x.a.id === team);
+    let mline = null;
+    if (g) {
+      const mineH = g.h.id === team, a = mineH ? g.h : g.a, b = mineH ? g.a : g.h, wp = Math.round(100 * (mineH ? g.hwin : 1 - g.hwin));
+      mline = el('div', { class: 'wl-match' }, el('div', {}, el('small', { text: `Week ${cur} vs ${tm(b.id).owner}` }), el('b', { text: `${f1(a.pts)} – ${f1(b.pts)}` })), el('div', { class: 'wl-wp ' + (wp >= 50 ? 'up' : 'down'), text: `${wp}% to win` }));
+    }
+    // top performer at each position
+    const played = (r) => r.state !== 'pre' && r.state !== 'bye';
+    const all = []; if (data) for (const gm of data.games) for (const sd of [gm.h, gm.a]) for (const r of sd.rows) all.push({ ...r, tid: sd.id });
+    const tops = ['QB', 'RB', 'WR', 'TE', 'K', 'D/ST'].map((pos) => all.filter((r) => r.pos === pos && played(r)).sort((x, y) => y.pts - x.pts)[0]).filter(Boolean);
+    const topsEl = data ? (tops.length ? el('div', { class: 'wl-tops' }, ...tops.map((r) => el('div', { class: 'wl-top' + (r.tid === team ? ' me' : '') },
+      el('span', { class: pcls(r.pos), text: r.pos }), el('span', { class: 'wl-nm' }, el('b', { text: r.name }), el('small', { text: tm(r.tid).owner })), el('span', { class: 'wl-pts', text: f1(r.pts) }))))
+      : el('p', { class: 'note', text: 'No games played yet.' })) : el('p', { class: 'note', text: 'Loading…' });
+    // Dump Log
+    let poopEl;
+    if (!me) poopEl = el('p', { class: 'note', text: 'Pick your team at the top to join the Dump Log.' });
+    else if (!POOP || !POOP.ready) poopEl = el('p', { class: 'note', text: POOP ? 'Dump Log unavailable right now.' : 'Loading…' });
+    else {
+      const today = dayKey(Date.now()), todays = POOP.log.filter((e) => T[e.t] && dayKey(e.at) === today);
+      const counts = {}; for (const e of todays) counts[e.t] = (counts[e.t] || 0) + 1;
+      const board = Object.entries(counts).sort((x, y) => y[1] - x[1]).slice(0, 3);
+      const mine = counts[team] || 0;
+      const btn = el('button', { class: 'wl-poop', type: 'button' }, '💩 I just pooped');
+      btn.addEventListener('click', () => { btn.disabled = true; btn.textContent = '💩 Logged!'; sendPoop('log'); });
+      poopEl = el('div', { class: 'wl-poopbox' }, btn,
+        el('p', { class: 'note', text: mine ? `You're at ${mine} today.` : 'You haven’t logged one today.' }),
+        board.length ? el('div', { class: 'wl-pb' }, ...board.map(([t, n], i) => el('span', {}, `${['👑', '🥈', '🥉'][i]} ${T[t].owner} ${n}`))) : el('p', { class: 'note', text: 'Nobody has logged one today. Be first.' }),
+        poopMsg ? el('p', { class: 'pin-err', text: poopMsg }) : null);
+    }
+    const go = el('button', { class: 'btn big', type: 'button', text: 'Let’s go' });
+    go.addEventListener('click', closeWelcome);
+    const x = el('button', { class: 'install-x wl-x', type: 'button', 'aria-label': 'Close', text: '✕' });
+    x.addEventListener('click', closeWelcome);
+    host.onclick = (e) => { if (e.target === host) closeWelcome(); };
+    host.replaceChildren(el('div', { class: 'wl-card' }, x,
+      el('div', { class: 'wl-hi' }, el('small', { text: new Date().toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' }) }), el('h2', { text: me ? `${hi}, ${me.owner}` : hi })),
+      mline,
+      el('h3', { text: `Top performers · Week ${wk}${wk === cur && LIVE.anyLive ? ' (live)' : ''}` }), topsEl,
+      el('h3', { text: '💩 Dump Log' }), poopEl,
+      go));
   }
 
   // ---------- render orchestration ----------
@@ -1399,6 +1464,7 @@
       LIVE = await getJSON('/api/live');
       if (D && (tab === 'scores' || tab === 'team')) (tab === 'scores' ? renderScores : renderTeam)();
       if (D && tab === 'week') renderTop();
+      maybeWelcome();
     } catch (e) { if (!D) { $('#error').textContent = e.message; $('#error').hidden = false; } }
     liveTimer = setTimeout(loadLive, LIVE && LIVE.anyLive ? 60000 : 300000);
   }
