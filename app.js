@@ -1102,16 +1102,27 @@
       try {
         const r = await fetch('/api/pin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ team: t, pin: a.value }) });
         const j = await r.json();
-        if (j.ok && j.token) { store.set('pin-tok-' + t, j.token); pinHas[t] = true; renderPlay(); return; }
+        if (j.ok && j.token) { store.set('pin-tok-' + t, j.token); pinHas[t] = true; seenAt = 0; pingSeen(); renderPlay(); return; }
         err.textContent = j.error || 'That didn’t work.';
       } catch { err.textContent = 'Couldn’t reach the server.'; }
       go.disabled = false; a.value = ''; if (b2) b2.value = ''; a.focus();
     });
     host.replaceChildren(el('div', { class: 'who-pick pin-box' },
       el('h2', { text: creating ? `${who}, pick a 4-digit PIN` : `Hey ${who}, enter your PIN` }),
-      el('p', { class: 'note', text: creating ? 'It locks your name so nobody else can post scores or logs as you. You’ll only need it once per device. Don’t use your bank PIN.' : 'Only needed once per device.' }),
+      el('p', { class: 'note', text: (creating ? 'It locks your name so nobody else can post scores or logs as you. You’ll only need it once per device. Don’t use your bank PIN.' : 'Only needed once per device.') + ' Unlocking also lets the commissioner see when you last opened the app.' }),
       creating ? el('p', { class: 'note', text: 'Type it twice.' }) : null, form, err, el('p', { class: 'note' }, (chg.textContent = `Not ${who}?`, chg), creating ? '' : ' · Forgot it? Ask Trevor to reset it.')));
     setTimeout(() => a.focus(), 50);
+  }
+  let adminOpen = false;
+  const ago = (ms) => { if (!ms) return 'never'; const m = Math.round((Date.now() - ms) / 60000); if (m < 2) return 'just now'; if (m < 60) return `${m} min ago`; const h = Math.round(m / 60); if (h < 24) return `${h} hr ago`; const d = Math.round(h / 24); return d === 1 ? 'yesterday' : `${d} days ago`; };
+  async function loadSeen(host) {
+    try {
+      const j = await getJSON(`/api/seen?team=${team}&token=${encodeURIComponent(pinTok())}`);
+      const by = Object.fromEntries((j.rows || []).map((r) => [r.id, r]));
+      const rows = D.teams.map((x) => ({ x, r: by[x.id] || { last: null, visits: 0, pin: false } })).sort((a, b) => (b.r.last || 0) - (a.r.last || 0));
+      host.replaceChildren(el('table', { class: 'seen-t' }, el('thead', {}, el('tr', {}, el('th', { text: 'Manager' }), el('th', { text: 'Last seen' }), el('th', { class: 'n', text: 'Visits' }), el('th', { text: 'PIN' }))),
+        el('tbody', {}, ...rows.map(({ x, r }) => el('tr', { class: x.id === team ? 'me' : '' }, el('td', { text: x.owner }), el('td', { class: r.last && Date.now() - r.last < 3600000 ? 'good' : '', text: ago(r.last) }), el('td', { class: 'n', text: String(r.visits || 0) }), el('td', { text: r.pin ? '🔒 set' : '— not yet' }))))));
+    } catch (e) { host.replaceChildren(el('p', { class: 'note', text: `Couldn’t load (${e.message}).` })); }
   }
   function renderAdmin() {
     const host = $('#play-admin');
@@ -1128,9 +1139,15 @@
       } catch { msg.textContent = 'Couldn’t reach the server.'; }
       btn.disabled = false; btn.textContent = 'Reset PIN';
     });
-    host.replaceChildren(el('details', { class: 'card admin' }, el('summary', { text: 'Commissioner tools' }),
-      el('p', { class: 'note', text: 'Reset a forgotten PIN. You can also remove any score from the leaderboards below.' }),
-      el('div', { class: 'admin-row' }, sel, btn, msg)));
+    const seenHost = el('div', { class: 'seen' }, el('p', { class: 'note', text: 'Loading…' }));
+    const det = el('details', { class: 'card admin' }, el('summary', { text: 'Commissioner tools' }),
+      el('h3', { text: 'Who’s been on' }), el('p', { class: 'note', text: 'Managers who unlocked with their PIN. Visits count once per 10 minutes.' }), seenHost,
+      el('h3', { class: 'tp-sub', text: 'Reset a PIN' }), el('p', { class: 'note', text: 'For a forgotten PIN or a name someone else grabbed. You can also remove any leaderboard score below.' }),
+      el('div', { class: 'admin-row' }, sel, btn, msg));
+    if (adminOpen) det.open = true;
+    det.addEventListener('toggle', () => { adminOpen = det.open; if (det.open) loadSeen(seenHost); });
+    if (det.open) loadSeen(seenHost);
+    host.replaceChildren(det);
   }
   function renderPlay() {
     const ok = renderWho();
@@ -1341,13 +1358,21 @@
     return j;
   }
   let loadedOnce = false;
+  let seenAt = 0;
+  function pingSeen() {
+    const tok = team && store.get('pin-tok-' + team);
+    if (!tok || Date.now() - seenAt < 10 * 60000) return;
+    seenAt = Date.now();
+    fetch('/api/seen', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ team, token: tok }) }).catch(() => {});
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) pingSeen(); });
   async function loadLeague() {
     try {
       D = await getJSON('/api/league');
       T = Object.fromEntries(D.teams.map((t) => [t.id, t]));
       if (team && !T[team]) team = null;
       $('#error').hidden = true;
-      show(tab, loadedOnce); loadedOnce = true;
+      show(tab, loadedOnce); loadedOnce = true; pingSeen();
     } catch (e) { $('#error').textContent = e.message; $('#error').hidden = false; $('#sub').textContent = 'Couldn’t load the league'; }
   }
   let liveTimer;

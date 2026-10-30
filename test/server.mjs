@@ -28,10 +28,16 @@ const live = liveScores({ year: dump.status.year, week: wk, current: wk, games }
 const fakeLB = { 'bk:hard': { 3: { s: 412, at: Date.now() - 864e5 }, 10: { s: 260, at: Date.now() - 3e6 } }, 'hol:week': { 8: { s: 9, at: Date.now() } } };
 const lbOut = () => Object.fromEntries(Object.entries(fakeLB).map(([k, v]) => [k, Object.entries(v).map(([id, x]) => ({ id: +id, score: x.s, at: x.at })).sort((a, b) => b.score - a.score)]));
 const fakePins = { 3: '1111' };
+const fakeSeen = { 3: { last: Date.now() - 5400000, visits: 4 }, 7: { last: Date.now() - 2 * 86400000, visits: 1 } };
 const H = 3600000; const fakePoop = [[8, 0.4], [3, 1.2], [10, 2.5], [8, 5], [1, 9], [8, 26], [12, 30], [3, 50], [6, 75]].map(([t, h]) => ({ t, at: Date.now() - h * H }));
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' };
 http.createServer((req, res) => {
   const u = new URL(req.url, 'http://x');
+  if (u.pathname === '/api/seen') {
+    res.setHeader('content-type', 'application/json');
+    if (req.method === 'POST') { let body = ''; req.on('data', (c) => { body += c; }); req.on('end', () => { const b = JSON.parse(body || '{}'); const r = (fakeSeen[b.team] ||= { visits: 0 }); r.visits++; r.last = Date.now(); res.end('{"ok":true}'); }); return; }
+    return res.end(JSON.stringify({ ready: true, rows: Object.entries(fakeSeen).map(([id, r]) => ({ id: +id, ...r, pin: !!fakePins[id] })).concat(Object.keys(fakePins).filter((k) => !fakeSeen[k]).map((k) => ({ id: +k, last: null, visits: 0, pin: true }))) }));
+  }
   if (u.pathname === '/api/pin') {
     res.setHeader('content-type', 'application/json');
     if (req.method === 'POST') {
