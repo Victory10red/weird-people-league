@@ -16,7 +16,7 @@
     get(k) { try { return localStorage.getItem(k); } catch { return null; } },
     set(k, v) { try { localStorage.setItem(k, v); } catch { /* private mode */ } },
   };
-  const TABS = ['team', 'scores', 'week', 'league', 'trades', 'draft', 'history', 'play'];
+  const TABS = ['team', 'scores', 'talk', 'week', 'league', 'trades', 'draft', 'history', 'play'];
 
   let D = null, LIVE = null, T = {};
   let team = Number(new URLSearchParams(location.search).get('team')) || Number(store.get('team')) || null;
@@ -1400,11 +1400,126 @@
       go));
   }
 
+
+  // ---------- TRASH TALK ----------
+  let TALK = null, talkAt = 0, talkTimer = null, talkMsg = '', talkDraft = { text: '', gif: '', target: null };
+  const TALK_EMOJI = ['🔥', '😂', '💀', '🤡', '💩', '🗑️'];
+  async function loadTalk(force) {
+    if (!force && TALK && Date.now() - talkAt < 15000) return;
+    try { TALK = await getJSON('/api/talk'); talkAt = Date.now(); } catch { TALK = TALK || { ready: false, msgs: [] }; }
+    const newest = TALK.msgs && TALK.msgs[0] ? TALK.msgs[0].at : 0, seen = Number(store.get('talk-seen')) || 0;
+    $('#talk-dot').hidden = !(newest > seen && tab !== 'talk' && TALK.msgs[0].t !== ME);
+    if (tab === 'talk') { store.set('talk-seen', String(newest)); renderTalkFeed(); }
+  }
+  async function talkPost(body) {
+    try {
+      const r = await fetch('/api/talk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ team: ME, ...body }) });
+      const j = await r.json(); if (j.msgs) { TALK = j; talkAt = Date.now(); }
+      talkMsg = r.ok ? '' : (j.error || 'That didn’t post.');
+      return r.ok;
+    } catch { talkMsg = 'Couldn’t reach the server.'; return false; }
+  }
+  // the roast generator: absurd, stat-powered, R-rated
+  function roast(tid) {
+    const t = T[tid]; if (!t) return '';
+    const o = t.owner, n = t.name, rec = `${t.w}-${t.l}`, po = Math.round(t.playoffs), luck = t.luck, bench = Math.round(t.bench_lost);
+    const poops = POOP && POOP.log ? POOP.log.filter((e) => e.t === tid).length : 0;
+    const g = LIVE && LIVE.games.find((x) => (x.h.id === tid || x.a.id === tid) && (x.h.id === ME || x.a.id === ME));
+    const myWp = g ? Math.round(100 * (g.h.id === ME ? g.hwin : 1 - g.hwin)) : null;
+    const lines = [
+      `${o}, your team plays like it's being managed by a raccoon who found a calculator in a dumpster. ${rec}. Absolute dogshit.`,
+      `Breaking news: ${o}'s playoff odds (${po}%) have been officially downgraded from "lol" to "lmao."`,
+      `${o} has left ${bench} points on the bench this season. That's not a lineup, that's a fucking hostage situation.`,
+      `I've seen better roster management from a Roomba stuck under the couch, ${o}.`,
+      `If ${n} were a Waffle House, it'd be the one that's somehow closed.`,
+      `Somewhere a fantasy football god just read ${o}'s lineup and quietly unplugged the simulation.`,
+      `${o}, your lineup has the energy of a gas station hot dog at 3 a.m. Technically food. Spiritually garbage.`,
+      `Vegas gives ${o} a ${po}% shot at the playoffs. Vegas also takes bets on a seagull winning the Kentucky Derby, and I like the seagull.`,
+      `${o} drafts like he's blindfolded, three Twisted Teas deep, spinning a Wheel of Fortune made of expired coupons.`,
+      `Scientists have discovered a new unit of failure. They're calling it "the ${n}."`,
+      `${o}'s waiver strategy: close eyes, pick a name, cry, repeat.`,
+      `${o} plays fantasy football like a goat trying to operate a forklift. Loud, confident, wrong.`,
+      `I'd talk more shit about ${o} but his roster already does it for me every Sunday.`,
+      `${o}, I've seen more upside in a fucking parking ticket.`,
+      `If losing were a sport, ${o} would still somehow finish second.`,
+      `${n}'s game plan: start the injured guy, bench the guy who goes for 30, blame the refs. Chef's kiss, you clown.`,
+      `${o}, your team is the human equivalent of a "Reply All." Nobody asked and everyone suffers.`,
+      `Fun fact: ${rec} is also the score of every argument ${o} has ever lost to his own GPS.`,
+      `${o}, you couldn't set a winning lineup with a cheat code, a time machine and a note from your mom.`,
+      poops ? `${o} has logged ${poops} 💩 on the Dump Log. Finally, something he's productive at.` : `${o} hasn't logged a single 💩 on the Dump Log. Full of shit, literally and figuratively.`,
+      luck < 0 ? `${o} is the unluckiest bastard in the league (${luck} wins). The universe looked at ${n} and said "nah, not you, bitch."` : `${o} is ${luck} wins LUCKY. Enjoy it while it lasts, you horseshoe-up-the-ass son of a bitch.`,
+      myWp != null ? `${o}, I'm ${myWp}% to beat your ass this week, and honestly that's me being humble.` : `${o}, your team is a participation trophy that learned to talk.`,
+      `They should rename ${n} to "Bye Week" because nobody on that roster shows the hell up.`,
+      `${o}'s lineup decisions are why aliens won't talk to us.`,
+    ];
+    return lines[Math.floor(Math.random() * lines.length)];
+  }
+  const avatar = (tid) => { const o = (T[tid] && T[tid].owner) || '?'; const hue = (tid * 67) % 360; return el('span', { class: 'tk-av', style: `background:hsl(${hue} 55% 42%)`, text: o[0] }); };
+  function renderTalk() {
+    loadTalk(); loadPoop();
+    clearInterval(talkTimer); talkTimer = setInterval(() => { if (tab === 'talk' && !document.hidden) loadTalk(true); }, 20000);
+    $('#talk-dot').hidden = true;
+    const host = $('#talk-compose');
+    if (!ME || !T[ME]) {
+      host.replaceChildren(el('h3', { text: 'Who are you?' }), el('p', { class: 'note', text: 'Pick yourself so your trash talk has your name on it.' }),
+        el('div', { class: 'pickgrid wl-pick' }, ...[...D.teams].sort((a, b) => a.owner.localeCompare(b.owner)).map((t) => { const b = el('button', { class: 'pickbtn' }, el('b', { text: t.owner }), el('span', { text: t.name })); b.addEventListener('click', () => setMe(t.id)); return b; })));
+      renderTalkFeed(); return;
+    }
+    if (talkDraft.target == null || talkDraft.target === ME) { const g = LIVE && LIVE.games.find((x) => x.h.id === ME || x.a.id === ME); if (g) talkDraft.target = g.h.id === ME ? g.a.id : g.h.id; } // default: this week's opponent
+    const tgtVal = talkDraft.target != null && talkDraft.target !== ME ? talkDraft.target : D.teams.find((x) => x.id !== ME).id;
+    const ta = el('textarea', { class: 'tk-text', maxlength: '600', rows: '3', placeholder: `Say something disrespectful, ${T[ME].owner}…` }); ta.value = talkDraft.text;
+    ta.addEventListener('input', () => { talkDraft.text = ta.value; });
+    const gifIn = el('input', { class: 'tk-gif', type: 'url', placeholder: 'Paste a GIPHY or Tenor link (optional)' }); gifIn.value = talkDraft.gif;
+    gifIn.addEventListener('input', () => { talkDraft.gif = gifIn.value; });
+    const tgt = el('select', { class: 'wk-pick', 'aria-label': 'Roast target' }, ...D.teams.filter((x) => x.id !== ME).map((x) => el('option', { value: x.id, text: x.owner })));
+    tgt.value = tgtVal; tgt.addEventListener('change', () => { talkDraft.target = Number(tgt.value); });
+    const gen = el('button', { class: 'btn ghost', type: 'button', text: '🔥 Roast' });
+    gen.addEventListener('click', () => { ta.value = talkDraft.text = roast(Number(tgt.value)); ta.focus(); });
+    const post = el('button', { class: 'btn', type: 'button', text: 'Post' });
+    post.addEventListener('click', async () => {
+      post.disabled = true;
+      const ok = await talkPost({ action: 'post', text: ta.value, gif: gifIn.value || undefined });
+      if (ok) { talkDraft.text = ''; talkDraft.gif = ''; }
+      renderTalk();
+    });
+    host.replaceChildren(...[
+      el('div', { class: 'row-head' }, el('h3', { text: '💬 Trash Talk' }), el('span', { class: 'note', text: `as ${T[ME].owner}` })),
+      ta, gifIn,
+      el('div', { class: 'tk-row' }, el('span', { class: 'note', text: 'Roast generator:' }), tgt, gen, el('span', { class: 'sp' }), post),
+      talkMsg ? el('p', { class: 'pin-err', text: talkMsg }) : null,
+      el('p', { class: 'note tk-tip', text: 'GIF tip: find one on giphy.com or in your keyboard’s GIF search, tap Share → Copy link, paste it above.' })].filter(Boolean));
+    talkMsg = '';
+    renderTalkFeed();
+  }
+  function renderTalkFeed() {
+    const host = $('#talk-feed');
+    if (!TALK) { host.replaceChildren(el('p', { class: 'note', text: 'Loading…' })); return; }
+    if (!TALK.ready) { host.replaceChildren(el('p', { class: 'note', text: 'Trash Talk is unavailable right now.' })); return; }
+    const msgs = TALK.msgs.filter((m) => T[m.t]);
+    if (!msgs.length) { host.replaceChildren(el('div', { class: 'card' }, el('p', { class: 'note', text: 'Dead quiet in here. Somebody start some shit.' }))); return; }
+    const isAdmin = ME === ADMIN && pinTok();
+    host.replaceChildren(...msgs.map((m) => {
+      const re = el('div', { class: 'tk-re' }, ...TALK_EMOJI.map((e) => {
+        const who = (m.re && m.re[e]) || [], mine = who.includes(ME);
+        const b = el('button', { class: 'tk-rb' + (mine ? ' on' : '') + (who.length ? ' has' : ''), type: 'button', title: who.map((x) => T[x] ? T[x].owner : '').join(', ') }, e, who.length ? el('b', { text: String(who.length) }) : null);
+        b.addEventListener('click', async () => { if (!ME) return; await talkPost({ action: 'react', id: m.id, emoji: e }); renderTalkFeed(); });
+        return b;
+      }));
+      const del = (m.t === ME || isAdmin) ? el('button', { class: 'linkbtn tk-del', type: 'button', text: 'Delete' }) : null;
+      if (del) del.addEventListener('click', async () => { if (!del.dataset.arm) { del.dataset.arm = 1; del.textContent = 'Sure?'; return; } await talkPost({ action: 'delete', id: m.id, token: pinTok(ADMIN) }); renderTalkFeed(); });
+      return el('div', { class: 'card tk-msg' + (m.t === ME ? ' me' : '') },
+        el('div', { class: 'tk-head' }, avatar(m.t), el('div', {}, el('b', { text: T[m.t].owner }), el('small', { text: `${T[m.t].name} · ${ago(m.at)}` })), del),
+        m.text ? el('p', { class: 'tk-body', text: m.text }) : null,
+        m.gif ? el('img', { class: 'tk-gif-img', src: m.gif, alt: 'GIF', loading: 'lazy' }) : null,
+        re);
+    }));
+  }
+
   // ---------- render orchestration ----------
   function renderAll() {
     if (!D) return;
     renderHeader();
-    const fns = { team: renderTeam, scores: renderScores, week: renderWeek, league: renderLeague, trades: renderTrades, draft: renderDraft, history: renderHistory, play: renderPlay };
+    const fns = { team: renderTeam, scores: renderScores, week: renderWeek, league: renderLeague, trades: renderTrades, draft: renderDraft, history: renderHistory, play: renderPlay, talk: renderTalk };
     try { fns[tab](); } catch (e) { console.error(e); }
   }
   function show(t, keepScroll) {
@@ -1412,7 +1527,7 @@
     $$('.tab').forEach((s) => { s.hidden = s.id !== t; });
     $$('.tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === t)));
     $$('.bnav button[data-tab], .more-card button').forEach((b) => b.classList.toggle('on', b.dataset.tab === t));
-    $('#bnav-more').classList.toggle('on', ['league', 'trades', 'draft', 'history'].includes(t));
+    $('#bnav-more').classList.toggle('on', ['week', 'league', 'trades', 'draft', 'history'].includes(t));
     $('#more-sheet').hidden = true;
     history.replaceState(null, '', location.pathname + location.search + '#' + t);
     renderAll();
@@ -1494,6 +1609,8 @@
       if (D && (tab === 'scores' || tab === 'team')) (tab === 'scores' ? renderScores : renderTeam)();
       if (D && tab === 'week') renderTop();
       maybeWelcome();
+      loadTalk();
+      if (tab === 'talk' && talkDraft.target == null) renderTalk();
     } catch (e) { if (!D) { $('#error').textContent = e.message; $('#error').hidden = false; } }
     liveTimer = setTimeout(loadLive, LIVE && LIVE.anyLive ? 60000 : 300000);
   }

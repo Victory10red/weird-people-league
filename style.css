@@ -451,6 +451,30 @@ table.cmp td.win { color: var(--good); font-weight: 700; }
 .viewing[hidden] { display: none; }
 .wl-pick { grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
 .wl-pick .pickbtn { padding: 10px 12px; }
+.talk { max-width: 680px; margin: 0 auto; }
+.tk-text, .tk-gif { width: 100%; font: inherit; color: var(--fg); background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin: 8px 0 0; resize: vertical; }
+.tk-text:focus, .tk-gif:focus { outline: 2px solid var(--accent); border-color: transparent; }
+.tk-gif { font-size: 13px; padding: 8px 12px; }
+.tk-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+.tk-row .sp { flex: 1; }
+.btn.ghost { background: var(--panel-2); color: var(--fg); border-color: var(--line); }
+.tk-tip { margin: 8px 0 0; font-size: 11.5px; }
+.tk-msg { margin-bottom: 10px; }
+.tk-msg.me { border-color: color-mix(in srgb, var(--me) 45%, var(--line)); }
+.tk-head { display: grid; grid-template-columns: 36px 1fr auto; gap: 10px; align-items: center; }
+.tk-head small { display: block; color: var(--muted); font-size: 11.5px; }
+.tk-av { width: 36px; height: 36px; border-radius: 50%; color: #fff; display: grid; place-items: center; font: 700 15px Inter, sans-serif; }
+.tk-del { font-size: 12px; color: var(--muted); }
+.tk-body { margin: 10px 0 0; font-size: 15px; line-height: 1.45; white-space: pre-wrap; word-wrap: break-word; }
+.tk-gif-img { display: block; max-width: 100%; max-height: 340px; border-radius: 12px; margin-top: 10px; }
+.tk-re { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.tk-rb { font-size: 15px; background: var(--panel-2); border: 1px solid transparent; border-radius: 99px; padding: 3px 9px; cursor: pointer; opacity: .55; }
+.tk-rb.has { opacity: 1; }
+.tk-rb.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--panel)); opacity: 1; }
+.tk-rb b { font-size: 12px; margin-left: 4px; }
+.bnav button { position: relative; }
+.bnav .dot { position: absolute; top: 3px; left: 58%; width: 9px; height: 9px; border-radius: 50%; background: var(--bad); border: 2px solid var(--panel); }
+.bnav .dot[hidden] { display: none; }
 .foot { padding-bottom: 8px; }
   .bnav { display: grid; grid-template-columns: repeat(5, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 8; padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--panel) 94%, transparent); backdrop-filter: blur(14px); border-top: 1px solid var(--line); }
   .bnav button { display: grid; justify-items: center; gap: 1px; background: none; border: 0; padding: 4px 0; font: 600 10.5px Inter, sans-serif; color: var(--muted); cursor: pointer; -webkit-tap-highlight-color: transparent; }

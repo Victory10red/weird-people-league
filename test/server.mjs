@@ -28,11 +28,22 @@ const live = liveScores({ year: dump.status.year, week: wk, current: wk, games }
 const fakeLB = { 'bk:hard': { 3: { s: 412, at: Date.now() - 864e5 }, 10: { s: 260, at: Date.now() - 3e6 } }, 'hol:week': { 8: { s: 9, at: Date.now() } } };
 const lbOut = () => Object.fromEntries(Object.entries(fakeLB).map(([k, v]) => [k, Object.entries(v).map(([id, x]) => ({ id: +id, score: x.s, at: x.at })).sort((a, b) => b.score - a.score)]));
 const fakePins = { 3: '1111' };
+const fakeTalk = [{ id: 'a', t: 3, text: 'Trevor you are 2-5 and it shows. Absolute clown shit.', gif: null, at: Date.now() - 3600000, re: { '😂': [8, 10], '🔥': [3] } }, { id: 'b', t: 10, text: 'Somebody check on Carlos', gif: null, at: Date.now() - 7200000, re: {} }];
 const fakeSeen = { 3: { last: Date.now() - 5400000, visits: 4 }, 7: { last: Date.now() - 2 * 86400000, visits: 1 } };
 const H = 3600000; const fakePoop = [[8, 0.4], [3, 1.2], [10, 2.5], [8, 5], [1, 9], [8, 26], [12, 30], [3, 50], [6, 75]].map(([t, h]) => ({ t, at: Date.now() - h * H }));
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
 http.createServer((req, res) => {
   const u = new URL(req.url, 'http://x');
+  if (u.pathname === '/api/talk') {
+    res.setHeader('content-type', 'application/json');
+    if (req.method === 'POST') { let body = ''; req.on('data', (c) => { body += c; }); req.on('end', () => {
+      const b = JSON.parse(body || '{}');
+      if (b.action === 'post') fakeTalk.unshift({ id: String(Date.now()), t: b.team, text: b.text || '', gif: b.gif || null, at: Date.now(), re: {} });
+      if (b.action === 'react') { const m = fakeTalk.find((x) => x.id === b.id); if (m) { const a = (m.re[b.emoji] ||= []); const i = a.indexOf(b.team); if (i >= 0) a.splice(i, 1); else a.push(b.team); } }
+      if (b.action === 'delete') { const i = fakeTalk.findIndex((x) => x.id === b.id); if (i >= 0) fakeTalk.splice(i, 1); }
+      res.end(JSON.stringify({ ready: true, msgs: fakeTalk })); }); return; }
+    return res.end(JSON.stringify({ ready: true, msgs: fakeTalk }));
+  }
   if (u.pathname === '/api/seen') {
     res.setHeader('content-type', 'application/json');
     if (req.method === 'POST') { let body = ''; req.on('data', (c) => { body += c; }); req.on('end', () => { const b = JSON.parse(body || '{}'); const r = (fakeSeen[b.team] ||= { visits: 0 }); r.visits++; r.last = Date.now(); res.end('{"ok":true}'); }); return; }

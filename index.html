@@ -35,6 +35,7 @@
     <nav class="tabs wrap" role="tablist">
       <button role="tab" data-tab="team" aria-selected="true">My Team</button>
       <button role="tab" data-tab="scores" aria-selected="false">Scores</button>
+      <button role="tab" data-tab="talk" aria-selected="false">💬 Trash Talk</button>
       <button role="tab" data-tab="week" aria-selected="false">This Week</button>
       <button role="tab" data-tab="league" aria-selected="false">League</button>
       <button role="tab" data-tab="trades" aria-selected="false">Trades</button>
@@ -106,6 +107,12 @@
       <div class="row-head"><h2>Week <span id="live-week">–</span> scoreboard</h2><span class="pill" id="live-status">–</span></div>
       <p class="note">Odds update during games: points so far plus each starter's projection for the time left in his game. Tap a matchup for lineups. vs Opp = points per game the opponent allows to that position (green = soft, red = tough).</p>
       <div id="games" class="games"></div>
+    </section>
+
+    <!-- TRASH TALK -->
+    <section id="talk" class="tab talk" hidden>
+      <div class="card talk-compose" id="talk-compose"></div>
+      <div id="talk-feed" class="talk-feed"></div>
     </section>
 
     <!-- THIS WEEK -->
@@ -215,12 +222,13 @@
   <nav class="bnav" aria-label="Sections">
     <button data-tab="team"><span class="bi">🏠</span><span>My Team</span></button>
     <button data-tab="scores"><span class="bi">📺</span><span>Scores</span></button>
-    <button data-tab="week"><span class="bi">📅</span><span>This Week</span></button>
+    <button data-tab="talk"><span class="bi">💬</span><span>Talk</span><i class="dot" id="talk-dot" hidden></i></button>
     <button data-tab="play"><span class="bi">🎮</span><span>Play</span></button>
     <button id="bnav-more" data-more="1"><span class="bi">☰</span><span>More</span></button>
   </nav>
   <div id="more-sheet" class="more-sheet" hidden>
     <div class="more-card">
+      <button data-tab="week"><span class="bi">📅</span>This Week</button>
       <button data-tab="league"><span class="bi">🏆</span>League</button>
       <button data-tab="trades"><span class="bi">🔁</span>Trades</button>
       <button data-tab="draft"><span class="bi">📋</span>Draft</button>
