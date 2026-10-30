@@ -993,7 +993,7 @@
       el('div', { class: 'hval', id: side === 'b' ? 'hol-bval' : null, text: hidden ? '?' : f1(x.v) }),
       el('div', { class: 'hunit', text: 'fantasy points' }));
   }
-  let playGame = ['bk', 'hol'].includes(store.get('play-game')) ? store.get('play-game') : 'bk', bkInst = null;
+  let playGame = ['bk', 'hol', 'poop'].includes(store.get('play-game')) ? store.get('play-game') : 'bk', bkInst = null;
   let LB = null, lbAt = 0, bkLevel = 'hard';
   const LB_GAME = () => (playGame === 'bk' ? `bk:${bkLevel}` : `hol:${hol.mode}`);
   async function loadLB(force) {
@@ -1081,7 +1081,8 @@
     if (!ok) return;
     loadLB();
     $$('#play-pick button').forEach((b) => { b.setAttribute('aria-pressed', String(b.dataset.game === playGame)); b.onclick = () => { playGame = b.dataset.game; store.set('play-game', playGame); renderPlay(); }; });
-    $('#play-bk').hidden = playGame !== 'bk'; $('#play-hol').hidden = playGame !== 'hol';
+    $('#play-bk').hidden = playGame !== 'bk'; $('#play-hol').hidden = playGame !== 'hol'; $('#play-poop').hidden = playGame !== 'poop'; $('.play-lb').hidden = playGame === 'poop';
+    if (playGame === 'poop') { renderPoop(); return; }
     if (playGame === 'bk') {
       if (!bkInst && window.Breakaway) {
         const mine = team && T[team];
@@ -1153,6 +1154,97 @@
     if (e.key === 'ArrowUp') { e.preventDefault(); holGuess(true); }
     if (e.key === 'ArrowDown') { e.preventDefault(); holGuess(false); }
   });
+
+
+  // ---------- PLAY: the Dump Log ----------
+  let POOP = null, poopAt = 0, poopRange = store.get('poop-range') || 'today', poopMsg = '';
+  async function loadPoop(force) {
+    if (!force && POOP && Date.now() - poopAt < 30000) return;
+    try { POOP = await getJSON('/api/poop'); poopAt = Date.now(); } catch { POOP = { ready: false, log: [] }; }
+    if (tab === 'play' && playGame === 'poop') renderPoop();
+  }
+  async function sendPoop(action) {
+    try {
+      const r = await fetch('/api/poop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ team, action }) });
+      const j = await r.json(); if (j && j.log) { POOP = j; poopAt = Date.now(); }
+      if (!r.ok && j.error) poopMsg = j.error;
+    } catch { poopMsg = 'Couldn’t reach the server. Try again.'; }
+    renderPoop();
+  }
+  const dayKey = (ms) => { const d = new Date(ms); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; };
+  const hhmm = (ms) => new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  function renderPoop() {
+    const host = $('#play-poop');
+    if (!POOP) { host.replaceChildren(el('p', { class: 'note', text: 'Loading the log…' })); loadPoop(); return; }
+    loadPoop();
+    if (!POOP.ready) { host.replaceChildren(el('div', { class: 'card' }, el('p', { class: 'note', text: 'The Dump Log needs the league database, which isn’t reachable right now.' }))); return; }
+    const log = POOP.log.filter((e) => T[e.t]);
+    const now = Date.now(), today = dayKey(now);
+    const weekStart = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); })(); // Monday
+    const inRange = (e) => (poopRange === 'today' ? dayKey(e.at) === today : poopRange === 'week' ? e.at >= weekStart : true);
+    const mineToday = log.filter((e) => e.t === team && dayKey(e.at) === today);
+    const myLast = log.find((e) => e.t === team);
+    // the button
+    const btn = el('button', { class: 'poop-btn', type: 'button' }, el('span', { class: 'pe', text: '💩' }), el('span', { text: 'I just pooped' }));
+    btn.addEventListener('click', () => {
+      btn.disabled = true; poopMsg = '';
+      const burst = el('div', { class: 'poop-burst' }, ...Array.from({ length: 14 }, (_, i) => el('span', { style: `--a:${i * 26}deg;--d:${60 + (i % 3) * 22}px`, text: '💩' })));
+      btn.append(burst); setTimeout(() => sendPoop('log'), 650);
+    });
+    const undo = myLast && now - myLast.at < 10 * 60000 ? el('button', { class: 'linkbtn', type: 'button', text: 'Undo my last one' }) : null;
+    if (undo) undo.addEventListener('click', () => { poopMsg = 'Undone. We’ll pretend that didn’t happen.'; sendPoop('undo'); });
+    const status = myLast ? `${T[team].owner}, you’re at ${mineToday.length} today. Last one: ${hhmm(myLast.at)}${dayKey(myLast.at) === today ? '' : ' (' + new Date(myLast.at).toLocaleDateString([], { weekday: 'short' }) + ')'}.` : `${T[team].owner}, you haven’t logged one yet. Get on the board.`;
+    // leaderboard for the chosen range
+    const counts = {}; for (const e of log) if (inRange(e)) counts[e.t] = (counts[e.t] || 0) + 1;
+    const board = Object.entries(counts).map(([t, n]) => ({ t: Number(t), n })).sort((a, b) => b.n - a.n);
+    const seg = el('div', { class: 'seg' }, ...[['today', 'Today'], ['week', 'This week'], ['all', 'All time']].map(([k, lab]) => {
+      const b = el('button', { 'aria-pressed': String(k === poopRange), text: lab }); b.addEventListener('click', () => { poopRange = k; store.set('poop-range', k); renderPoop(); }); return b;
+    }));
+    const crowns = ['👑', '🥈', '🥉'];
+    const lb = board.length ? el('ol', { class: 'lb poop-lb' }, ...board.map((r, i) => el('li', { class: r.t === team ? 'me' : '' },
+      el('span', { class: 'lb-r', text: crowns[i] || String(i + 1) }),
+      el('span', { class: 'lb-n' }, el('b', { text: T[r.t].owner }), el('small', { text: '💩'.repeat(Math.min(r.n, 12)) + (r.n > 12 ? ' …' : '') })),
+      el('span', { class: 'lb-s' }, el('b', { text: String(r.n) })), el('span'))))
+      : el('p', { class: 'note', text: poopRange === 'today' ? 'Nobody has logged one today. Somebody’s holding out.' : 'Nothing logged yet.' });
+    // fun stats (all time)
+    const byT = {}; for (const e of log) (byT[e.t] ||= []).push(e.at);
+    const facts = [];
+    const days = (arr) => new Set(arr.map(dayKey)).size;
+    if (log.length) {
+      const mins = (ms) => { const d = new Date(ms); return d.getHours() * 60 + d.getMinutes(); };
+      const early = [...log].sort((a, b) => mins(a.at) - mins(b.at))[0], late = [...log].sort((a, b) => mins(b.at) - mins(a.at))[0];
+      facts.push(['🌅 Early bird', `${T[early.t].owner} at ${hhmm(early.at)}`]);
+      facts.push(['🦉 Night owl', `${T[late.t].owner} at ${hhmm(late.at)}`]);
+      const perDay = {}; for (const e of log) { const k = e.t + '|' + dayKey(e.at); perDay[k] = (perDay[k] || 0) + 1; }
+      const [bk, bn] = Object.entries(perDay).sort((a, b) => b[1] - a[1])[0];
+      facts.push(['🏆 Most in one day', `${T[Number(bk.split('|')[0])].owner}, ${bn}`]);
+      const avg = Object.entries(byT).map(([t, a]) => ({ t: Number(t), v: a.length / Math.max(1, days(a)) })).sort((a, b) => b.v - a.v)[0];
+      facts.push(['📈 Highest daily average', `${T[avg.t].owner}, ${avg.v.toFixed(1)}/day`]);
+      const drought = Object.entries(byT).map(([t, a]) => ({ t: Number(t), since: now - Math.max(...a) })).sort((a, b) => b.since - a.since)[0];
+      if (drought && drought.since > 6 * 3600000) facts.push(['🏜️ Longest drought', `${T[drought.t].owner}, ${Math.floor(drought.since / 3600000)} hours and counting`]);
+      const silent = D.teams.filter((x) => !byT[x.id]).map((x) => x.owner);
+      if (silent.length) facts.push(['🤐 Hasn’t logged one', silent.join(', ')]);
+    }
+    // rush hour chart
+    const hours = new Array(24).fill(0); for (const e of log) hours[new Date(e.at).getHours()]++;
+    const maxH = Math.max(1, ...hours);
+    const chart = el('div', { class: 'poop-hours' }, ...hours.map((n, h) => el('div', { class: 'ph', title: `${n} at ${h % 12 || 12}${h < 12 ? 'am' : 'pm'}` },
+      el('i', { style: `height:${Math.round(100 * n / maxH)}%` }), el('small', { text: h % 6 === 0 ? `${h % 12 || 12}${h < 12 ? 'a' : 'p'}` : '' }))));
+    const peak = hours.indexOf(maxH);
+    // today's feed
+    const feed = log.filter((e) => dayKey(e.at) === today).slice(0, 20);
+    host.replaceChildren(
+      el('div', { class: 'card poop-main' },
+        el('h2', { text: 'The Dump Log' }),
+        el('p', { class: 'note', text: 'Tap when you go. The league is watching.' }),
+        btn, el('p', { class: 'poop-status', text: poopMsg || status }), undo),
+      el('div', { class: 'card' }, el('div', { class: 'row-head' }, el('h3', { text: 'Leaderboard' }), seg), lb),
+      el('div', { class: 'grid' },
+        el('div', { class: 'card' }, el('h3', { text: 'Today’s feed' }), feed.length ? el('div', { class: 'poop-feed' }, ...feed.map((e) => el('div', { class: e.t === team ? 'me' : '' }, el('span', { text: '💩' }), el('b', { text: T[e.t].owner }), el('span', { class: 'muted', text: hhmm(e.at) })))) : el('p', { class: 'note', text: 'Quiet so far today.' })),
+        el('div', { class: 'card' }, el('h3', { text: 'Rush hour' }), el('p', { class: 'note', text: log.length ? `League-wide, the busiest hour is ${peak % 12 || 12}${peak < 12 ? ' AM' : ' PM'}.` : 'Every log by hour of day.' }), chart)),
+      facts.length ? el('div', { class: 'card' }, el('h3', { text: 'Bathroom awards' }), el('div', { class: 'poop-facts' }, ...facts.map(([a, b]) => el('div', {}, el('small', { text: a }), el('b', { text: b }))))) : null);
+    poopMsg = '';
+  }
 
   // ---------- render orchestration ----------
   function renderAll() {
