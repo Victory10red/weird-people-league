@@ -37,7 +37,7 @@
     let level = ['rookie', 'pro', 'hard', 'extreme'].includes(store.get('bk-level')) ? store.get('bk-level') : 'hard';
     const SKINS = ['#3d2516', '#5c3a21', '#8d5524', '#c68642', '#f1c27d'];
     let skin = SKINS.includes(store.get('bk-skin')) ? store.get('bk-skin') : '#5c3a21';
-    let S = null, raf = 0, last = 0, running = false;
+    let S = null, raf = 0, last = 0, running = false, fingerAt = null;
     const best = (lv) => Number(store.get('bk-best-' + lv)) || 0;
 
     const reset = () => {
@@ -55,26 +55,22 @@
 
     // ---------- input ----------
     const setTarget = (cx, cy) => { const r = canvas.getBoundingClientRect(); if (!S) return; S.tx = clamp(cx - r.left, 14, W - 14); S.ty = clamp(cy - r.top, H * 0.35, H - 18); };
-    // Mouse: the runner chases the cursor. Touch: works like a trackpad, so your thumb can sit anywhere
-    // (below or beside him) and he moves the way you slide it, instead of hiding under your finger.
-    const SENS = 1.35; let drag = null;
+    // Mouse: the runner chases the cursor. Touch: the runner stays a thumb's width ABOVE your finger,
+    // so you can always see him (the finger can slide off the bottom of the field and keep steering).
+    const OFF = 90; let drag = null;
     const isTouch = (e) => e.pointerType === 'touch' || e.pointerType === 'pen';
+    const touchTarget = (cx, cy) => { const r = canvas.getBoundingClientRect(); S.tx = clamp(cx - r.left, 14, W - 14); S.ty = clamp(cy - r.top - OFF, H * 0.35, H - 18); fingerAt = { x: cx - r.left, y: cy - r.top }; };
     canvas.addEventListener('pointerdown', (e) => {
       if (!S) return;
-      if (isTouch(e)) { drag = { id: e.pointerId, fx: e.clientX, fy: e.clientY, x: S.px, y: S.py }; S.tx = S.px; S.ty = S.py; try { canvas.setPointerCapture(e.pointerId); } catch { /* fine */ } return; }
+      if (isTouch(e)) { drag = e.pointerId; touchTarget(e.clientX, e.clientY); try { canvas.setPointerCapture(e.pointerId); } catch { /* fine */ } return; }
       setTarget(e.clientX, e.clientY); doJuke();
     });
     canvas.addEventListener('pointermove', (e) => {
       if (!S) return;
-      if (isTouch(e)) {
-        if (!drag || drag.id !== e.pointerId) return;
-        S.tx = clamp(drag.x + (e.clientX - drag.fx) * SENS, 14, W - 14);
-        S.ty = clamp(drag.y + (e.clientY - drag.fy) * SENS, H * 0.35, H - 18);
-        return;
-      }
+      if (isTouch(e)) { if (drag === e.pointerId) touchTarget(e.clientX, e.clientY); return; }
       setTarget(e.clientX, e.clientY);
     });
-    const endDrag = (e) => { if (drag && drag.id === e.pointerId) drag = null; };
+    const endDrag = (e) => { if (drag === e.pointerId) { drag = null; fingerAt = null; } };
     canvas.addEventListener('pointerup', endDrag); canvas.addEventListener('pointercancel', endDrag);
     juke.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); doJuke(); });
     const onKey = (e) => { if (!running || !host.isConnected) return; if (e.code === 'Space') { e.preventDefault(); doJuke(); } };
@@ -199,6 +195,11 @@
       }
       // ball carrier
       S.trail.forEach(([x, y], i) => { ctx.beginPath(); ctx.arc(x, y, 3 + i, 0, Math.PI * 2); ctx.fillStyle = `rgba(255,255,255,${S.jukeT > 0 ? 0.08 * i : 0.03 * i})`; ctx.fill(); });
+      if (fingerAt) { // faint tether from your thumb to the runner so you can tell what you're steering
+        ctx.save(); ctx.globalAlpha = 0.35; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.setLineDash([4, 5]);
+        ctx.beginPath(); ctx.moveTo(fingerAt.x, fingerAt.y); ctx.lineTo(S.px, S.py + 14); ctx.stroke(); ctx.setLineDash([]);
+        ctx.beginPath(); ctx.arc(fingerAt.x, fingerAt.y, 22, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+      }
       drawCarrier(S.px, S.py, S.t, S.jukeT > 0);
       // HUD
       const yards = gained();
@@ -259,7 +260,7 @@
       const go = document.createElement('button'); go.className = 'btn big'; go.type = 'button'; go.textContent = S && S.over ? 'Run it back' : 'Kick off';
       go.addEventListener('click', start);
       const how = document.createElement('p'); how.className = 'bk-how';
-      how.textContent = (level === 'extreme' ? 'EXTREME: red blitzers sprint at you once they get close, and your juke takes longer to recharge. ' : '') + (matchMedia('(pointer: coarse)').matches ? 'Put your thumb anywhere on the field and slide: the runner moves the way you slide, so your finger never covers him. Tap JUKE' : 'Steer with your mouse. Click or press Space') + ' to burst past defenders (they freeze for a beat). Run 100 yards, goal line to goal line, for a touchdown; the defense gets faster after each one.';
+      how.textContent = (level === 'extreme' ? 'EXTREME: red blitzers sprint at you once they get close, and your juke takes longer to recharge. ' : '') + (matchMedia('(pointer: coarse)').matches ? 'Put your thumb on the field below the runner and steer: he always runs a thumb’s width above your finger, so you can see him. Tap JUKE' : 'Steer with your mouse. Click or press Space') + ' to burst past defenders (they freeze for a beat). Run 100 yards, goal line to goal line, for a touchdown; the defense gets faster after each one.';
       const els = [h, p]; if (sub) { const s2 = document.createElement('div'); s2.className = 'bk-s'; s2.textContent = sub; els.push(s2); }
       els.push(seg, sk, go, how);
       const bb = document.createElement('div'); bb.className = 'bk-best';
