@@ -7,7 +7,14 @@
   <meta name="description" content="Live scores, win odds, moves for every team, playoff scenarios, Vegas lines, weather and league history for the Weird people with free time fantasy league.">
   <meta property="og:title" content="Weird People League HQ">
   <meta property="og:description" content="Live scores, win odds, your moves this week, playoff scenarios and league history.">
-  <meta name="theme-color" content="#0f1115">
+  <meta name="theme-color" content="#f6f5f2" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f1115" media="(prefers-color-scheme: dark)">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="League HQ">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cellipse cx='32' cy='32' rx='28' ry='17' transform='rotate(-35 32 32)' fill='%23c2410c'/%3E%3Cpath d='M22 42 42 22M27 33l4 4M31 29l4 4M35 25l4 4' stroke='white' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
@@ -37,6 +44,7 @@
     </nav>
   </header>
 
+  <div id="install" class="install" hidden></div>
   <main class="wrap">
     <div id="error" class="banner bad" hidden></div>
 
@@ -202,6 +210,21 @@
     <footer class="foot">Data from ESPN (league, projections, NFL odds feed from DraftKings) and Open-Meteo (weather), refreshed every few minutes. Odds, luck, moves and grades are this app's math. For fun; not affiliated with ESPN or DraftKings.</footer>
   </main>
   <div id="tip" class="tip" hidden></div>
+  <nav class="bnav" aria-label="Sections">
+    <button data-tab="team"><span class="bi">🏠</span><span>My Team</span></button>
+    <button data-tab="scores"><span class="bi">📺</span><span>Scores</span></button>
+    <button data-tab="week"><span class="bi">📅</span><span>This Week</span></button>
+    <button data-tab="play"><span class="bi">🎮</span><span>Play</span></button>
+    <button id="bnav-more" data-more="1"><span class="bi">☰</span><span>More</span></button>
+  </nav>
+  <div id="more-sheet" class="more-sheet" hidden>
+    <div class="more-card">
+      <button data-tab="league"><span class="bi">🏆</span>League</button>
+      <button data-tab="trades"><span class="bi">🔁</span>Trades</button>
+      <button data-tab="draft"><span class="bi">📋</span>Draft</button>
+      <button data-tab="history"><span class="bi">📜</span>History</button>
+    </div>
+  </div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
   <script>window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };</script>
   <script defer src="/_vercel/insights/script.js"></script>

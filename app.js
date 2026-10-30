@@ -1325,6 +1325,9 @@
     tab = t;
     $$('.tab').forEach((s) => { s.hidden = s.id !== t; });
     $$('.tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === t)));
+    $$('.bnav button[data-tab], .more-card button').forEach((b) => b.classList.toggle('on', b.dataset.tab === t));
+    $('#bnav-more').classList.toggle('on', ['league', 'trades', 'draft', 'history'].includes(t));
+    $('#more-sheet').hidden = true;
     history.replaceState(null, '', location.pathname + location.search + '#' + t);
     renderAll();
     if (!keepScroll) window.scrollTo(0, 0);
@@ -1340,6 +1343,27 @@
     renderAll();
   }
   $$('.tabs button').forEach((b) => b.addEventListener('click', () => show(b.dataset.tab)));
+  // phone: bottom tab bar + "More" sheet
+  $$('.bnav button[data-tab], .more-card button').forEach((b) => b.addEventListener('click', () => show(b.dataset.tab)));
+  $('#bnav-more').addEventListener('click', () => { $('#more-sheet').hidden = !$('#more-sheet').hidden; });
+  $('#more-sheet').addEventListener('click', (e) => { if (e.target.id === 'more-sheet') $('#more-sheet').hidden = true; });
+  // "add to home screen" nudge on phones, once, unless already installed
+  (() => {
+    const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+    const phone = window.matchMedia('(max-width: 700px)').matches;
+    if (standalone || !phone || store.get('install-dismissed')) return;
+    const box = $('#install'), ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const close = el('button', { class: 'install-x', type: 'button', 'aria-label': 'Dismiss', text: '✕' });
+    close.addEventListener('click', () => { box.hidden = true; store.set('install-dismissed', '1'); });
+    const show2 = (body) => { box.replaceChildren(el('img', { src: '/icons/icon-192.png', alt: '' }), el('div', {}, el('b', { text: 'Get League HQ on your home screen' }), body), close); box.hidden = false; };
+    if (ios) show2(el('span', { text: 'Tap the Share button (□↑) in Safari, then “Add to Home Screen.”' }));
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      const b = el('button', { class: 'btn', type: 'button', text: 'Install' });
+      b.addEventListener('click', async () => { e.prompt(); await e.userChoice.catch(() => {}); box.hidden = true; store.set('install-dismissed', '1'); });
+      show2(el('span', {}, 'Opens full screen like a real app. ', b));
+    });
+  })();
   $$('#subnav button').forEach((b) => b.addEventListener('click', () => { teamView = b.dataset.view; store.set('teamview', teamView); renderTeam(); const nav = $('#subnav'); if (nav.getBoundingClientRect().top < 0) nav.scrollIntoView({ block: 'start' }); }));
   $('#team-pick').addEventListener('change', (e) => setTeam(e.target.value));
   let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(renderAll, 200); });
