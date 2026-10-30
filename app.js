@@ -1472,10 +1472,23 @@
     const lostFinal = (D.champs || []).filter((c) => c.runner_up === t.owner);
     const benchRank = by('bench_lost');
     const she = /^(darla|jacky)\b/i.test(t.owner);
+    // this week's matchup (current week only)
+    let wkg = null;
+    const cg = LIVE && LIVE.games && LIVE.week === LIVE.current && LIVE.games.find((x) => x.h.id === tid || x.a.id === tid);
+    if (cg) {
+      const home = cg.h.id === tid, me = home ? cg.h : cg.a, op = home ? cg.a : cg.h;
+      const rows = me.rows || [];
+      const started = [...rows, ...(op.rows || [])].some((r) => r.state && r.state !== 'pre');
+      const dud = rows.filter((r) => r.state === 'post' && r.pos !== 'K' && r.proj >= 8 && r.pts < r.proj * 0.4).sort((a, b) => (a.pts - a.proj) - (b.pts - b.proj))[0] || null;
+      const zero = rows.find((r) => r.state === 'pre' && r.slot !== 'BN' && r.slot !== 'IR' && !(r.proj > 0.5)) || null;
+      const exps = LIVE.games.flatMap((x) => [x.h.exp, x.a.exp]).sort((a, b) => b - a);
+      wkg = { wk: LIVE.week, opp: op.id, oppO: own(op.id), oppPlace: T[op.id] ? ord(T[op.id].seed || 0) : '', pts: me.pts, oppPts: op.pts, exp: me.exp, oppExp: op.exp,
+        wp: Math.round(100 * (home ? cg.hwin : 1 - cg.hwin)), lead: me.pts - op.pts, ytp: me.yetToPlay, started, done: cg.done, dud, zero, expRank: exps.indexOf(me.exp) + 1, vsMe: op.id === ME };
+    }
     return {
       he: she ? 'she' : 'he', He: she ? 'She' : 'He', his: she ? 'her' : 'his', him: she ? 'her' : 'him', guy: she ? 'girl' : 'guy',
       ns: t.name + (/s$/i.test(t.name) ? '’' : '’s'),
-      benchLive, benchSeason, lostLast, closeWins, skinniest, beatdown, lostFinal, benchRank, top3: (t.seed || 9) <= 3 && t.w > t.l,
+      wkg, benchLive, benchSeason, lostLast, closeWins, skinniest, beatdown, lostFinal, benchRank, top3: (t.seed || 9) <= 3 && t.w > t.l,
       o: t.owner, n: t.name, w: t.w, l: t.l, rec: `${t.w}-${t.l}`, winning: t.w > t.l, place: ord(t.seed || by('w')),
       seed: t.seed, pfRank: ord(t.pf_rank || by('pf')), pfRankN: t.pf_rank || by('pf'), pf: f1(t.pf), pa: f1(t.pa), paRank: by('pa'), avg: f1(t.avg),
       po: Math.round(t.playoffs), luck: t.luck, xw: t.exp_w, bench: Math.round(t.bench_lost), eff: f1(t.eff), effRank: by('eff'),
@@ -1483,6 +1496,28 @@
       top: (t.top_players || [])[0], myWp: g ? Math.round(100 * (g.h.id === ME ? g.hwin : 1 - g.hwin)) : null,
       lastLine: last ? `${last.pts > last.opp_pts ? 'beat' : 'lost to'} ${own(last.opp)} ${f1(last.pts)}-${f1(last.opp_pts)} in week ${last.wk}` : '',
     };
+  }
+  // this week's matchup: live score, odds, duds and dead spots in the lineup
+  function weekLines(F) {
+    const g = F.wkg; if (!g) return [];
+    const { o } = F; const L = []; const add = (c, s) => { if (c) L.push(s); };
+    const sc = `${f1(g.pts)}-${f1(g.oppPts)}`;
+    add(g.started && g.lead < 0 && g.ytp > 0 && g.wp < 50, `${o} is down ${f1(-g.lead)} to ${g.oppO} (${sc}) in week ${g.wk}. ${g.wp}% to win. Start writing the excuse now.`);
+    add(g.started && g.lead < 0 && g.ytp === 0 && !g.done, `${o} is down ${f1(-g.lead)} to ${g.oppO} with nobody left to play. It's over. Go log a 💩, it's the only thing you'll finish this week.`);
+    add(g.done && g.lead < 0, `Final: ${g.oppO} ${f1(g.oppPts)}, ${o} ${f1(g.pts)}. Pack it up, ${F.guy === 'girl' ? 'sweetheart' : 'buddy'}.`);
+    add(g.started && g.lead < 0 && g.ytp > 0 && g.wp >= 50, `${o} is trailing ${g.oppO} ${sc} and calling it "part of the plan." ${F.He}'s still ${g.wp}% to win, which says more about ${g.oppO} than ${o}.`);
+    add(g.started && g.lead > 0 && g.wp < 55, `${o} is up ${f1(g.lead)} on ${g.oppO} and the odds still only give ${F.him} ${g.wp}%. Even the math knows ${F.he}'ll blow it.`);
+    add(!g.vsMe && g.wp < 35, `${o} has a ${g.wp}% chance against ${g.oppO} this week. ESPN looked at that lineup and started laughing.`);
+    add(!g.vsMe && g.wp >= 35 && g.wp < 43, `${o} is the underdog against ${g.oppO} this week (${g.wp}%). Fitting. ${F.He}'s been an underdog since birth.`);
+    add(!g.vsMe && g.wp > 57 && g.wp <= 65, `${o} is only ${g.wp}% to beat ${g.oppO}. Favored and still sweating through ${F.his} shirt.`);
+    add(!g.vsMe && g.wp >= 43 && g.wp <= 57, `${o} vs ${g.oppO} is a coin flip this week (${g.wp}%), and ${o} has never once called heads right.`);
+    add(!g.vsMe && g.wp > 65, `${o} is ${g.wp}% to beat ${g.oppO} this week. Beating the ${g.oppPlace} place team isn't a flex, it's a scrimmage.`);
+    add(g.vsMe, `${o}, you drew ME this week. ${g.wp}% to win. I'd start praying, but your lineup already is.`);
+    add(g.dud, g.dud && `${g.dud.name} gave ${o} ${f1(g.dud.pts)} points this week on a ${f1(g.dud.proj)} projection. ${o} STARTED that. On purpose.`);
+    add(g.zero, g.zero && `${o} is starting ${g.zero.name} with a projection of zero. That's not a lineup, that's a cry for help.`);
+    add(g.expRank >= 8, `${o}'s lineup projects for ${f1(g.exp)} this week, ${ord(g.expRank)} of 10. Losing before kickoff, impressive.`);
+    add(F.benchLive, F.benchLive && `Week ${g.wk} update: ${F.benchLive.b.name} has ${f1(F.benchLive.b.pts)} on ${o}'s BENCH. ${F.benchLive.s.name} has ${f1(F.benchLive.s.pts)} in the lineup. Coach of the year.`);
+    return L.filter(Boolean);
   }
   // teams at the top: roast the history, the luck and the choke, not this year's numbers
   function frontrunner(F) {
@@ -1599,7 +1634,9 @@
     const F = roastFacts(tid);
     const mine = PERSONAL.find((p) => p.re.test(F.o));
     const pick = (pool) => { pool = pool.filter((x) => x && x !== lastRoast); return pool[Math.floor(Math.random() * pool.length)]; };
-    const out = (mine && Math.random() < 0.65 && pick(mine.lines(F))) || pick(roastLines(F)) || '';
+    // this week's matchup about a third of the time, personal material most of the rest, then the numbers
+    const r = Math.random(), wl = weekLines(F);
+    const out = (wl.length && r < 0.35 && pick(wl)) || (mine && r < 0.8 && pick(mine.lines(F))) || pick(roastLines(F)) || pick(wl) || '';
     lastRoast = out; return out;
   }
   // ---- sharing to the group chat (Messenger has no API for group chats, so we use the phone's share sheet) ----
