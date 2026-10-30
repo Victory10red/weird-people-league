@@ -1,0 +1,80 @@
+// NFL Pick'em: everyone picks the winner of every NFL game each week. Picks lock at kickoff.
+// GET  /api/picks?year=2026&week=8&team=4  -> { ready, games, mine, picked, board: { week, season } }
+//      (other people's picks for a game are only revealed once that game kicks off)
+// POST /api/picks { year, week, team, game, pick }   pick = a team abbreviation, or null to clear
+import { redis } from '../lib/kv.js';
+import { fetchSlate } from '../lib/week.js';
+
+const locked = (g) => g.state !== 'pre' || Date.now() >= new Date(g.kickoff).getTime();
+const readAll = (flat) => { const o = {}; for (let i = 0; i < (flat || []).length; i += 2) { try { o[flat[i]] = JSON.parse(flat[i + 1]); } catch { /* skip */ } } return o; };
+
+// winners for a past week; saved for good once every game is final
+async function results(run, year, week) {
+  const key = `nflres:${year}:${week}`;
+  const [have] = await run([['GET', key]]);
+  if (have) return JSON.parse(have);
+  const games = await fetchSlate(year, week, 10 * 60000);
+  const res = Object.fromEntries(games.filter((g) => g.winner).map((g) => [g.id, g.winner]));
+  if (games.length && games.every((g) => g.done)) await run([['SET', key, JSON.stringify(res), 'EX', 400 * 86400]]);
+  return res;
+}
+function tally(picks, res) { // picks: { team: { gameId: abbr } } -> { team: { c, n } }
+  const out = {};
+  for (const [t, p] of Object.entries(picks)) {
+    let c = 0, n = 0;
+    for (const [gid, abbr] of Object.entries(p)) { const w = res[gid]; if (!w || w === 'TIE') continue; n++; if (w === abbr) c++; }
+    out[t] = { c, n };
+  }
+  return out;
+}
+
+export default async function handler(req, res) {
+  res.setHeader('Cache-Control', 'no-store');
+  const run = redis();
+  if (!run) return res.status(200).json({ ready: false });
+  try {
+    const q = req.method === 'POST' ? (typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {})) : (req.query || {});
+    const year = Number(q.year), week = Number(q.week), team = Number(q.team);
+    if (!Number.isInteger(year) || year < 2020 || !Number.isInteger(week) || week < 1 || week > 18) return res.status(400).json({ error: 'Bad week' });
+    const key = `pick:${year}:${week}`;
+    let games = await fetchSlate(year, week);
+    if (req.method === 'POST') {
+      if (!Number.isInteger(team) || team < 1 || team > 99) return res.status(400).json({ error: 'Pick who you are first' });
+      games = await fetchSlate(year, week, 15000); // fresh enough to enforce kickoff
+      const g = games.find((x) => x.id === String(q.game));
+      if (!g) return res.status(400).json({ error: 'No such game' });
+      if (locked(g)) return res.status(409).json({ error: `${g.away.abbr} @ ${g.home.abbr} already kicked off. Picks are locked.` });
+      if (q.pick != null && q.pick !== g.home.abbr && q.pick !== g.away.abbr) return res.status(400).json({ error: 'Pick one of the two teams' });
+      const [cur] = await run([['HGET', key, String(team)]]);
+      const mine = cur ? JSON.parse(cur) : {};
+      if (q.pick == null) delete mine[g.id]; else mine[g.id] = q.pick;
+      await run([['HSET', key, String(team), JSON.stringify(mine)], ['EXPIRE', key, 400 * 86400]]);
+    }
+    // this week's picks, other people's hidden until each game locks
+    const [flat] = await run([['HGETALL', key]]);
+    const all = readAll(flat);
+    const lockedIds = new Set(games.filter(locked).map((g) => g.id));
+    const picked = {}; // gameId -> { abbr: [teamIds] }  (locked games only)
+    for (const [t, p] of Object.entries(all)) for (const [gid, abbr] of Object.entries(p)) {
+      if (!lockedIds.has(gid)) continue;
+      ((picked[gid] ||= {})[abbr] ||= []).push(Number(t));
+    }
+    const count = Object.fromEntries(Object.entries(all).map(([t, p]) => [t, Object.keys(p).length]));
+    const resNow = Object.fromEntries(games.filter((g) => g.winner).map((g) => [g.id, g.winner]));
+    const weekBoard = tally(all, resNow);
+    // season: every week up to this one that has picks
+    const weeks = Array.from({ length: week }, (_, i) => i + 1);
+    const flats = await run(weeks.map((w) => ['HGETALL', `pick:${year}:${w}`]));
+    const season = {};
+    for (let i = 0; i < weeks.length; i++) {
+      const p = readAll(flats[i]); if (!Object.keys(p).length) continue;
+      const r = weeks[i] === week ? resNow : await results(run, year, weeks[i]);
+      for (const [t, v] of Object.entries(tally(p, r))) { const s = (season[t] ||= { c: 0, n: 0, wk: 0 }); s.c += v.c; s.n += v.n; s.wk++; }
+    }
+    const rows = (o) => Object.entries(o).map(([t, v]) => ({ id: Number(t), ...v, made: count[t] || 0 })).sort((a, b) => b.c - a.c || a.n - b.n);
+    return res.status(200).json({ ready: true, year, week, games, mine: Number.isInteger(team) ? (all[team] || {}) : {}, picked, made: count,
+      board: { week: rows(weekBoard), season: rows(season) } });
+  } catch (e) {
+    return res.status(502).json({ ready: false, error: `Pick'em unavailable (${e.message})` });
+  }
+}

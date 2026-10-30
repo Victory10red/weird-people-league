@@ -31,9 +31,40 @@ const fakePins = { 3: '1111' };
 const fakeTalk = [{ id: 'a', t: 3, text: 'Trevor you are 2-5 and it shows. Absolute clown shit.', gif: null, at: Date.now() - 3600000, re: { '😂': [8, 10], '🔥': [3] } }, { id: 'b', t: 10, text: 'Somebody check on Carlos', gif: null, at: Date.now() - 7200000, re: {} }];
 const fakeSeen = { 3: { last: Date.now() - 5400000, visits: 4 }, 7: { last: Date.now() - 2 * 86400000, visits: 1 } };
 const H = 3600000; const fakePoop = [[8, 0.4], [3, 1.2], [10, 2.5], [8, 5], [1, 9], [8, 26], [12, 30], [3, 50], [6, 75]].map(([t, h]) => ({ t, at: Date.now() - h * H }));
+// pick'em: this week's slate from the saved NFL list; the first 3 games final, the next 2 in progress
+const NAMES = { GB: 'Packers', CAR: 'Panthers', KC: 'Chiefs', BUF: 'Bills', DAL: 'Cowboys', PHI: 'Eagles', SF: '49ers', DET: 'Lions', MIA: 'Dolphins', NYJ: 'Jets' };
+const slate = (league.nfl || []).map((g, i) => {
+  const st = i < 3 ? 'post' : i < 5 ? 'in' : 'pre';
+  const hs = st === 'pre' ? null : 10 + ((i * 7) % 21), as = st === 'pre' ? null : 13 + ((i * 11) % 17);
+  const kick = new Date(Date.now() + (st === 'pre' ? (i - 4) * 3 * 3600000 : -3 * 3600000)).toISOString();
+  const side = (x, sc, w) => ({ abbr: x.abbr, name: NAMES[x.abbr] || x.abbr, score: sc, winner: w });
+  const done = st === 'post';
+  return { id: String(g.id), kickoff: kick, state: st, status: st === 'post' ? 'Final' : st === 'in' ? 'Q3 4:12' : '', done,
+    home: side(g.home, hs, done && hs > as), away: side(g.away, as, done && as > hs), fav: g.odds && g.odds.favId === g.homeId ? g.home.abbr : g.away.abbr, line: g.odds ? g.odds.line : null,
+    winner: done ? (hs > as ? g.home.abbr : g.away.abbr) : null };
+});
+const fakePicks = {};
+slate.slice(0, 5).forEach((g, i) => { for (const t of [3, 8, 10, 6, 1]) (fakePicks[t] ||= {})[g.id] = (t + i) % 2 ? g.home.abbr : g.away.abbr; });
+const picksOut = (team) => {
+  const locked = new Set(slate.filter((g) => g.state !== 'pre').map((g) => g.id)); const picked = {};
+  for (const [t, p] of Object.entries(fakePicks)) for (const [gid, ab] of Object.entries(p)) if (locked.has(gid)) ((picked[gid] ||= {})[ab] ||= []).push(+t);
+  const res = Object.fromEntries(slate.filter((g) => g.winner).map((g) => [g.id, g.winner]));
+  const rows = Object.entries(fakePicks).map(([t, p]) => { let c = 0, n = 0; for (const [gid, ab] of Object.entries(p)) if (res[gid]) { n++; if (res[gid] === ab) c++; } return { id: +t, c, n, made: Object.keys(p).length }; }).sort((a, b) => b.c - a.c || a.n - b.n);
+  return { ready: true, year: 2026, week: wk, games: slate, mine: fakePicks[team] || {}, picked, made: Object.fromEntries(Object.entries(fakePicks).map(([t, p]) => [t, Object.keys(p).length])), board: { week: rows, season: rows.map((r) => ({ ...r, c: r.c + 20, n: r.n + 40, wk: 4 })) } };
+};
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
 http.createServer((req, res) => {
   const u = new URL(req.url, 'http://x');
+  if (u.pathname === '/api/picks') {
+    res.setHeader('content-type', 'application/json');
+    if (req.method === 'POST') { let body = ''; req.on('data', (c) => { body += c; }); req.on('end', () => {
+      const b = JSON.parse(body || '{}'); const g = slate.find((x) => x.id === String(b.game));
+      if (!g) { res.statusCode = 400; return res.end('{"error":"No such game"}'); }
+      if (g.state !== 'pre') { res.statusCode = 409; return res.end(JSON.stringify({ error: `${g.away.abbr} @ ${g.home.abbr} already kicked off. Picks are locked.` })); }
+      const m = (fakePicks[b.team] ||= {}); if (b.pick == null) delete m[g.id]; else m[g.id] = b.pick;
+      res.end(JSON.stringify(picksOut(b.team))); }); return; }
+    return res.end(JSON.stringify(picksOut(Number(u.searchParams.get('team')))));
+  }
   if (u.pathname === '/api/talk') {
     res.setHeader('content-type', 'application/json');
     if (req.method === 'POST') { let body = ''; req.on('data', (c) => { body += c; }); req.on('end', () => {

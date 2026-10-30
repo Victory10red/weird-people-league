@@ -528,3 +528,40 @@ table.cmp td.win { color: var(--good); font-weight: 700; }
   table.byes td.pn { max-width: 104px; overflow: hidden; text-overflow: ellipsis; }
   .card { padding: 12px; }
 }
+
+/* NFL Pick'em */
+.pk { max-width: 680px; margin: 0 auto; }
+.pk-head h2 { margin: 0; font-size: 20px; }
+.pk-head small { color: var(--muted); font-size: 12.5px; }
+.pk-title { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; text-align: center; }
+.pk-nav { padding: 4px 12px; font-size: 18px; line-height: 1; }
+.pk-nav[disabled] { opacity: .35; cursor: default; }
+.pk-head .note { margin: 10px 0 0; }
+.pk-day { margin: 16px 2px 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+.pk-game { padding: 10px 12px; margin-bottom: 8px; }
+.pk-meta { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+.pk-teams { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: stretch; }
+.pk-at { align-self: center; color: var(--muted); font-weight: 600; font-size: 13px; }
+.pk-team { position: relative; display: grid; grid-template-columns: 34px 1fr auto; gap: 8px; align-items: center; text-align: left; padding: 10px; border-radius: 12px; border: 2px solid var(--line); background: var(--panel-2); color: var(--fg); cursor: pointer; font: inherit; min-width: 0; transition: transform .08s, border-color .15s, background .15s; }
+.pk-team:not([disabled]):hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+.pk-team:not([disabled]):active { transform: scale(.98); }
+.pk-team[disabled] { cursor: default; }
+.pk-team.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--panel)); }
+.pk-team.won { border-color: color-mix(in srgb, var(--good) 60%, var(--line)); }
+.pk-team.on.won { background: color-mix(in srgb, var(--good) 14%, var(--panel)); border-color: var(--good); }
+.pk-team.on.lost { background: color-mix(in srgb, var(--bad) 10%, var(--panel)); border-color: var(--bad); }
+.pk-team.lost:not(.on) { opacity: .6; }
+.pk-logo { width: 34px; height: 34px; object-fit: contain; }
+.pk-tn { display: grid; min-width: 0; line-height: 1.15; }
+.pk-tn b { font: 600 17px Oswald, Inter, sans-serif; letter-spacing: .3px; }
+.pk-tn small { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pk-sc { font: 600 22px Oswald, Inter, sans-serif; }
+.pk-fav { font-size: 11.5px; font-weight: 700; color: var(--muted); }
+.pk-mark { position: absolute; top: -8px; right: -6px; font-size: 14px; background: var(--panel); border-radius: 99px; padding: 0 3px; }
+.pk-team.on:not(.won):not(.lost) .pk-mark { background: var(--accent); color: #fff; font-weight: 700; font-size: 12px; padding: 1px 6px; }
+.pk-split { display: grid; gap: 2px; margin-top: 8px; font-size: 12px; color: var(--muted); }
+.pk-split b { color: var(--fg); }
+.pk-lb { margin-top: 16px; }
+.pk-lb .row-head { flex-wrap: wrap; gap: 8px; }
+.pk-lb .seg { margin: 0; }
+@media (max-width: 420px) { .pk-team { grid-template-columns: 28px 1fr auto; padding: 8px; gap: 6px; } .pk-logo { width: 28px; height: 28px; } .pk-tn small { display: none; } }
