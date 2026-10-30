@@ -20,6 +20,8 @@
 
   let D = null, LIVE = null, T = {};
   let team = Number(new URLSearchParams(location.search).get('team')) || Number(store.get('team')) || null;
+  // who is using this device (games, Dump Log, welcome) — separate from which team is being viewed
+  let ME = Number(store.get('me')) || null;
   let tab = (location.hash || '#team').slice(1);
   if (tab === 'live') tab = 'scores';
   if (!TABS.includes(tab)) tab = 'team';
@@ -244,7 +246,7 @@
   function renderPickFirst() {
     $('#pick-grid').replaceChildren(...[...D.teams].sort((a, b) => a.name.localeCompare(b.name)).map((t) => {
       const b = el('button', { class: 'pickbtn' }, el('b', { text: t.name }), el('span', { text: `${t.owner} · ${t.w}-${t.l}` }));
-      b.addEventListener('click', () => setTeam(t.id));
+      b.addEventListener('click', () => { if (!ME) setMe(t.id); else setTeam(t.id); });
       return b;
     }));
   }
@@ -255,6 +257,9 @@
     $('#team-body').hidden = !t;
     if (!t) { renderPickFirst(); return; }
     $('#team-name').textContent = `${t.name} · ${t.owner}`;
+    { const host = $('#viewing');
+      if (ME && T[ME] && ME !== team) { const back = el('button', { class: 'linkbtn', type: 'button', text: `Back to ${T[ME].name}` }); back.addEventListener('click', () => setTeam(ME)); host.replaceChildren(el('span', {}, `👀 Viewing ${t.owner}'s team · `), back); host.hidden = false; }
+      else host.hidden = true; }
     const live = myLive();
     const st = $('#team-status');
     st.textContent = LIVE && LIVE.anyLive ? 'Live' : live && live.done ? 'Final' : `Week ${D.league.week}`;
@@ -1002,10 +1007,10 @@
     if (tab === 'play') renderLB();
   }
   async function postScore(game, level, score) {
-    if (!team || !(score > 0)) return;
+    if (!ME || !(score > 0)) return;
     if (score > (Number(store.get(`lb-synced-${game}:${level}`)) || 0)) store.set(`lb-synced-${game}:${level}`, String(score));
     try {
-      const r = await fetch('/api/scores', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ game, level, team, score, token: pinTok() }) });
+      const r = await fetch('/api/scores', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ game, level, team: ME, score, token: pinTok() }) });
       const j = await r.json(); if (pinFail(j)) return; if (j && j.boards) { LB = j; lbAt = Date.now(); }
     } catch { /* offline: personal best is still saved on the device */ }
     if (tab === 'play') renderLB();
@@ -1019,30 +1024,30 @@
     if (!LB.ready) { host.replaceChildren(el('p', { class: 'note', text: 'The league leaderboard isn\'t switched on yet (it needs a free database in Vercel). Your best score is still saved on this device.' })); return; }
     // scores set on this device before the board existed (or while offline): offer to add them once
     const pending = [];
-    if (team && T[team]) {
+    if (ME && T[ME]) {
       for (const [g, lvls, lab] of [['bk', ['rookie', 'pro', 'hard', 'extreme'], { rookie: 'Breakaway Rookie', pro: 'Breakaway Pro', hard: 'Breakaway All-Pro', extreme: 'Breakaway Extreme' }], ['hol', ['week', 'any', 'season'], { week: 'Higher or Lower (same week)', any: 'Higher or Lower (any week)', season: 'Higher or Lower (season)' }]]) {
         for (const l of lvls) {
           const local = Number(store.get(`${g}-best-${l}`)) || 0, done = Number(store.get(`lb-synced-${g}:${l}`)) || 0;
-          const mine = (LB.boards[`${g}:${l}`] || []).find((r) => r.id === team);
+          const mine = (LB.boards[`${g}:${l}`] || []).find((r) => r.id === ME);
           if (local > 0 && local > done && (!mine || mine.score < local)) pending.push({ g, l, v: local, lab: lab[l], unit: g === 'bk' ? 'yds' : 'in a row' });
         }
       }
     }
     const offer = pending.length ? (() => {
-      const add = el('button', { class: 'btn', type: 'button', text: `Add as ${T[team].owner}` });
+      const add = el('button', { class: 'btn', type: 'button', text: `Add as ${T[ME].owner}` });
       const no = el('button', { class: 'linkbtn', type: 'button', text: 'Not mine' });
       add.addEventListener('click', async () => { add.disabled = true; for (const p of pending) { store.set(`lb-synced-${p.g}:${p.l}`, String(p.v)); await postScore(p.g, p.l, p.v); } renderLB(); });
       no.addEventListener('click', () => { for (const p of pending) store.set(`lb-synced-${p.g}:${p.l}`, String(p.v)); renderLB(); });
-      return el('div', { class: 'lb-offer' }, el('p', {}, 'Earlier scores on this device: ', el('b', { text: pending.map((p) => `${p.lab} ${p.v} ${p.unit}`).join(', ') }), `. Put them on the board under ${T[team].owner}?`), el('div', { class: 'lb-offer-b' }, add, no));
+      return el('div', { class: 'lb-offer' }, el('p', {}, 'Earlier scores on this device: ', el('b', { text: pending.map((p) => `${p.lab} ${p.v} ${p.unit}`).join(', ') }), `. Put them on the board under ${T[ME].owner}?`), el('div', { class: 'lb-offer-b' }, add, no));
     })() : null;
     const rows = (LB.boards[key] || []).filter((r) => T[r.id]);
     if (!rows.length) { host.replaceChildren(...[offer, el('p', { class: 'note', text: 'No scores yet. Be the first on the board.' })].filter(Boolean)); return; }
     const medal = ['🥇', '🥈', '🥉'];
-    host.replaceChildren(...[offer].filter(Boolean), el('ol', { class: 'lb' }, ...rows.map((r, i) => el('li', { class: r.id === team ? 'me' : '' },
+    host.replaceChildren(...[offer].filter(Boolean), el('ol', { class: 'lb' }, ...rows.map((r, i) => el('li', { class: r.id === ME ? 'me' : '' },
       el('span', { class: 'lb-r', text: medal[i] || String(i + 1) }),
       el('span', { class: 'lb-n' }, el('b', { text: T[r.id].owner }), el('small', { text: T[r.id].name })),
       el('span', { class: 'lb-s' }, el('b', { text: String(r.score) }), el('small', { text: unit })),
-      el('span', { class: 'lb-d' }, new Date(r.at).toLocaleDateString([], { month: 'short', day: 'numeric' }), team === ADMIN && pinTok() ? removeBtn(r) : null)))));
+      el('span', { class: 'lb-d' }, new Date(r.at).toLocaleDateString([], { month: 'short', day: 'numeric' }), ME === ADMIN && pinTok() ? removeBtn(r) : null)))));
   }
   function removeBtn(r) {
     const b = el('button', { class: 'lb-x', type: 'button', text: 'Remove' });
@@ -1061,29 +1066,29 @@
   }
   function renderWho() {
     const host = $('#play-who');
-    if (team && T[team]) {
+    if (ME && T[ME]) {
       const chg = el('button', { class: 'linkbtn', type: 'button', text: 'Not you?' });
       chg.addEventListener('click', () => { whoOpen = true; renderPlay(); });
-      if (!whoOpen) { host.replaceChildren(el('div', { class: 'who-bar' }, el('span', {}, 'Playing as ', el('b', { text: T[team].owner }), ` · ${T[team].name}`), chg)); return true; }
+      if (!whoOpen) { host.replaceChildren(el('div', { class: 'who-bar' }, el('span', {}, 'Playing as ', el('b', { text: T[ME].owner }), ` · ${T[ME].name}`), chg)); return true; }
     }
     host.replaceChildren(el('div', { class: 'who-pick' }, el('h2', { text: 'Who are you?' }), el('p', { class: 'note', text: 'Your scores and Dump Log entries go under this name. The commissioner can see when each name last opened the app.' }),
       el('div', { class: 'pickgrid' }, ...[...D.teams].sort((a, b) => a.owner.localeCompare(b.owner)).map((t) => {
         const b = el('button', { class: 'pickbtn' }, el('b', { text: t.owner }), el('span', { text: t.name }));
-        b.addEventListener('click', () => { whoOpen = false; if (bkInst) { bkInst.destroy(); bkInst = null; } setTeam(t.id); });
+        b.addEventListener('click', () => { whoOpen = false; setMe(t.id); });
         return b;
       }))));
     return false;
   }
   let whoOpen = false;
   const ADMIN = 4; // commissioner
-  const pinTok = (t = team) => store.get('pin-tok-' + t);
+  const pinTok = (t = ME) => store.get('pin-tok-' + t);
   const pinHas = {};
-  function pinFail(j) { if (j && j.pin) { store.set('pin-tok-' + team, ''); renderPlay(); return true; } return false; }
+  function pinFail(j) { if (j && j.pin) { store.set('pin-tok-' + ME, ''); renderPlay(); return true; } return false; }
   function renderPin(host, chg) {
-    const t = team, who = T[t].owner;
+    const t = ME, who = T[t].owner;
     if (pinHas[t] == null) {
       host.replaceChildren(el('p', { class: 'note', text: 'Checking…' }));
-      getJSON(`/api/pin?team=${t}`).then((j) => { pinHas[t] = j.ready ? !!j.has : 'off'; renderAdmin(); }).catch(() => { pinHas[t] = 'off'; renderAdmin(); });
+      getJSON(`/api/pin?ME=${t}`).then((j) => { pinHas[t] = j.ready ? !!j.has : 'off'; renderAdmin(); }).catch(() => { pinHas[t] = 'off'; renderAdmin(); });
       return;
     }
     if (pinHas[t] === 'off') { host.replaceChildren(el('p', { class: 'note', text: 'Can’t check PINs right now. Try again in a minute.' })); return; }
@@ -1115,16 +1120,16 @@
   const ago = (ms) => { if (!ms) return 'never'; const m = Math.round((Date.now() - ms) / 60000); if (m < 2) return 'just now'; if (m < 60) return `${m} min ago`; const h = Math.round(m / 60); if (h < 24) return `${h} hr ago`; const d = Math.round(h / 24); return d === 1 ? 'yesterday' : `${d} days ago`; };
   async function loadSeen(host) {
     try {
-      const j = await getJSON(`/api/seen?team=${team}&token=${encodeURIComponent(pinTok())}`);
+      const j = await getJSON(`/api/seen?ME=${ME}&token=${encodeURIComponent(pinTok())}`);
       const by = Object.fromEntries((j.rows || []).map((r) => [r.id, r]));
       const rows = D.teams.map((x) => ({ x, r: by[x.id] || { last: null, visits: 0, pin: false } })).sort((a, b) => (b.r.last || 0) - (a.r.last || 0));
       host.replaceChildren(el('table', { class: 'seen-t' }, el('thead', {}, el('tr', {}, el('th', { text: 'Manager' }), el('th', { text: 'Last seen' }), el('th', { class: 'n', text: 'Visits' }), el('th', { text: '' }))),
-        el('tbody', {}, ...rows.map(({ x, r }) => el('tr', { class: x.id === team ? 'me' : '' }, el('td', { text: x.owner }), el('td', { class: r.last && Date.now() - r.last < 3600000 ? 'good' : '', text: ago(r.last) }), el('td', { class: 'n', text: String(r.visits || 0) }), el('td', { text: '' }))))));
+        el('tbody', {}, ...rows.map(({ x, r }) => el('tr', { class: x.id === ME ? 'me' : '' }, el('td', { text: x.owner }), el('td', { class: r.last && Date.now() - r.last < 3600000 ? 'good' : '', text: ago(r.last) }), el('td', { class: 'n', text: String(r.visits || 0) }), el('td', { text: '' }))))));
     } catch (e) { host.replaceChildren(el('p', { class: 'note', text: `Couldn’t load (${e.message}).` })); }
   }
   function renderAdmin() {
     const host = $('#play-admin');
-    if (team !== ADMIN) { host.replaceChildren(); return; }
+    if (ME !== ADMIN) { host.replaceChildren(); return; }
     if (!pinTok()) {
       const inner = el('div');
       const det = el('details', { class: 'card admin' }, el('summary', { text: 'Commissioner tools' }), inner);
@@ -1153,8 +1158,8 @@
     if (playGame === 'poop') { renderPoop(); return; }
     if (playGame === 'bk') {
       if (!bkInst && window.Breakaway) {
-        const mine = team && T[team];
-        bkInst = window.Breakaway.mount($('#play-bk'), { names: D.teams.filter((x) => x.id !== team).map((x) => x.owner), me: mine ? mine.owner : 'Rookie', big: !!(mine && /^justin/i.test(mine.owner)), hair: mine && /^brandon/i.test(mine.owner) ? '#e2531f' : null, accent: css('--accent') || '#c2410c',
+        const mine = ME && T[ME];
+        bkInst = window.Breakaway.mount($('#play-bk'), { names: D.teams.filter((x) => x.id !== ME).map((x) => x.owner), me: mine ? mine.owner : 'Rookie', big: !!(mine && /^justin/i.test(mine.owner)), hair: mine && /^brandon/i.test(mine.owner) ? '#e2531f' : null, accent: css('--accent') || '#c2410c',
           onLevel: (lv) => { bkLevel = lv; renderLB(); }, onEnd: (lv, yds) => postScore('bk', lv, yds) });
       }
       renderLB();
@@ -1234,7 +1239,7 @@
   }
   async function sendPoop(action) {
     try {
-      const r = await fetch('/api/poop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ team, action, token: pinTok() }) });
+      const r = await fetch('/api/poop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ team: ME, action, token: pinTok() }) });
       const j = await r.json(); if (pinFail(j)) return; if (j && j.log) { POOP = j; poopAt = Date.now(); }
       if (!r.ok && j.error) poopMsg = j.error;
     } catch { poopMsg = 'Couldn’t reach the server. Try again.'; }
@@ -1252,8 +1257,8 @@
     const now = Date.now(), today = dayKey(now);
     const weekStart = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); })(); // Monday
     const inRange = (e) => (poopRange === 'today' ? dayKey(e.at) === today : poopRange === 'week' ? e.at >= weekStart : true);
-    const mineToday = log.filter((e) => e.t === team && dayKey(e.at) === today);
-    const myLast = log.find((e) => e.t === team);
+    const mineToday = log.filter((e) => e.t === ME && dayKey(e.at) === today);
+    const myLast = log.find((e) => e.t === ME);
     // the button
     const btn = el('button', { class: 'poop-btn', type: 'button' }, el('span', { class: 'pe', text: '💩' }), el('span', { text: 'I just pooped' }));
     btn.addEventListener('click', () => {
@@ -1263,7 +1268,7 @@
     });
     const undo = myLast && now - myLast.at < 10 * 60000 ? el('button', { class: 'linkbtn', type: 'button', text: 'Undo my last one' }) : null;
     if (undo) undo.addEventListener('click', () => { poopMsg = 'Undone. We’ll pretend that didn’t happen.'; sendPoop('undo'); });
-    const status = myLast ? `${T[team].owner}, you’re at ${mineToday.length} today. Last one: ${hhmm(myLast.at)}${dayKey(myLast.at) === today ? '' : ' (' + new Date(myLast.at).toLocaleDateString([], { weekday: 'short' }) + ')'}.` : `${T[team].owner}, you haven’t logged one yet. Get on the board.`;
+    const status = myLast ? `${T[ME].owner}, you’re at ${mineToday.length} today. Last one: ${hhmm(myLast.at)}${dayKey(myLast.at) === today ? '' : ' (' + new Date(myLast.at).toLocaleDateString([], { weekday: 'short' }) + ')'}.` : `${T[ME].owner}, you haven’t logged one yet. Get on the board.`;
     // leaderboard for the chosen range
     const counts = {}; for (const e of log) if (inRange(e)) counts[e.t] = (counts[e.t] || 0) + 1;
     const board = Object.entries(counts).map(([t, n]) => ({ t: Number(t), n })).sort((a, b) => b.n - a.n);
@@ -1271,7 +1276,7 @@
       const b = el('button', { 'aria-pressed': String(k === poopRange), text: lab }); b.addEventListener('click', () => { poopRange = k; store.set('poop-range', k); renderPoop(); }); return b;
     }));
     const crowns = ['👑', '🥈', '🥉'];
-    const lb = board.length ? el('ol', { class: 'lb poop-lb' }, ...board.map((r, i) => el('li', { class: r.t === team ? 'me' : '' },
+    const lb = board.length ? el('ol', { class: 'lb poop-lb' }, ...board.map((r, i) => el('li', { class: r.t === ME ? 'me' : '' },
       el('span', { class: 'lb-r', text: crowns[i] || String(i + 1) }),
       el('span', { class: 'lb-n' }, el('b', { text: T[r.t].owner }), el('small', { text: '💩'.repeat(Math.min(r.n, 12)) + (r.n > 12 ? ' …' : '') })),
       el('span', { class: 'lb-s' }, el('b', { text: String(r.n) })), el('span'))))
@@ -1310,7 +1315,7 @@
         btn, el('p', { class: 'poop-status', text: poopMsg || status }), undo),
       el('div', { class: 'card' }, el('div', { class: 'row-head' }, el('h3', { text: 'Leaderboard' }), seg), lb),
       el('div', { class: 'grid' },
-        el('div', { class: 'card' }, el('h3', { text: 'Today’s feed' }), feed.length ? el('div', { class: 'poop-feed' }, ...feed.map((e) => el('div', { class: e.t === team ? 'me' : '' }, el('span', { text: '💩' }), el('b', { text: T[e.t].owner }), el('span', { class: 'muted', text: hhmm(e.at) })))) : el('p', { class: 'note', text: 'Quiet so far today.' })),
+        el('div', { class: 'card' }, el('h3', { text: 'Today’s feed' }), feed.length ? el('div', { class: 'poop-feed' }, ...feed.map((e) => el('div', { class: e.t === ME ? 'me' : '' }, el('span', { text: '💩' }), el('b', { text: T[e.t].owner }), el('span', { class: 'muted', text: hhmm(e.at) })))) : el('p', { class: 'note', text: 'Quiet so far today.' })),
         el('div', { class: 'card' }, el('h3', { text: 'Rush hour' }), el('p', { class: 'note', text: log.length ? `League-wide, the busiest hour is ${peak % 12 || 12}${peak < 12 ? ' AM' : ' PM'}.` : 'Every log by hour of day.' }), chart)),
       facts.length ? el('div', { class: 'card' }, el('h3', { text: 'Bathroom awards' }), el('div', { class: 'poop-facts' }, ...facts.map(([a, b]) => el('div', {}, el('small', { text: a }), el('b', { text: b }))))) : null);
     poopMsg = '';
@@ -1322,43 +1327,59 @@
   function maybeWelcome() {
     if (!D || !LIVE || welcomeData === 'done') return;
     const today = dayKey(Date.now());
-    if (store.get('welcome-day') === today && !location.hash.includes('welcome')) { welcomeData = 'done'; return; }
+    if (ME && store.get('welcome-day') === today && !location.hash.includes('welcome')) { welcomeData = 'done'; return; }
     welcomeData = 'done'; store.set('welcome-day', today);
     $('#welcome').hidden = false; document.body.classList.add('noscroll');
     loadPoop(); renderWelcome();
+  }
+  function notYou() {
+    const b = el('button', { class: 'linkbtn', type: 'button', text: `Not ${T[ME].owner}?` });
+    b.addEventListener('click', () => { ME = null; store.set('me', ''); renderWelcome(); });
+    return b;
   }
   function closeWelcome() { $('#welcome').hidden = true; document.body.classList.remove('noscroll'); }
   function renderWelcome() {
     const host = $('#welcome');
     const hr = new Date().getHours(), hi = hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening';
-    const me = team && T[team];
+    const me = ME && T[ME];
+    if (!me) { // first open on this device: ask who this is
+      const x0 = el('button', { class: 'install-x wl-x', type: 'button', 'aria-label': 'Close', text: '✕' }); x0.addEventListener('click', closeWelcome);
+      host.onclick = (e) => { if (e.target === host) closeWelcome(); };
+      host.replaceChildren(el('div', { class: 'wl-card' }, x0, el('div', { class: 'wl-hi' }, el('small', { text: 'Welcome to League HQ' }), el('h2', { text: 'Who are you?' })),
+        el('p', { class: 'note', text: 'This phone will remember. You can still look at anyone’s team from the menu at the top.' }),
+        el('div', { class: 'pickgrid wl-pick' }, ...[...D.teams].sort((a, b) => a.owner.localeCompare(b.owner)).map((t) => {
+          const b = el('button', { class: 'pickbtn' }, el('b', { text: t.owner }), el('span', { text: t.name }));
+          b.addEventListener('click', () => setMe(t.id)); return b;
+        }))));
+      return;
+    }
     // which week to feature: this one once games have started, otherwise last week
     const cur = LIVE.week, started = LIVE.games.some((g) => g.h.pts > 0 || g.a.pts > 0);
     const wk = started ? cur : Math.max(1, cur - 1), data = wk === cur ? LIVE : weekCache[wk];
     if (!data && wk !== cur) getJSON(`/api/live?week=${wk}`).then((j) => { weekCache[j.week] = j; if (!host.hidden) renderWelcome(); }).catch(() => {});
     // my matchup line
-    const g = me && LIVE.games.find((x) => x.h.id === team || x.a.id === team);
+    const g = me && LIVE.games.find((x) => x.h.id === ME || x.a.id === ME);
     let mline = null;
     if (g) {
-      const mineH = g.h.id === team, a = mineH ? g.h : g.a, b = mineH ? g.a : g.h, wp = Math.round(100 * (mineH ? g.hwin : 1 - g.hwin));
+      const mineH = g.h.id === ME, a = mineH ? g.h : g.a, b = mineH ? g.a : g.h, wp = Math.round(100 * (mineH ? g.hwin : 1 - g.hwin));
       mline = el('div', { class: 'wl-match' }, el('div', {}, el('small', { text: `Week ${cur} vs ${tm(b.id).owner}` }), el('b', { text: `${f1(a.pts)} – ${f1(b.pts)}` })), el('div', { class: 'wl-wp ' + (wp >= 50 ? 'up' : 'down'), text: `${wp}% to win` }));
     }
     // top performer at each position
     const played = (r) => r.state !== 'pre' && r.state !== 'bye';
     const all = []; if (data) for (const gm of data.games) for (const sd of [gm.h, gm.a]) for (const r of sd.rows) all.push({ ...r, tid: sd.id });
     const tops = ['QB', 'RB', 'WR', 'TE', 'K', 'D/ST'].map((pos) => all.filter((r) => r.pos === pos && played(r)).sort((x, y) => y.pts - x.pts)[0]).filter(Boolean);
-    const topsEl = data ? (tops.length ? el('div', { class: 'wl-tops' }, ...tops.map((r) => el('div', { class: 'wl-top' + (r.tid === team ? ' me' : '') },
+    const topsEl = data ? (tops.length ? el('div', { class: 'wl-tops' }, ...tops.map((r) => el('div', { class: 'wl-top' + (r.tid === ME ? ' me' : '') },
       el('span', { class: pcls(r.pos), text: r.pos }), el('span', { class: 'wl-nm' }, el('b', { text: r.name }), el('small', { text: tm(r.tid).owner })), el('span', { class: 'wl-pts', text: f1(r.pts) }))))
       : el('p', { class: 'note', text: 'No games played yet.' })) : el('p', { class: 'note', text: 'Loading…' });
     // Dump Log
     let poopEl;
-    if (!me) poopEl = el('p', { class: 'note', text: 'Pick your team at the top to join the Dump Log.' });
+    if (!me) poopEl = el('p', { class: 'note', text: 'Pick your ME at the top to join the Dump Log.' });
     else if (!POOP || !POOP.ready) poopEl = el('p', { class: 'note', text: POOP ? 'Dump Log unavailable right now.' : 'Loading…' });
     else {
       const today = dayKey(Date.now()), todays = POOP.log.filter((e) => T[e.t] && dayKey(e.at) === today);
       const counts = {}; for (const e of todays) counts[e.t] = (counts[e.t] || 0) + 1;
       const board = Object.entries(counts).sort((x, y) => y[1] - x[1]).slice(0, 3);
-      const mine = counts[team] || 0;
+      const mine = counts[ME] || 0;
       const btn = el('button', { class: 'wl-poop', type: 'button' }, '💩 I just pooped');
       btn.addEventListener('click', () => { btn.disabled = true; btn.textContent = '💩 Logged!'; sendPoop('log'); });
       poopEl = el('div', { class: 'wl-poopbox' }, btn,
@@ -1372,7 +1393,7 @@
     x.addEventListener('click', closeWelcome);
     host.onclick = (e) => { if (e.target === host) closeWelcome(); };
     host.replaceChildren(el('div', { class: 'wl-card' }, x,
-      el('div', { class: 'wl-hi' }, el('small', { text: new Date().toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' }) }), el('h2', { text: me ? `${hi}, ${me.owner}` : hi })),
+      el('div', { class: 'wl-hi' }, el('small', { text: new Date().toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' }) }), el('h2', { text: `${hi}, ${me.owner}` }), notYou()),
       mline,
       el('h3', { text: `Top performers · Week ${wk}${wk === cur && LIVE.anyLive ? ' (live)' : ''}` }), topsEl,
       el('h3', { text: '💩 Dump Log' }), poopEl,
@@ -1397,9 +1418,17 @@
     renderAll();
     if (!keepScroll) window.scrollTo(0, 0);
   }
+  function setMe(id) {
+    const prev = ME;
+    ME = Number(id) || null;
+    if (ME) store.set('me', String(ME)); else store.set('me', '');
+    if (bkInst) { bkInst.destroy(); bkInst = null; }
+    seenAt = 0; pingSeen();
+    if (ME && (!team || team === prev)) setTeam(ME); else renderAll();
+    if (!$('#welcome').hidden) renderWelcome();
+  }
   function setTeam(id) {
     seenAt = 0; setTimeout(pingSeen, 0);
-    if (bkInst && Number(id) !== team) { bkInst.destroy(); bkInst = null; }
     team = Number(id) || null;
     if (team) store.set('team', String(team));
     const u = new URL(location.href); if (team) u.searchParams.set('team', team); else u.searchParams.delete('team');
@@ -1443,9 +1472,9 @@
   let loadedOnce = false;
   let seenAt = 0;
   function pingSeen() {
-    if (!team || Date.now() - seenAt < 10 * 60000) return;
+    if (!ME || Date.now() - seenAt < 10 * 60000) return;
     seenAt = Date.now();
-    fetch('/api/seen', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ team }) }).catch(() => {});
+    fetch('/api/seen', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ team: ME }) }).catch(() => {});
   }
   document.addEventListener('visibilitychange', () => { if (!document.hidden) pingSeen(); });
   async function loadLeague() {
