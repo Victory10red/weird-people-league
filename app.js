@@ -1454,6 +1454,44 @@
     ];
     return lines[Math.floor(Math.random() * lines.length)];
   }
+  // ---- sharing to the group chat (Messenger has no API for group chats, so we use the phone's share sheet) ----
+  const APP_URL = 'https://weird-people-league.vercel.app/#talk';
+  function shareCard(m) { // a 1080x1080 image of the post, for the share sheet
+    const c = document.createElement('canvas'); c.width = 1080; c.height = 1080;
+    const x = c.getContext('2d');
+    const gr = x.createLinearGradient(0, 0, 0, 1080); gr.addColorStop(0, '#1c1f26'); gr.addColorStop(1, '#0f1115');
+    x.fillStyle = gr; x.fillRect(0, 0, 1080, 1080);
+    x.fillStyle = '#c2410c'; x.fillRect(0, 0, 1080, 14);
+    x.font = '700 34px Inter, system-ui, sans-serif'; x.fillStyle = '#f97316'; x.fillText('💬 TRASH TALK · WEIRD PEOPLE LEAGUE', 70, 110);
+    // wrap the message
+    const words = (m.text || '').split(/\s+/); let size = 64; let lines;
+    const wrap = (sz) => { x.font = `700 ${sz}px Inter, system-ui, sans-serif`; const out = []; let line = ''; for (const w of words) { const t = line ? line + ' ' + w : w; if (x.measureText(t).width > 940 && line) { out.push(line); line = w; } else line = t; } if (line) out.push(line); return out; };
+    do { lines = wrap(size); size -= 4; } while (lines.length * size * 1.25 > 640 && size > 30);
+    size += 4; x.fillStyle = '#ffffff'; x.font = `700 ${size}px Inter, system-ui, sans-serif`;
+    const top = 200 + Math.max(0, (640 - lines.length * size * 1.25) / 2);
+    lines.forEach((l, i) => x.fillText(l, 70, top + i * size * 1.25 + size));
+    x.font = '600 40px Inter, system-ui, sans-serif'; x.fillStyle = '#9aa1ad';
+    x.fillText(`— ${T[m.t] ? T[m.t].owner : ''}, ${T[m.t] ? T[m.t].name : ''}`, 70, 960);
+    x.font = '500 30px Inter, system-ui, sans-serif'; x.fillText('weird-people-league.vercel.app', 70, 1015);
+    // synchronous so the share menu opens inside the tap (iPhones block it after a delay)
+    const bin = atob(c.toDataURL('image/png').split(',')[1]); const u8 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    return new Blob([u8], { type: 'image/png' });
+  }
+  async function shareToChat(m, btn) {
+    const who = T[m.t] ? T[m.t].owner : '';
+    const text = `${who}: ${m.text || ''}${m.gif ? '\n' + m.gif : ''}\n\n🏈 League HQ: ${APP_URL}`;
+    try {
+      if (navigator.share) {
+        let files = [];
+        // a GIF post sends the link (Messenger plays it); a text post sends a picture of the roast
+        if (m.text && !m.gif && navigator.canShare) { const blob = shareCard(m); const f = new File([blob], 'trash-talk.png', { type: 'image/png' }); if (navigator.canShare({ files: [f] })) files = [f]; }
+        await navigator.share(files.length ? { files, text } : { text, url: APP_URL });
+        return;
+      }
+    } catch (e) { if (e && e.name === 'AbortError') return; }
+    try { await navigator.clipboard.writeText(text); if (btn) { btn.textContent = 'Copied! Paste it in Messenger'; setTimeout(() => { btn.textContent = '📤 Share'; }, 2500); } } catch { /* nothing else to do */ }
+  }
   const avatar = (tid) => { const o = (T[tid] && T[tid].owner) || '?'; const hue = (tid * 67) % 360; return el('span', { class: 'tk-av', style: `background:hsl(${hue} 55% 42%)`, text: o[0] }); };
   function renderTalk() {
     loadTalk(); loadPoop();
@@ -1476,18 +1514,24 @@
     const gen = el('button', { class: 'btn ghost', type: 'button', text: '🔥 Roast' });
     gen.addEventListener('click', () => { ta.value = talkDraft.text = roast(Number(tgt.value)); ta.focus(); });
     const post = el('button', { class: 'btn', type: 'button', text: 'Post' });
-    post.addEventListener('click', async () => {
-      post.disabled = true;
-      const ok = await talkPost({ action: 'post', text: ta.value, gif: gifIn.value || undefined });
+    const postShare = el('button', { class: 'btn ghost', type: 'button', text: 'Post + send to chat' });
+    const doPost = async (share) => {
+      post.disabled = postShare.disabled = true;
+      const draft = { t: ME, text: ta.value.trim(), gif: gifIn.value.trim() };
+      if (share && (draft.text || draft.gif)) shareToChat(draft, postShare); // open the share menu right away, while the tap still counts
+      const ok = await talkPost({ action: 'post', text: draft.text, gif: draft.gif || undefined });
       if (ok) { talkDraft.text = ''; talkDraft.gif = ''; }
       renderTalk();
-    });
+    };
+    post.addEventListener('click', () => doPost(false));
+    postShare.addEventListener('click', () => doPost(true));
     host.replaceChildren(...[
       el('div', { class: 'row-head' }, el('h3', { text: '💬 Trash Talk' }), el('span', { class: 'note', text: `as ${T[ME].owner}` })),
       ta, gifIn,
-      el('div', { class: 'tk-row' }, el('span', { class: 'note', text: 'Roast generator:' }), tgt, gen, el('span', { class: 'sp' }), post),
+      el('div', { class: 'tk-row' }, el('span', { class: 'note', text: 'Roast generator:' }), tgt, gen),
+      el('div', { class: 'tk-row tk-post' }, postShare, post),
       talkMsg ? el('p', { class: 'pin-err', text: talkMsg }) : null,
-      el('p', { class: 'note tk-tip', text: 'GIF tip: find one on giphy.com or in your keyboard’s GIF search, tap Share → Copy link, paste it above.' })].filter(Boolean));
+      el('p', { class: 'note tk-tip', text: 'GIF tip: find one on giphy.com or in your keyboard’s GIF search, tap Share → Copy link, paste it above. “Send to chat” opens your phone’s share menu: pick Messenger, then the league group.' })].filter(Boolean));
     talkMsg = '';
     renderTalkFeed();
   }
@@ -1507,8 +1551,10 @@
       }));
       const del = (m.t === ME || isAdmin) ? el('button', { class: 'linkbtn tk-del', type: 'button', text: 'Delete' }) : null;
       if (del) del.addEventListener('click', async () => { if (!del.dataset.arm) { del.dataset.arm = 1; del.textContent = 'Sure?'; return; } await talkPost({ action: 'delete', id: m.id, token: pinTok(ADMIN) }); renderTalkFeed(); });
+      const sh = el('button', { class: 'linkbtn tk-share', type: 'button', text: '📤 Share' });
+      sh.addEventListener('click', () => shareToChat(m, sh));
       return el('div', { class: 'card tk-msg' + (m.t === ME ? ' me' : '') },
-        el('div', { class: 'tk-head' }, avatar(m.t), el('div', {}, el('b', { text: T[m.t].owner }), el('small', { text: `${T[m.t].name} · ${ago(m.at)}` })), del),
+        el('div', { class: 'tk-head' }, avatar(m.t), el('div', {}, el('b', { text: T[m.t].owner }), el('small', { text: `${T[m.t].name} · ${ago(m.at)}` })), el('div', { class: 'tk-acts' }, sh, del)),
         m.text ? el('p', { class: 'tk-body', text: m.text }) : null,
         m.gif ? el('img', { class: 'tk-gif-img', src: m.gif, alt: 'GIF', loading: 'lazy' }) : null,
         re);
