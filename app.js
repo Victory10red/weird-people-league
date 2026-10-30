@@ -472,7 +472,51 @@
   }
 
   // ---------- THIS WEEK ----------
+  let tpWeek = null;
+  const pcls = (pos) => 'pc pc-' + String(pos).replace('/', '');
+  function renderTop() {
+    if (!LIVE) { $('#tp-pos').replaceChildren(el('p', { class: 'note', text: 'Loading this week…' })); return; } // re-rendered when live scores arrive
+    const cur = LIVE.week;
+    const curHasPts = LIVE.games.some((g) => g.h.pts > 0 || g.a.pts > 0);
+    if (tpWeek == null) tpWeek = curHasPts ? cur : Math.max(1, cur - 1); // before kickoff, show last week
+    const sel = $('#tp-week');
+    sel.replaceChildren(...d3.range(cur, 0, -1).map((w) => el('option', { value: w, text: w === cur ? `Week ${w}${LIVE && LIVE.anyLive ? ' (live)' : ''}` : `Week ${w}` })));
+    sel.value = tpWeek;
+    sel.onchange = () => { tpWeek = Number(sel.value); renderTop(); };
+    const data = tpWeek === cur ? LIVE : weekCache[tpWeek];
+    if (!data) {
+      $('#tp-pos').replaceChildren(el('p', { class: 'note', text: `Loading week ${tpWeek}…` })); $('#tp-games').replaceChildren();
+      if (tpWeek !== cur) getJSON(`/api/live?week=${tpWeek}`).then((j) => { weekCache[j.week] = j; if (tab === 'week') renderTop(); }).catch(() => {});
+      return;
+    }
+    // every starter that week, with the manager who started him
+    const all = [];
+    for (const g of data.games) for (const sd of [g.h, g.a]) for (const r of sd.rows) all.push({ ...r, tid: sd.id });
+    const POS = ['QB', 'RB', 'WR', 'TE', 'K', 'D/ST'];
+    const played = (r) => r.state !== 'pre' && r.state !== 'bye';
+    $('#tp-pos').replaceChildren(...POS.map((pos) => {
+      const top = all.filter((r) => r.pos === pos && played(r)).sort((a, b) => b.pts - a.pts).slice(0, 3);
+      return el('div', { class: 'tp-col' }, el('div', { class: pcls(pos) + ' big', text: pos }),
+        ...(top.length ? top.map((r, i) => el('div', { class: 'tp-row' + (r.tid === team ? ' me' : '') },
+          el('span', { class: 'tp-rk', text: String(i + 1) }),
+          el('span', { class: 'tp-nm' }, el('b', { text: r.name }), el('small', { text: `${tm(r.tid).owner} · ${r.nfl}` })),
+          el('span', { class: 'tp-pts', text: f1(r.pts) }))) : [el('p', { class: 'note', text: 'No games yet' })]));
+    }));
+    const mine = (g) => g.h.id === team || g.a.id === team;
+    const games = [...data.games].sort((a, b) => mine(b) - mine(a));
+    $('#tp-games').replaceChildren(...games.map((g) => {
+      const win = g.h.pts === g.a.pts ? null : g.h.pts > g.a.pts ? g.h.id : g.a.id;
+      const side = (sd) => {
+        const best = [...sd.rows].filter(played).sort((a, b) => b.pts - a.pts).slice(0, 2);
+        return el('div', { class: 'tp-side' }, el('div', { class: 'tp-team' + (win === sd.id && g.done ? ' won' : '') }, el('b', { text: tm(sd.id).owner }), el('span', { text: f1(sd.pts) })),
+          ...(best.length ? best.map((r) => el('div', { class: 'tp-pl' }, el('span', { class: pcls(r.pos), text: r.pos }), el('span', { class: 'tp-nm2', text: r.name }), el('b', { text: f1(r.pts) })))
+            : [el('div', { class: 'note', text: 'No one has played yet' })]));
+      };
+      return el('div', { class: 'tp-game' + (mine(g) ? ' mine' : '') }, side(g.h), el('div', { class: 'tp-vs', text: g.done ? 'Final' : 'vs' }), side(g.a));
+    }));
+  }
   function renderWeek() {
+    renderTop();
     $$('.recap-wk').forEach((n) => { n.textContent = D.recap ? D.recap.week : '–'; });
     $('#recap').textContent = D.recap ? D.recap.text : 'The recap appears after the first week is played.';
     $('#aw-week').textContent = D.awards_week ?? '–';
@@ -1162,6 +1206,7 @@
     try {
       LIVE = await getJSON('/api/live');
       if (D && (tab === 'scores' || tab === 'team')) (tab === 'scores' ? renderScores : renderTeam)();
+      if (D && tab === 'week') renderTop();
     } catch (e) { if (!D) { $('#error').textContent = e.message; $('#error').hidden = false; } }
     liveTimer = setTimeout(loadLive, LIVE && LIVE.anyLive ? 60000 : 300000);
   }

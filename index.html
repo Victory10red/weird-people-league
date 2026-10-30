@@ -101,6 +101,12 @@
 
     <!-- THIS WEEK -->
     <section id="week" class="tab" hidden>
+      <div class="card"><div class="row-head"><h3>Top performers</h3><select id="tp-week" class="wk-pick" aria-label="Week"></select></div>
+        <p class="note">Best starters at each position across the league, then each matchup's standouts. Colors: <span class="pc pc-QB">QB</span> <span class="pc pc-RB">RB</span> <span class="pc pc-WR">WR</span> <span class="pc pc-TE">TE</span> <span class="pc pc-K">K</span> <span class="pc pc-DST">D/ST</span></p>
+        <div id="tp-pos" class="tp-pos"></div>
+        <h3 class="tp-sub">By matchup</h3>
+        <div id="tp-games" class="tp-games"></div>
+      </div>
       <div class="card"><h3>Week <span class="recap-wk">–</span> recap</h3><p class="note">Written automatically from last week's results.</p><pre id="recap" class="recap"></pre></div>
       <div class="card"><h3>Week <span id="aw-week">–</span> awards</h3><p class="note">Last completed week, handed out automatically.</p><div id="awards" class="awards"></div></div>
       <div class="card"><h3>Matchups: ESPN vs Vegas</h3><p class="note">Vegas projection = each player's scoring average this season × how much more or less Vegas expects his NFL team to score this week than it usually does. It doesn't use ESPN's projections at all.</p><div class="tbl" id="t-vm"></div></div>
