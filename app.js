@@ -16,14 +16,20 @@
     get(k) { try { return localStorage.getItem(k); } catch { return null; } },
     set(k, v) { try { localStorage.setItem(k, v); } catch { /* private mode */ } },
   };
-  const TABS = ['team', 'scores', 'talk', 'week', 'league', 'trades', 'draft', 'history', 'play'];
+  const TABS = ['team', 'week', 'talk', 'play', 'league'];
+  const LVIEWS = ['standings', 'moves', 'draft', 'history'];
 
   let D = null, LIVE = null, T = {};
   let team = Number(new URLSearchParams(location.search).get('team')) || Number(store.get('team')) || null;
   // who is using this device (games, Dump Log, welcome) — separate from which team is being viewed
   let ME = Number(store.get('me')) || null;
+  if (!team && ME) team = ME;
   let tab = (location.hash || '#team').slice(1);
-  if (tab === 'live') tab = 'scores';
+  let leagueView = LVIEWS.includes(store.get('lview')) ? store.get('lview') : 'standings';
+  // old links from before the tabs were merged
+  if (tab === 'live' || tab === 'scores') tab = 'week';
+  if (tab === 'trades') { tab = 'league'; leagueView = 'moves'; }
+  if (tab === 'draft' || tab === 'history') { leagueView = tab; tab = 'league'; }
   if (!TABS.includes(tab)) tab = 'team';
   let wvPos = 'ALL', yrSel = null, bumpFocus = null;
   let heroOpen = null, heroWeek = null; const weekCache = {};
@@ -54,7 +60,7 @@
         return (typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va ?? '').localeCompare(String(vb ?? ''))) * dir;
       }) : rows;
       const thead = el('thead', {}, el('tr', {}, ...cols.map((c) => {
-        const th = el('th', { class: c.n ? 'n' : '', text: c.h + (sortCol === c.k ? (dir > 0 ? ' ▲' : ' ▼') : '') });
+        const th = el('th', { class: (c.n ? 'n' : '') + (c.wide ? ' wide' : ''), text: c.h + (sortCol === c.k ? (dir > 0 ? ' ▲' : ' ▼') : '') });
         th.addEventListener('click', () => { if (sortCol === c.k) dir = -dir; else { sortCol = c.k; dir = c.n ? -1 : 1; } draw(); });
         return th;
       })));
@@ -64,7 +70,7 @@
         const tr = el('tr', { class: isMe && isMe(r) ? 'me' : '' });
         for (const c of cols) {
           const raw = c.v ? c.v(r) : r[c.k];
-          const td = el('td', { class: (c.n ? 'n ' : '') + (c.cls ? c.cls(r) || '' : '') });
+          const td = el('td', { class: (c.n ? 'n ' : '') + (c.wide ? 'wide ' : '') + (c.cls ? c.cls(r) || '' : '') });
           if (c.bar) {
             const w = Math.max(2, Math.round(46 * (raw || 0) / 100));
             td.append(el('span', { class: 'cbar' }, el('i', { class: raw >= 50 ? 'hot' : '', style: `width:${w}px` }), el('span', { text: c.f ? c.f(raw, r) : raw })));
@@ -135,11 +141,11 @@
     const L = D.league;
     $('#sub').textContent = `${L.name} · ${L.year} · Week ${L.week} · updated ${new Date(D.updated).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
     const sel = $('#team-pick');
-    sel.replaceChildren(el('option', { value: '', text: 'Pick your team…' }), ...[...D.teams].sort((a, b) => a.name.localeCompare(b.name)).map((t) => el('option', { value: t.id, text: `${t.name} (${t.owner})` })));
+    sel.replaceChildren(el('option', { value: '', text: 'Pick a team…' }), ...[...D.teams].sort((a, b) => a.name.localeCompare(b.name)).map((t) => el('option', { value: t.id, text: `${t.name} (${t.owner})` })));
     sel.value = team ?? '';
     $$('.tname').forEach((n) => { n.textContent = team ? tm(team).name : 'pick a team'; });
     $$('.towner').forEach((n) => { n.textContent = team ? tm(team).owner : 'pick a team'; });
-    $('#po-n').textContent = L.playoff_teams;
+    $$('#po-n').forEach((n) => { n.textContent = L.playoff_teams; });
   }
 
   // ---------- live matchup pieces ----------
@@ -234,7 +240,7 @@
       const k = g.h.id + '-' + g.a.id;
       const hw = Math.round(g.hwin * 100);
       const card = el('div', { class: 'game' + (meRow({ h: g.h.id, a: g.a.id }) ? ' mine' : '') + (open.has(k) ? ' open' : ''), 'data-k': k, role: 'button', tabindex: '0' },
-        sideBlock(g.h, g.h.pts > g.a.pts), sideBlock(g.a, g.a.pts > g.h.pts), ...wpBar(hw, g.done), needLine(g.h, g.a, g.h.id === team), el('div', { class: 'lineups' }, lineupList(g.h), lineupList(g.a)));
+        sideBlock(g.h, g.h.pts > g.a.pts), sideBlock(g.a, g.a.pts > g.h.pts), ...wpBar(hw, g.done), el('div', { class: 'lineups' }, el('div', { class: 'need-wrap' }, needLine(g.h, g.a, g.h.id === team)), lineupList(g.h), lineupList(g.a)));
       const toggle = () => card.classList.toggle('open');
       card.addEventListener('click', toggle);
       card.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
@@ -251,6 +257,7 @@
     }));
   }
 
+  const letter = (g) => (g >= 4.15 ? 'A+' : g >= 3.85 ? 'A' : g >= 3.5 ? 'A-' : g >= 3.15 ? 'B+' : g >= 2.85 ? 'B' : g >= 2.5 ? 'B-' : g >= 2.15 ? 'C+' : g >= 1.85 ? 'C' : g >= 1.5 ? 'C-' : g >= 1.15 ? 'D+' : g >= 0.85 ? 'D' : 'F');
   function renderTeam() {
     const t = D.teams.find((x) => x.id === team);
     $('#pick-first').hidden = !!t;
@@ -267,10 +274,10 @@
     // summary tiles (always visible)
     const tile = (l, v, s2, cls) => el('div', { class: 'tile' }, el('div', { class: 'l', text: l }), el('div', { class: 'v ' + (cls || ''), text: v }), el('div', { class: 's', text: s2 }));
     $('#tiles').replaceChildren(
-      tile('Record', `${t.w}-${t.l}`, `seed ${t.seed ?? '–'} · power #${t.power}`),
-      tile('Points for', f1(t.pf), `${ord(t.pf_rank)} · luck ${signed(t.luck)} wins`, ''),
-      tile('Playoff odds', pct(t.playoffs), t.whatif && t.whatif.seed_median ? `likely ${ord(t.whatif.seed_median)} · bye ${pct(t.bye)}` : `bye ${pct(t.bye)}`),
-      tile('Report card', t.card ? t.card.gpa.toFixed(2) : '–', t.card ? `GPA · ${ord(t.card.rank)} of ${D.teams.length}` : ''));
+      tile('Record', `${t.w}-${t.l}`, `${t.seed ? ord(t.seed) + ' place' : ''}${t.power ? ` · ${ord(t.power)} in power rankings` : ''}`),
+      tile('Points scored', f1(t.pf), `${ord(t.pf_rank)} most · ${Math.abs(t.luck) < 0.5 ? 'record matches the scoring' : t.luck < 0 ? `unlucky: ${f1(-t.luck)} wins short` : `lucky: ${f1(t.luck)} wins extra`}`, ''),
+      tile('Playoff odds', pct(t.playoffs), `${t.whatif && t.whatif.seed_median ? `likely finish ${ord(t.whatif.seed_median)} · ` : ''}${pct(t.bye)} chance at a bye`),
+      tile('Manager grade', t.card ? letter(t.card.gpa) : '–', t.card ? `${ord(t.card.rank)} of ${D.teams.length} (draft, waivers, lineups, trades)` : ''));
     $$('#subnav button').forEach((b) => { b.setAttribute('aria-pressed', String(b.dataset.view === teamView)); });
     $$('#team-body .view').forEach((v) => { v.hidden = v.dataset.view !== teamView; });
     ({ week: viewWeek, roster: viewRoster, outlook: viewOutlook, season: viewSeason })[teamView](t, live);
@@ -321,9 +328,9 @@
       const hw = Math.round(100 * (meIsH ? live.hwin : 1 - live.hwin));
       const vegasMe = vm ? (vm.h === team ? vm.hv : vm.av) : null, vegasThem = vm ? (vm.h === team ? vm.av : vm.hv) : null;
       const stakes = t.whatif && t.whatif.if_win != null ? el('div', { class: 'stakes' },
-        el('div', {}, el('span', { text: 'Win' }), el('b', { text: `${t.whatif.if_win}%` }), el('small', { text: 'playoff odds' })),
-        el('div', {}, el('span', { text: 'Lose' }), el('b', { text: `${t.whatif.if_lose}%` }), el('small', { text: 'playoff odds' })),
-        el('div', {}, el('span', { text: 'Swing' }), el('b', { text: `${t.whatif.if_win - t.whatif.if_lose} pts` }), el('small', { text: 'playoff odds at stake' }))) : null;
+        el('div', {}, el('span', { text: 'If you win' }), el('b', { text: `${t.whatif.if_win}%` }), el('small', { text: 'to make playoffs' })),
+        el('div', {}, el('span', { text: 'If you lose' }), el('b', { text: `${t.whatif.if_lose}%` }), el('small', { text: 'to make playoffs' })),
+        el('div', {}, el('span', { text: 'On the line' }), el('b', { text: `${t.whatif.if_win - t.whatif.if_lose} pts` }), el('small', { text: 'of playoff odds' }))) : null;
       if (heroOpen == null) heroOpen = window.innerWidth > 700;
       const tog = el('button', { class: 'lu-toggle', type: 'button', text: heroOpen ? 'Hide lineups ▴' : 'Show both lineups ▾' });
       tog.addEventListener('click', () => { heroOpen = !heroOpen; viewWeek(t, myLive()); });
@@ -508,7 +515,7 @@
     sel.onchange = () => { tpWeek = Number(sel.value); renderTop(); };
     const data = tpWeek === cur ? LIVE : weekCache[tpWeek];
     if (!data) {
-      $('#tp-pos').replaceChildren(el('p', { class: 'note', text: `Loading week ${tpWeek}…` })); $('#tp-games').replaceChildren();
+      $('#tp-pos').replaceChildren(el('p', { class: 'note', text: `Loading week ${tpWeek}…` }));
       if (tpWeek !== cur) getJSON(`/api/live?week=${tpWeek}`).then((j) => { weekCache[j.week] = j; if (tab === 'week') renderTop(); }).catch(() => {});
       return;
     }
@@ -525,20 +532,10 @@
           el('span', { class: 'tp-nm' }, el('b', { text: r.name }), el('small', { text: `${tm(r.tid).owner} · ${r.nfl}` })),
           el('span', { class: 'tp-pts', text: f1(r.pts) }))) : [el('p', { class: 'note', text: 'No games yet' })]));
     }));
-    const mine = (g) => g.h.id === team || g.a.id === team;
-    const games = [...data.games].sort((a, b) => mine(b) - mine(a));
-    $('#tp-games').replaceChildren(...games.map((g) => {
-      const win = g.h.pts === g.a.pts ? null : g.h.pts > g.a.pts ? g.h.id : g.a.id;
-      const side = (sd) => {
-        const best = [...sd.rows].filter(played).sort((a, b) => b.pts - a.pts).slice(0, 2);
-        return el('div', { class: 'tp-side' }, el('div', { class: 'tp-team' + (win === sd.id && g.done ? ' won' : '') }, el('b', { text: tm(sd.id).owner }), el('span', { text: f1(sd.pts) })),
-          ...(best.length ? best.map((r) => el('div', { class: 'tp-pl' }, el('span', { class: pcls(r.pos), text: r.pos }), el('span', { class: 'tp-nm2', text: r.name }), el('b', { text: f1(r.pts) })))
-            : [el('div', { class: 'note', text: 'No one has played yet' })]));
-      };
-      return el('div', { class: 'tp-game' + (mine(g) ? ' mine' : '') }, side(g.h), el('div', { class: 'tp-vs', text: g.done ? 'Final' : 'vs' }), side(g.a));
-    }));
+    // (each matchup's standouts now live in the scoreboard above)
   }
   function renderWeek() {
+    renderScores();
     renderTop();
     $$('.recap-wk').forEach((n) => { n.textContent = D.recap ? D.recap.week : '–'; });
     $('#recap').textContent = D.recap ? D.recap.text : 'The recap appears after the first week is played.';
@@ -581,12 +578,12 @@
     renderRace();
     renderCards();
     table($('#t-power'), [
-      { h: '#', k: 'power', n: 1 }, { h: 'Team', k: 'name' }, { h: 'Owner', k: 'owner' }, { h: 'Rec', k: 'w', f: (_, r) => `${r.w}-${r.l}` },
-      { h: 'PF', k: 'pf', n: 1, f: f1 }, { h: 'All-play', k: 'allplay_w', f: (_, r) => `${r.allplay_w}-${r.allplay_l}` },
-      { h: 'Luck', k: 'luck', n: 1, f: signed, cls: (r) => (r.luck > 0 ? 'good' : r.luck < 0 ? 'bad' : '') },
-      { h: 'Roster/wk', k: 'ros', n: 1, f: f1 }, { h: 'Playoffs', k: 'playoffs', n: 1, bar: 1, f: pct }, { h: 'Bye', k: 'bye', n: 1, f: pct }], D.teams, { isMe: meRow });
+      { h: '#', k: 'power', n: 1 }, { h: 'Team', k: 'name' }, { h: 'Owner', k: 'owner', wide: 1 }, { h: 'Rec', k: 'w', f: (_, r) => `${r.w}-${r.l}` },
+      { h: 'PF', k: 'pf', n: 1, f: f1, wide: 1 }, { h: 'All-play', k: 'allplay_w', f: (_, r) => `${r.allplay_w}-${r.allplay_l}`, wide: 1 },
+      { h: 'Luck', k: 'luck', n: 1, f: signed, cls: (r) => (r.luck > 0 ? 'good' : r.luck < 0 ? 'bad' : ''), wide: 1 },
+      { h: 'Roster/wk', k: 'ros', n: 1, f: f1, wide: 1 }, { h: 'Playoffs', k: 'playoffs', n: 1, bar: 1, f: pct }, { h: 'Bye', k: 'bye', n: 1, f: pct, wide: 1 }], D.teams, { isMe: meRow });
     const ordered = [...D.teams].sort((a, b) => b.playoffs - a.playoffs);
-    { const host = $('#c-odds'), w = W(host), rowH = 24, svg = svgIn(host, w, 10);
+    if ($('#c-odds')) { const host = $('#c-odds'), w = W(host), rowH = 24, svg = svgIn(host, w, 10);
       const lw = Math.min(textW(svg, ordered.map((r) => r.name)) + 10, w * 0.45), h = ordered.length * rowH + 4; svg.attr('viewBox', `0 0 ${w} ${h}`);
       const x = d3.scaleLinear([0, 100], [lw, w - 40]), y = d3.scaleBand(ordered.map((r) => r.id), [2, h - 2]).padding(0.28);
       const g = svg.selectAll('g').data(ordered).join('g').attr('transform', (r) => `translate(0,${y(r.id)})`);
@@ -700,13 +697,13 @@
         el('div', { class: 'note', text: `${f1(s.pts)} started pts since · ${s.ros} ROS proj` }), t.winner === s.id ? el('div', { class: 'win', text: 'Winning so far' }) : null);
       return el('div', { class: 'trade' + (team && (t.a.id === team || t.b.id === team) ? ' me' : '') }, el('div', { class: 'h', text: `Week ${t.wk}${t.winner == null ? ' · even so far' : ''}` }), side(t.a), side(t.b));
     }));
-    table($('#t-pickups'), [{ h: 'Player', k: 'name' }, { h: 'Pos', k: 'pos' }, { h: 'Added by', k: 'id', v: (r) => tm(r.id).name }, { h: 'Wk', k: 'wk', n: 1 }, { h: 'Started pts', k: 'pts', n: 1, f: f1 }, { h: 'ROS', k: 'ros', n: 1 }], D.pickups.slice(0, 15), { isMe: meRow });
+    table($('#t-pickups'), [{ h: 'Player', k: 'name', cls: () => 'clip' }, { h: 'Pos', k: 'pos', wide: 1 }, { h: 'Added by', k: 'id', v: (r) => tm(r.id).owner }, { h: 'Wk', k: 'wk', n: 1, wide: 1 }, { h: 'Pts', k: 'pts', n: 1, f: f1 }, { h: 'ROS', k: 'ros', n: 1, wide: 1 }], D.pickups.slice(0, 15), { isMe: meRow });
     table($('#t-mypickups'), [{ h: 'Player', k: 'name' }, { h: 'Pos', k: 'pos' }, { h: 'Wk', k: 'wk', n: 1 }, { h: 'Started pts', k: 'pts', n: 1, f: f1 }, { h: 'ROS', k: 'ros', n: 1 }], team ? D.pickups.filter((p) => p.id === team) : []);
   }
   function renderDraft() {
     const haul = D.teams.map((t) => ({ id: t.id, name: t.name, pts: d3.sum(D.draft.filter((d) => d.id === t.id), (d) => d.season) })).sort((a, b) => b.pts - a.pts);
     hbars($('#c-haul'), haul, { label: (r) => r.name, value: (r) => r.pts, fmt: (v) => d3.format(',.0f')(v), color: (r) => (r.id === team ? css('--accent') : css('--bar')), bold: (r) => r.id === team, tipHead: (r) => r.name, tipBody: (r) => `${f1(r.pts)} season pts from drafted players` });
-    const dcols = [{ h: 'Pick', k: 'pick', n: 1 }, { h: 'Player', k: 'name' }, { h: 'Team', k: 'id', v: (r) => tm(r.id).name }, { h: 'Drafted', k: 'pos_pick', f: (_, r) => r.pos + r.pos_pick }, { h: 'Now', k: 'pos_finish', f: (_, r) => (r.pos_finish ? r.pos + r.pos_finish : '–') }, { h: 'Pts', k: 'season', n: 1, f: f1 }];
+    const dcols = [{ h: 'Pick', k: 'pick', n: 1, wide: 1 }, { h: 'Player', k: 'name', cls: () => 'clip' }, { h: 'Team', k: 'id', v: (r) => tm(r.id).owner }, { h: 'Drafted', k: 'pos_pick', f: (_, r) => r.pos + r.pos_pick }, { h: 'Now', k: 'pos_finish', f: (_, r) => (r.pos_finish ? r.pos + r.pos_finish : '–') }, { h: 'Pts', k: 'season', n: 1, f: f1, wide: 1 }];
     const graded = D.draft.filter((d) => d.swing != null);
     table($('#t-steals'), dcols, [...graded].sort((a, b) => b.swing - a.swing).slice(0, 10), { isMe: meRow });
     table($('#t-busts'), dcols, graded.filter((d) => d.rd <= 6).sort((a, b) => a.swing - b.swing).slice(0, 10), { isMe: meRow });
@@ -718,7 +715,7 @@
     const H = D.history;
     $('#champs').replaceChildren(...[...D.champs].reverse().map((c) => el('div', { class: 'champ' }, el('div', { class: 'yr', text: c.year }), el('div', { class: 'who', text: `${c.owner} · ${c.team}` }), el('div', { class: 'how', text: `${c.record}, ${c.seed ? ord(c.seed) + ' seed' : ''} · beat ${c.runner_up} ${c.final}` }))));
     const myOwner = team ? tm(team).owner : null;
-    table($('#t-career'), [{ h: '#', k: 'rank', n: 1 }, { h: 'Owner', k: 'owner' }, { h: 'Legacy', k: 'legacy', n: 1, f: f1 }, { h: 'Titles', k: 'titles', n: 1 }, { h: 'Finals', k: 'finals', n: 1 }, { h: 'Playoffs', k: 'playoffs', n: 1 }, { h: 'Record', k: 'w', f: (_, r) => `${r.w}-${r.l}` }, { h: 'All-play', k: 'allplay', n: 1, f: pct }, { h: 'Avg finish', k: 'avg_finish', n: 1, f: (v) => (v ? f1(v) : '–') }], H.career, { isMe: (r) => r.owner === myOwner });
+    table($('#t-career'), [{ h: '#', k: 'rank', n: 1 }, { h: 'Owner', k: 'owner' }, { h: 'Legacy', k: 'legacy', n: 1, f: f1 }, { h: 'Titles', k: 'titles', n: 1 }, { h: 'Finals', k: 'finals', n: 1, wide: 1 }, { h: 'Playoffs', k: 'playoffs', n: 1, wide: 1 }, { h: 'Record', k: 'w', f: (_, r) => `${r.w}-${r.l}` }, { h: 'All-play', k: 'allplay', n: 1, f: pct, wide: 1 }, { h: 'Avg finish', k: 'avg_finish', n: 1, f: (v) => (v ? f1(v) : '–'), wide: 1 }], H.career, { isMe: (r) => r.owner === myOwner });
     // rivalry
     const owners = H.career.map((c) => c.owner).sort();
     const a = $('#rv-a'), b = $('#rv-b');
@@ -735,8 +732,8 @@
     if (!yrSel || !years.includes(yrSel)) yrSel = years[0];
     $('#yr-seg').replaceChildren(...years.map((y) => { const bt = el('button', { 'aria-pressed': String(y === yrSel), text: y }); bt.addEventListener('click', () => { yrSel = y; renderHistory(); }); return bt; }));
     const sRows = H.seasons.filter((s) => s.year === yrSel).sort((x, y) => (x.final ?? 99) - (y.final ?? 99) || (y.w - x.w) || (y.pf - x.pf));
-    table($('#t-seasons'), [{ h: 'Finish', k: 'final', n: 1, f: (v, r) => (v ? ord(v) : r.complete ? '–' : 'TBD') }, { h: 'Owner', k: 'owner' }, { h: 'Team', k: 'team' }, { h: 'Record', k: 'w', f: (_, r) => `${r.w}-${r.l}` }, { h: 'PF/g', k: 'ppg', n: 1, f: f1 }, { h: 'All-play', k: 'allplay', n: 1, f: pct }, { h: 'Seed', k: 'seed', n: 1 }], sRows, { isMe: (r) => r.owner === myOwner });
-    table($('#t-bestseasons'), [{ h: 'Season', k: 'year' }, { h: 'Owner', k: 'owner' }, { h: 'Record', k: 'w', f: (_, r) => `${r.w}-${r.l}` }, { h: 'All-play', k: 'allplay', n: 1, f: pct }, { h: 'PF/g', k: 'ppg', n: 1, f: f1 }, { h: 'Finish', k: 'final', n: 1, f: (v, r) => (v ? ord(v) : r.complete ? '–' : 'in progress') }], H.best_seasons, { isMe: (r) => r.owner === myOwner });
+    table($('#t-seasons'), [{ h: 'Finish', k: 'final', n: 1, f: (v, r) => (v ? ord(v) : r.complete ? '–' : 'TBD') }, { h: 'Owner', k: 'owner' }, { h: 'Team', k: 'team', wide: 1 }, { h: 'Record', k: 'w', f: (_, r) => `${r.w}-${r.l}` }, { h: 'PF/g', k: 'ppg', n: 1, f: f1 }, { h: 'All-play', k: 'allplay', n: 1, f: pct, wide: 1 }, { h: 'Seed', k: 'seed', n: 1, wide: 1 }], sRows, { isMe: (r) => r.owner === myOwner });
+    table($('#t-bestseasons'), [{ h: 'Season', k: 'year' }, { h: 'Owner', k: 'owner' }, { h: 'Record', k: 'w', f: (_, r) => `${r.w}-${r.l}` }, { h: 'All-play', k: 'allplay', n: 1, f: pct }, { h: 'PF/g', k: 'ppg', n: 1, f: f1, wide: 1 }, { h: 'Finish', k: 'final', n: 1, f: (v, r) => (v ? ord(v) : r.complete ? '–' : 'in progress') }], H.best_seasons, { isMe: (r) => r.owner === myOwner });
     // h2h
     const host = $('#c-h2h');
     const rows = team ? D.h2h.filter((x) => x.id === team).sort((x, y) => (y.w - y.l) - (x.w - x.l) || y.w - x.w) : [];
@@ -753,8 +750,8 @@
       svg.append('line').attr('x1', mid).attr('x2', mid).attr('y1', 0).attr('y2', h).attr('stroke', css('--line'));
       g.append('rect').attr('width', w).attr('height', y.bandwidth()).attr('fill', 'transparent').call((s) => hover(s, (r) => `${tm(team).owner} vs ${r.opp}`, (r) => `${r.w} wins, ${r.l} losses`));
     }
-    table($('#t-records'), [{ h: 'Record', k: 'kind' }, { h: 'Owner', k: 'owner' }, { h: 'Season', k: 'season' }, { h: 'Wk', k: 'wk', n: 1 }, { h: 'Pts', k: 'pts', n: 1, f: f1 }, { h: 'Opp', k: 'opp' }, { h: 'Margin', k: 'margin', n: 1, f: signed }], D.records);
-    table($('#t-alltime'), [{ h: 'Owner', k: 'owner' }, { h: 'Record', k: 'w', f: (_, r) => `${r.w}-${r.l}` }, { h: 'Win %', k: 'pct', n: 1, f: pct }, { h: 'Titles', k: 't', n: 1, v: (r) => r.titles.length }, { h: 'Pts/g', k: 'ppg', n: 1, f: f1 }, { h: 'Best game', k: 'high', n: 1, f: f1 }, { h: 'Best finish', k: 'best', n: 1, f: (v) => (v ? ord(v) : '–') }], D.alltime, { isMe: meRow });
+    table($('#t-records'), [{ h: 'Record', k: 'kind' }, { h: 'Owner', k: 'owner' }, { h: 'Season', k: 'season' }, { h: 'Wk', k: 'wk', n: 1, wide: 1 }, { h: 'Pts', k: 'pts', n: 1, f: f1 }, { h: 'Opp', k: 'opp', wide: 1 }, { h: 'Margin', k: 'margin', n: 1, f: signed, wide: 1 }], D.records);
+    table($('#t-alltime'), [{ h: 'Owner', k: 'owner' }, { h: 'Record', k: 'w', f: (_, r) => `${r.w}-${r.l}` }, { h: 'Win %', k: 'pct', n: 1, f: pct }, { h: 'Titles', k: 't', n: 1, v: (r) => r.titles.length }, { h: 'Pts/g', k: 'ppg', n: 1, f: f1, wide: 1 }, { h: 'Best game', k: 'high', n: 1, f: f1, wide: 1 }, { h: 'Best finish', k: 'best', n: 1, f: (v) => (v ? ord(v) : '–'), wide: 1 }], D.alltime, { isMe: meRow });
   }
 
   function drawRivalry() {
@@ -856,8 +853,8 @@
   }
   function renderCards() {
     const g = (k) => ({ h: k, k, v: (r) => (r[k].gp ?? -1), node: (r) => el('span', { class: 'gl sm ' + gcls(r[k].g), text: r[k].g, title: r[k].detail }) });
-    table($('#t-cards'), [{ h: '#', k: 'rank', n: 1 }, { h: 'Team', k: 'id', v: (r) => tm(r.id).name }, { h: 'Owner', k: 'o', v: (r) => tm(r.id).owner },
-      { h: 'GPA', k: 'gpa', n: 1, f: (v) => v.toFixed(2) }, { ...g('draft'), h: 'Draft' }, { ...g('wire'), h: 'Waivers' }, { ...g('lineup'), h: 'Lineups' }, { ...g('trades'), h: 'Trades' }], D.cards || [], { isMe: meRow });
+    table($('#t-cards'), [{ h: '#', k: 'rank', n: 1, wide: 1 }, { h: 'Team', k: 'id', v: (r) => tm(r.id).name, cls: () => 'clip' }, { h: 'Owner', k: 'o', v: (r) => tm(r.id).owner, wide: 1 },
+      { h: 'GPA', k: 'gpa', n: 1, f: (v) => v.toFixed(2) }, { ...g('draft'), h: 'Draft' }, { ...g('wire'), h: 'Waivers' }, { ...g('lineup'), h: 'Lineups' }, { ...g('trades'), h: 'Trades', wide: 1 }], D.cards || [], { isMe: meRow });
     $$('#t-cards .gl').forEach((n) => n.addEventListener('click', (e) => { const r = n.getBoundingClientRect(); tip.show({ clientX: r.left, clientY: r.top }, n.textContent, n.title); e.stopPropagation(); }));
   }
 
@@ -865,9 +862,9 @@
   function renderRace() {
     table($('#t-race'), [{ h: 'Team', k: 'id', v: (r) => tm(r.id).name }, { h: 'Rec', k: 'w', f: (_, r) => `${r.w}-${r.l}` }, { h: 'Odds', k: 'playoffs', n: 1, bar: 1, f: pct },
       { h: 'Status', k: 'status', cls: (r) => (r.status === 'Clinched' ? 'good' : r.status === 'Eliminated' || r.status === 'Long shot' ? 'bad' : '') },
-      { h: 'Magic #', k: 'magic', n: 1, f: (v, r) => (r.status === 'Clinched' ? '✓' : v == null ? '–' : `${v} of ${r.left}`) },
-      { h: '50/50 at', k: 'need50', f: (v) => v || '–' }, { h: 'Safe (90%) at', k: 'need90', f: (v) => v || '–' },
-      { h: '', k: 'note', cls: () => 'muted' }], D.race || [], { isMe: meRow });
+      { h: 'Magic #', k: 'magic', n: 1, wide: 1, f: (v, r) => (r.status === 'Clinched' ? '✓' : v == null ? '–' : `${v} of ${r.left}`) },
+      { h: '50/50 at', k: 'need50', f: (v) => v || '–', wide: 1 }, { h: 'Safe (90%) at', k: 'need90', f: (v) => v || '–', wide: 1 },
+      { h: '', k: 'note', cls: () => 'muted', wide: 1 }], D.race || [], { isMe: meRow });
   }
 
   // ---------- fantasy playoff schedule ----------
@@ -1435,7 +1432,7 @@
       el('h3', { text: '💩 Dump Log' }), poopEl,
       go, off));
   }
-  function openWelcome() { store.set('welcome-off', ''); welcomeData = null; $('#more-sheet').hidden = true; $('#welcome').hidden = false; document.body.classList.add('noscroll'); welcomeData = 'done'; loadPoop(); renderWelcome(); }
+  function openWelcome() { store.set('welcome-off', ''); welcomeData = null; $('#welcome').hidden = false; document.body.classList.add('noscroll'); welcomeData = 'done'; loadPoop(); renderWelcome(); }
 
 
   // ---------- TRASH TALK ----------
@@ -1822,19 +1819,22 @@
   }
 
   // ---------- render orchestration ----------
+  function renderLeagueTab() {
+    $$('#lsubnav button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.lv === leagueView)));
+    $$('#league .lview').forEach((v) => { v.hidden = v.dataset.lv !== leagueView; });
+    ({ standings: renderLeague, moves: renderTrades, draft: renderDraft, history: renderHistory })[leagueView]();
+  }
   function renderAll() {
     if (!D) return;
     renderHeader();
-    const fns = { team: renderTeam, scores: renderScores, week: renderWeek, league: renderLeague, trades: renderTrades, draft: renderDraft, history: renderHistory, play: renderPlay, talk: renderTalk };
+    const fns = { team: renderTeam, week: renderWeek, league: renderLeagueTab, play: renderPlay, talk: renderTalk };
     try { fns[tab](); } catch (e) { console.error(e); }
   }
   function show(t, keepScroll) {
     tab = t;
     $$('.tab').forEach((s) => { s.hidden = s.id !== t; });
     $$('.tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === t)));
-    $$('.bnav button[data-tab], .more-card button').forEach((b) => b.classList.toggle('on', b.dataset.tab === t));
-    $('#bnav-more').classList.toggle('on', ['week', 'league', 'trades', 'draft', 'history'].includes(t));
-    $('#more-sheet').hidden = true;
+    $$('.bnav button[data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === t));
     history.replaceState(null, '', location.pathname + location.search + '#' + t);
     renderAll();
     if (!keepScroll) window.scrollTo(0, 0);
@@ -1859,10 +1859,9 @@
   }
   $$('.tabs button').forEach((b) => b.addEventListener('click', () => show(b.dataset.tab)));
   // phone: bottom tab bar + "More" sheet
-  $$('.bnav button[data-tab], .more-card button[data-tab]').forEach((b) => b.addEventListener('click', () => show(b.dataset.tab)));
-  $('#more-welcome').addEventListener('click', openWelcome);
-  $('#bnav-more').addEventListener('click', () => { $('#more-sheet').hidden = !$('#more-sheet').hidden; });
-  $('#more-sheet').addEventListener('click', (e) => { if (e.target.id === 'more-sheet') $('#more-sheet').hidden = true; });
+  $$('.bnav button[data-tab]').forEach((b) => b.addEventListener('click', () => show(b.dataset.tab)));
+  $('#hdr-rundown').addEventListener('click', openWelcome);
+  $$('#lsubnav button').forEach((b) => b.addEventListener('click', () => { leagueView = b.dataset.lv; store.set('lview', leagueView); renderLeagueTab(); }));
   // "add to home screen" nudge on phones, once, unless already installed
   (() => {
     const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
@@ -1882,6 +1881,23 @@
   })();
   $$('#subnav button').forEach((b) => b.addEventListener('click', () => { teamView = b.dataset.view; store.set('teamview', teamView); renderTeam(); const nav = $('#subnav'); if (nav.getBoundingClientRect().top < 0) nav.scrollIntoView({ block: 'start' }); }));
   $('#team-pick').addEventListener('change', (e) => setTeam(e.target.value));
+  // ---------- tidy cards: explanations behind ⓘ, deep-dive sections folded until opened ----------
+  $$('.card > h3 + p.note, .card > .row-head + p.note, section > .row-head + p.note').forEach((note) => {
+    const head = note.previousElementSibling, h = head.matches('h2, h3') ? head : head.querySelector('h2, h3');
+    if (!h) return;
+    note.classList.add('info-note'); note.hidden = true;
+    const b = el('button', { class: 'info-btn', type: 'button', 'aria-label': 'What is this?', title: 'What is this?', text: 'i' });
+    b.addEventListener('click', (e) => { e.stopPropagation(); note.hidden = !note.hidden; b.classList.toggle('on', !note.hidden); });
+    h.append(b);
+  });
+  $$('.card.fold').forEach((c) => {
+    const k = c.dataset.fold, head = c.querySelector(':scope > h3, :scope > .row-head');
+    c.classList.toggle('open', store.get('fold-' + k) === '1');
+    head.classList.add('fold-h'); head.setAttribute('role', 'button'); head.tabIndex = 0;
+    const flip = () => { const o = !c.classList.contains('open'); c.classList.toggle('open', o); store.set('fold-' + k, o ? '1' : ''); if (o) renderAll(); };
+    head.addEventListener('click', (e) => { if (e.target.closest('select, .info-btn')) return; flip(); });
+    head.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); } });
+  });
   let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(renderAll, 200); });
 
   // ---------- data ----------
@@ -1913,8 +1929,8 @@
     clearTimeout(liveTimer);
     try {
       LIVE = await getJSON('/api/live');
-      if (D && (tab === 'scores' || tab === 'team')) (tab === 'scores' ? renderScores : renderTeam)();
-      if (D && tab === 'week') renderTop();
+      if (D && tab === 'team') renderTeam();
+      if (D && tab === 'week') { renderScores(); renderTop(); }
       maybeWelcome();
       loadTalk();
       if (tab === 'talk' && talkDraft.target == null) renderTalk();

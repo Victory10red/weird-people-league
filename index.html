@@ -27,21 +27,14 @@
         <h1>Weird People <span>League HQ</span></h1>
         <p class="sub" id="sub">Loading league…</p>
       </div>
-      <label class="picker">
-        <span>Your team</span>
-        <select id="team-pick" aria-label="Pick a team"></select>
-      </label>
+      <button id="hdr-rundown" class="hdr-btn" type="button" title="Today’s rundown">☀️ <span>Today</span></button>
     </div>
     <nav class="tabs wrap" role="tablist">
       <button role="tab" data-tab="team" aria-selected="true">My Team</button>
-      <button role="tab" data-tab="scores" aria-selected="false">Scores</button>
-      <button role="tab" data-tab="talk" aria-selected="false">💬 Trash Talk</button>
       <button role="tab" data-tab="week" aria-selected="false">This Week</button>
-      <button role="tab" data-tab="league" aria-selected="false">League</button>
-      <button role="tab" data-tab="trades" aria-selected="false">Trades</button>
-      <button role="tab" data-tab="draft" aria-selected="false">Draft</button>
-      <button role="tab" data-tab="history" aria-selected="false">History</button>
+      <button role="tab" data-tab="talk" aria-selected="false">💬 Trash Talk</button>
       <button role="tab" data-tab="play" aria-selected="false">🎮 Play</button>
+      <button role="tab" data-tab="league" aria-selected="false">League</button>
     </nav>
   </header>
 
@@ -59,9 +52,10 @@
       <div id="team-body">
         <div id="viewing" class="viewing" hidden></div>
         <div class="row-head"><h2 id="team-name">–</h2><span class="pill" id="team-status">–</span></div>
+        <label class="viewsel"><span>Viewing</span><select id="team-pick" aria-label="View another team"></select></label>
         <div class="tiles" id="tiles"></div>
         <nav class="subnav" id="subnav" aria-label="My Team sections">
-          <button data-view="week">This week</button><button data-view="roster">Pickups &amp; trades</button><button data-view="outlook">Playoff outlook</button><button data-view="season">Season so far</button>
+          <button data-view="week">This week</button><button data-view="roster">Waivers &amp; targets</button><button data-view="outlook">Playoff outlook</button><button data-view="season">Season so far</button>
         </nav>
 
         <div class="view" data-view="week">
@@ -102,59 +96,58 @@
       </div>
     </section>
 
-    <!-- SCORES -->
-    <section id="scores" class="tab" hidden>
-      <div class="row-head"><h2>Week <span id="live-week">–</span> scoreboard</h2><span class="pill" id="live-status">–</span></div>
-      <p class="note">Odds update during games: points so far plus each starter's projection for the time left in his game. Tap a matchup for lineups. vs Opp = points per game the opponent allows to that position (green = soft, red = tough).</p>
-      <div id="games" class="games"></div>
-    </section>
-
     <!-- TRASH TALK -->
     <section id="talk" class="tab talk" hidden>
       <div class="card talk-compose" id="talk-compose"></div>
       <div id="talk-feed" class="talk-feed"></div>
     </section>
 
-    <!-- THIS WEEK -->
+    <!-- THIS WEEK: live scoreboard, then the week's stories -->
     <section id="week" class="tab" hidden>
+      <div class="row-head"><h2>Week <span id="live-week">–</span> scoreboard</h2><span class="pill" id="live-status">–</span></div>
+      <p class="note">Odds update during games: points so far plus each starter's projection for the time left in his game. Tap a matchup for lineups. vs Opp = points per game the opponent allows to that position (green = soft, red = tough).</p>
+      <div id="games" class="games"></div>
       <div class="card"><div class="row-head"><h3>Top performers</h3><select id="tp-week" class="wk-pick" aria-label="Week"></select></div>
-        <p class="note">Best starters at each position across the league, then each matchup's standouts. Colors: <span class="pc pc-QB">QB</span> <span class="pc pc-RB">RB</span> <span class="pc pc-WR">WR</span> <span class="pc pc-TE">TE</span> <span class="pc pc-K">K</span> <span class="pc pc-DST">D/ST</span></p>
+        <p class="note">Best starters at each position across the league. Colors: <span class="pc pc-QB">QB</span> <span class="pc pc-RB">RB</span> <span class="pc pc-WR">WR</span> <span class="pc pc-TE">TE</span> <span class="pc pc-K">K</span> <span class="pc pc-DST">D/ST</span></p>
         <div id="tp-pos" class="tp-pos"></div>
-        <h3 class="tp-sub">By matchup</h3>
-        <div id="tp-games" class="tp-games"></div>
       </div>
-      <div class="card"><h3>Week <span class="recap-wk">–</span> recap</h3><p class="note">Written automatically from last week's results.</p><pre id="recap" class="recap"></pre></div>
-      <div class="card"><h3>Week <span id="aw-week">–</span> awards</h3><p class="note">Last completed week, handed out automatically.</p><div id="awards" class="awards"></div></div>
-      <div class="card"><h3>Matchups: ESPN vs Vegas</h3><p class="note">Vegas projection = each player's scoring average this season × how much more or less Vegas expects his NFL team to score this week than it usually does. It doesn't use ESPN's projections at all.</p><div class="tbl" id="t-vm"></div></div>
-      <div class="row-head"><h2>NFL slate</h2><span class="pill" id="prov">–</span></div>
-      <p class="note">Lines and totals from ESPN's feed; implied team totals; stadium forecast at kickoff. Tap a game to see this league's starters in it.</p>
-      <div id="nfl" class="nfl"></div>
+      <div class="grid">
+  <div class="card"><h3>Week <span class="recap-wk">–</span> recap</h3><p class="note">Written automatically from last week's results.</p><pre id="recap" class="recap"></pre></div>
+  <div class="card"><h3>Week <span id="aw-week">–</span> awards</h3><p class="note">Last completed week, handed out automatically.</p><div id="awards" class="awards"></div></div>
+      </div>
+      <div class="card fold" data-fold="vegas"><h3>Matchups: ESPN vs Vegas</h3><p class="note">Vegas projection = each player's scoring average this season × how much more or less Vegas expects his NFL team to score this week than it usually does. It doesn't use ESPN's projections at all.</p><div class="tbl" id="t-vm"></div></div>
+      <div class="card fold" data-fold="nfl"><div class="row-head"><h3>NFL slate</h3><span class="pill" id="prov">–</span></div>
+        <p class="note">Lines and totals from ESPN's feed; implied team totals; stadium forecast at kickoff. Tap a game to see this league's starters in it.</p>
+        <div id="nfl" class="nfl"></div></div>
     </section>
-
     <!-- LEAGUE -->
     <section id="league" class="tab" hidden>
+      <nav class="subnav" id="lsubnav" aria-label="League sections">
+        <button data-lv="standings">Standings</button><button data-lv="moves">Trades &amp; pickups</button><button data-lv="draft">Draft</button><button data-lv="history">History</button>
+      </nav>
+      <div class="lview" data-lv="standings">
+
       <div class="card"><h3>Power rankings</h3><p class="note">Rest-of-season roster strength 45%, points per game 35%, all-play record 20%. Luck = actual wins minus the wins your scores earned against everyone.</p><div class="tbl" id="t-power"></div></div>
       <div class="card"><h3>Playoff race</h3><p class="note">Clinched / eliminated are guaranteed math. Magic number = wins that lock a spot with no help. 50/50 and 90% = the final record that gives those playoff odds in the simulations.</p><div class="tbl" id="t-race"></div></div>
       <div class="card"><h3>Report cards</h3><p class="note">Draft (points from drafted players), waivers (started points from pickups), lineups (share of best possible points started) and trades (net value). Graded on a curve against the league. Tap a grade for details.</p><div class="tbl" id="t-cards"></div></div>
       <div class="grid">
-        <div class="card"><h3>Playoff odds</h3><p class="note">Chance of a top-<span id="po-n">6</span> finish; darker = first-round bye.</p><div class="chart" id="c-odds"></div></div>
-        <div class="card"><h3>Who's lucky</h3><p class="note">Dot = actual wins, ring = wins their scoring earned.</p><div class="chart" id="c-luck"></div></div>
+        <div class="card fold" data-fold="luck"><h3>Who's lucky</h3><p class="note">Dot = actual wins, ring = wins their scoring earned.</p><div class="chart" id="c-luck"></div></div>
       </div>
-      <div class="card"><h3>Power rank, week by week</h3><p class="note">Rank by all-play record to date. Tap a line's label to highlight it.</p><div class="chart" id="c-bump"></div></div>
-      <div class="card"><h3>Schedule swap</h3><p class="note">Row team's record if it had column team's schedule. Diagonal = actual record. Green = better than reality.</p><div class="chart" id="c-swapgrid"></div></div>
+      <div class="card fold" data-fold="bump"><h3>Power rank, week by week</h3><p class="note">Rank by all-play record to date. Tap a line's label to highlight it.</p><div class="chart" id="c-bump"></div></div>
+      <div class="card fold" data-fold="swap"><h3>Schedule swap</h3><p class="note">Row team's record if it had column team's schedule. Diagonal = actual record. Green = better than reality.</p><div class="chart" id="c-swapgrid"></div></div>
       <div class="grid">
-        <div class="card"><h3>Boom or bust</h3><p class="note">Average score vs week-to-week swing. Top-left = steady, top-right = volatile.</p><div class="chart" id="c-scatter"></div></div>
-        <div class="card"><h3>Lineup IQ</h3><p class="note">Points left on the bench this season.</p><div class="chart" id="c-bench"></div></div>
+        <div class="card fold" data-fold="boom"><h3>Boom or bust</h3><p class="note">Average score vs week-to-week swing. Top-left = steady, top-right = volatile.</p><div class="chart" id="c-scatter"></div></div>
+        <div class="card fold" data-fold="iq"><h3>Lineup IQ</h3><p class="note">Points left on the bench this season.</p><div class="chart" id="c-bench"></div></div>
       </div>
       <div class="grid">
-        <div class="card"><h3>Beat the projection?</h3><p class="note">Average points per week above or below ESPN's projection for the lineup that was started.</p><div class="chart" id="c-proj"></div></div>
-        <div class="card"><h3>Weekly finish</h3><p class="note">Scoring rank each week (1 = top score).</p><div class="chart" id="c-heat"></div></div>
+        <div class="card fold" data-fold="proj"><h3>Beat the projection?</h3><p class="note">Average points per week above or below ESPN's projection for the lineup that was started.</p><div class="chart" id="c-proj"></div></div>
+        <div class="card fold" data-fold="heat"><h3>Weekly finish</h3><p class="note">Scoring rank each week (1 = top score).</p><div class="chart" id="c-heat"></div></div>
       </div>
-      <div class="card"><h3>Clutch &amp; schedule</h3><p class="note">Close = decided by under 10 points. Opp avg = average score of the opponents faced.</p><div class="tbl" id="t-clutch"></div></div>
-    </section>
+      <div class="card fold" data-fold="clutch"><h3>Clutch &amp; schedule</h3><p class="note">Close = decided by under 10 points. Opp avg = average score of the opponents faced.</p><div class="tbl" id="t-clutch"></div></div>
+        <p class="note fold-hint">Tap any section above to open it.</p>
+      </div>
+      <div class="lview" data-lv="moves" hidden>
 
-    <!-- TRADES -->
-    <section id="trades" class="tab" hidden>
       <div class="card"><h3>Trade analyzer</h3><p class="note">Pick two teams and the players moving. Reruns the rest of the season 6,000 times both ways using each team's best rest-of-season lineup.</p>
         <div class="ta-pick"><label>Team A <select id="ta-a"></select></label><label>Team B <select id="ta-b"></select></label></div>
         <div class="ta-lists"><div id="ta-la" class="ta-list"></div><div id="ta-lb" class="ta-list"></div></div>
@@ -164,10 +157,9 @@
         <div class="card"><h3>Best pickups</h3><p class="note">Adds ranked by points scored in the adding team's lineup.</p><div class="tbl" id="t-pickups"></div></div>
         <div class="card"><h3>Pickups: <span class="tname">–</span></h3><div class="tbl" id="t-mypickups"></div></div>
       </div>
-    </section>
+      </div>
+      <div class="lview" data-lv="draft" hidden>
 
-    <!-- DRAFT -->
-    <section id="draft" class="tab" hidden>
       <div class="grid">
         <div class="card"><h3>Draft haul</h3><p class="note">Season points from every player each team drafted.</p><div class="chart" id="c-haul"></div></div>
         <div class="card"><h3>Draft class: <span class="tname">–</span></h3><div class="tbl" id="t-mydraft"></div></div>
@@ -176,10 +168,9 @@
         <div class="card"><h3>Steals</h3><div class="tbl" id="t-steals"></div></div>
         <div class="card"><h3>Busts (rounds 1–6)</h3><div class="tbl" id="t-busts"></div></div>
       </div>
-    </section>
+      </div>
+      <div class="lview" data-lv="history" hidden>
 
-    <!-- HISTORY -->
-    <section id="history" class="tab" hidden>
       <div class="grid">
         <div class="card"><h3>Champions</h3><div id="champs" class="champs"></div></div>
         <div class="card"><h3>Legacy rankings</h3><p class="note">Title 10 pts, runner-up 5, playoff trip 2, plus career all-play record. Seasons on ESPN since 2024.</p><div class="tbl" id="t-career"></div></div>
@@ -194,8 +185,8 @@
         <div class="card"><h3>Record book</h3><div class="tbl" id="t-records"></div></div>
       </div>
       <div class="card"><h3>All-time standings</h3><div class="tbl" id="t-alltime"></div></div>
+      </div>
     </section>
-
     <!-- PLAY -->
     <section id="play" class="tab" hidden>
       <div id="play-who" class="play-who"></div>
@@ -213,21 +204,11 @@
   <div id="welcome" class="welcome" hidden role="dialog" aria-modal="true" aria-label="Today in the league"></div>
   <nav class="bnav" aria-label="Sections">
     <button data-tab="team"><span class="bi">🏠</span><span>My Team</span></button>
-    <button data-tab="scores"><span class="bi">📺</span><span>Scores</span></button>
+    <button data-tab="week"><span class="bi">📺</span><span>This Week</span></button>
     <button data-tab="talk"><span class="bi">💬</span><span>Talk</span><i class="dot" id="talk-dot" hidden></i></button>
     <button data-tab="play"><span class="bi">🎮</span><span>Play</span></button>
-    <button id="bnav-more" data-more="1"><span class="bi">☰</span><span>More</span></button>
+    <button data-tab="league"><span class="bi">🏆</span><span>League</span></button>
   </nav>
-  <div id="more-sheet" class="more-sheet" hidden>
-    <div class="more-card">
-      <button data-tab="week"><span class="bi">📅</span>This Week</button>
-      <button data-tab="league"><span class="bi">🏆</span>League</button>
-      <button data-tab="trades"><span class="bi">🔁</span>Trades</button>
-      <button data-tab="draft"><span class="bi">📋</span>Draft</button>
-      <button data-tab="history"><span class="bi">📜</span>History</button>
-      <button id="more-welcome"><span class="bi">☀️</span>Today’s rundown</button>
-    </div>
-  </div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
   <script>window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };</script>
   <script defer src="/_vercel/insights/script.js"></script>
