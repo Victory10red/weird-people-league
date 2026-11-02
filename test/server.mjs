@@ -28,7 +28,7 @@ const live = liveScores({ year: dump.status.year, week: wk, current: wk, games }
 const fakeLB = { 'bk:hard': { 3: { s: 412, at: Date.now() - 864e5 }, 10: { s: 260, at: Date.now() - 3e6 } }, 'hol:week': { 8: { s: 9, at: Date.now() } } };
 const lbOut = () => Object.fromEntries(Object.entries(fakeLB).map(([k, v]) => [k, Object.entries(v).map(([id, x]) => ({ id: +id, score: x.s, at: x.at })).sort((a, b) => b.score - a.score)]));
 const fakePins = { 3: '1111' };
-const fakeTalk = [{ id: 'a', t: 3, text: 'Trevor you are 2-5 and it shows. Absolute clown shit.', gif: null, at: Date.now() - 3600000, re: { '😂': [8, 10], '🔥': [3] } }, { id: 'b', t: 10, text: 'Somebody check on Carlos', gif: null, at: Date.now() - 7200000, re: {} }];
+const fakeTalk = [{ id: 'z', t: 0, bot: true, text: '🚨 WEEK 7 BASEMENT REPORT: Wes put up 89.4, dead last in the league. Justin beat him by 61.8. Now 3-4.', gif: null, at: Date.now() - 600000, re: { '😂': [3, 8] } }, { id: 'a', t: 3, text: 'Trevor you are 2-5 and it shows. Absolute clown shit.', gif: null, at: Date.now() - 3600000, re: { '😂': [8, 10], '🔥': [3] } }, { id: 'b', t: 10, text: 'Somebody check on Carlos', gif: null, at: Date.now() - 7200000, re: {} }];
 const fakeSeen = { 3: { last: Date.now() - 5400000, visits: 4 }, 7: { last: Date.now() - 2 * 86400000, visits: 1 } };
 const H = 3600000; const fakePoop = [[8, 0.4], [3, 1.2], [10, 2.5], [8, 5], [1, 9], [8, 26], [12, 30], [3, 50], [6, 75]].map(([t, h]) => ({ t, at: Date.now() - h * H }));
 // pick'em: this week's slate from the saved NFL list; the first 3 games final, the next 2 in progress

@@ -573,3 +573,5 @@ table.cmp td.win { color: var(--good); font-weight: 700; }
 .pk-lockbtn { width: 100%; }
 .pk-lockbtn.confirm { background: #15803d; border-color: #15803d; }
 @media (max-width: 700px) { .pk-bar { bottom: calc(76px + env(safe-area-inset-bottom)); } }
+.tk-av.bot { background: #111827; font-size: 18px; }
+.tk-msg.bot { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); background: color-mix(in srgb, var(--accent) 4%, var(--panel)); }

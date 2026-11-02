@@ -39,5 +39,15 @@
         }
       ]
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/autoroast",
+      "schedule": "30 14 * * 2"
+    },
+    {
+      "path": "/api/autoroast",
+      "schedule": "30 14 * * 3"
+    }
   ]
 }

@@ -1587,6 +1587,20 @@
     const lostFinal = (D.champs || []).filter((c) => c.runner_up === t.owner);
     const benchRank = by('bench_lost');
     const she = /^(darla|jacky)\b/i.test(t.owner);
+    // more ammo: pick'em, trades, drops, draft busts, history vs the roaster, injured starters, the app itself
+    const pkS = PKR && PKR.board && (PKR.board.season || []).find((r) => r.id === tid);
+    const pkRank = pkS ? (PKR.board.season || []).filter((r) => r.n >= 3).findIndex((r) => r.id === tid) + 1 : 0;
+    const lostTrade = (D.trades || []).filter((x) => x.winner != null && x.winner !== tid && (x.a.id === tid || x.b.id === tid)).map((x) => { const me = x.a.id === tid ? x.a : x.b, them = x.a.id === tid ? x.b : x.a; return { wk: x.wk, got: me.gets, gave: them.gets, gotPts: me.pts, gavePts: them.pts, with: own(them.id) }; }).sort((a, b) => (b.gavePts - b.gotPts) - (a.gavePts - a.gotPts))[0] || null;
+    const dropped = (D.drops || []).filter((x) => x.id === tid && x.pts >= 25)[0] || null;
+    const bust = (D.draft || []).filter((x) => x.id === tid && x.rd <= 3 && x.swing <= -10).sort((a, b) => a.swing - b.swing)[0] || null;
+    const meO = T[ME] ? T[ME].owner : null;
+    const h2hG = meO && tid !== ME ? ((D.history && D.history.rivalry) || []).filter((r) => (r.a === meO && r.b === t.owner) || (r.b === meO && r.a === t.owner)) : [];
+    const h2hW = h2hG.filter((r) => (r.a === meO ? r.ap > r.bp : r.bp > r.ap)).length;
+    const hurt = ((D.rosters && D.rosters[tid]) || []).filter((r) => r.starter && /^(OUT|INJURY_RESERVE|IR|SUSPENSION)$/i.test(r.inj || '') && !r.bye);
+    const mine2 = (TALK && TALK.msgs || []).filter((m) => m.t === tid);
+    const clowns = mine2.reduce((n, m) => n + ((m.re && m.re['🤡']) || []).length, 0);
+    const poopLog = POOP && POOP.log ? POOP.log.filter((e) => e.t === tid) : [];
+    const latePoops = poopLog.filter((e) => { const h = new Date(e.at).getHours(); return h >= 0 && h < 5; }).length;
     // this week's matchup (current week only)
     let wkg = null;
     const cg = LIVE && LIVE.games && LIVE.week === LIVE.current && LIVE.games.find((x) => x.h.id === tid || x.a.id === tid);
@@ -1603,6 +1617,7 @@
     return {
       he: she ? 'she' : 'he', He: she ? 'She' : 'He', his: she ? 'her' : 'his', him: she ? 'her' : 'him', guy: she ? 'girl' : 'guy',
       ns: t.name + (/s$/i.test(t.name) ? '’' : '’s'),
+      pkS, pkRank, lostTrade, dropped, bust, h2hN: h2hG.length, h2hW, hurt, posts: mine2.length, clowns, latePoops, talkReady: !!(TALK && TALK.ready), meO,
       wkg, benchLive, benchSeason, lostLast, closeWins, skinniest, beatdown, lostFinal, benchRank, top3: (t.seed || 9) <= 3 && t.w > t.l,
       o: t.owner, n: t.name, w: t.w, l: t.l, rec: `${t.w}-${t.l}`, winning: t.w > t.l, place: ord(t.seed || by('w')),
       seed: t.seed, pfRank: ord(t.pf_rank || by('pf')), pfRankN: t.pf_rank || by('pf'), pf: f1(t.pf), pa: f1(t.pa), paRank: by('pa'), avg: f1(t.avg),
@@ -1611,6 +1626,26 @@
       top: (t.top_players || [])[0], myWp: g ? Math.round(100 * (g.h.id === ME ? g.hwin : 1 - g.hwin)) : null,
       lastLine: last ? `${last.pts > last.opp_pts ? 'beat' : 'lost to'} ${own(last.opp)} ${f1(last.pts)}-${f1(last.opp_pts)} in week ${last.wk}` : '',
     };
+  }
+  // ammo from the rest of the app: pick'em, trades, drops, draft busts, history vs the roaster, injuries, games, posts
+  function extraLines(F) {
+    const { o } = F; const L = []; const add = (c, s) => { if (c) L.push(s); };
+    const p = F.pkS, nm = (arr) => arr.map((x) => x.name.replace(/\.$/, '')).join(' and ');
+    add(p && p.n >= 4 && p.c / p.n < 0.45, p && `${o} is ${p.c}-${p.n - p.c} in Pick'em. A coin flip would be ${Math.round(p.n / 2)}-${p.n - Math.round(p.n / 2)}. The coin is smarter than ${F.him}.`);
+    add(p && p.n >= 4 && F.pkRank && F.pkRank >= 7, p && `${o} is ${ord(F.pkRank)} in Pick'em at ${p.c}-${p.n - p.c}. Can't pick ${F.his} own lineup, can't pick NFL games either. Consistent.`);
+    add(p && p.n >= 4 && p.c / p.n >= 0.6 && !F.winning, p && `${o} is ${p.c}-${p.n - p.c} picking NFL games and ${F.rec} in fantasy. Knows exactly who's going to win, just never ${F.him}.`);
+    add(F.lostTrade, F.lostTrade && `${o} traded ${nm(F.lostTrade.gave)} to ${F.lostTrade.with} for ${nm(F.lostTrade.got)}. Since then: ${f1(F.lostTrade.gavePts)} points for ${F.lostTrade.with}, ${f1(F.lostTrade.gotPts)} for ${o}. Fleeced in broad daylight.`);
+    add(F.dropped, F.dropped && `${o} dropped ${F.dropped.name} in week ${F.dropped.wk}. ${F.dropped.name} has put up ${f1(F.dropped.pts)} since, including ${f1(F.dropped.best)} for ${F.own(F.dropped.to)} in week ${F.dropped.best_wk}. Cut him like a genius.`);
+    add(F.bust, F.bust && `${o} took ${F.bust.name} in round ${F.bust.rd} as the ${ord(F.bust.pos_pick)} ${F.bust.pos} off the board. He's the ${ord(F.bust.pos_finish)} ${F.bust.pos} in scoring. Draft day hero, Sunday zero.`);
+    add(F.h2hN >= 2 && F.h2hW / F.h2hN >= 0.6, `${o}, you're ${F.h2hN - F.h2hW}-${F.h2hW} all-time against me. I own you. Pay rent.`);
+    add(F.h2hN >= 2 && F.h2hW / F.h2hN < 0.4, `${o} is ${F.h2hN - F.h2hW}-${F.h2hW} against me all-time and enjoying it. Savor it, ${o}. It's the only winning record you'll ever have.`);
+    add(F.hurt.length, F.hurt.length && `${o} is starting ${F.hurt.map((r) => `${r.name} (${r.inj.replace('INJURY_RESERVE', 'IR').toLowerCase()})`).join(' and ')}. That's not a lineup, that's a hospital waiting room.`);
+    add(F.bk && F.bk.r.score < 300, F.bk && `${o}'s best Breakaway run is ${F.bk.r.score} yards on ${F.bk.l}. Can't run a fantasy team, can't run a cartoon football either.`);
+    add(F.bk && F.bk.r.score >= 300 && !F.winning, F.bk && `${o} has ${F.bk.r.score} yards on Breakaway and ${F.rec} in real fantasy. Putting the hours into the wrong game.`);
+    add(F.latePoops >= 2, `${o} has logged ${F.latePoops} 💩 between midnight and 5 a.m. Nobody healthy is doing that. Nobody winning is either.`);
+    add(F.talkReady && F.posts === 0, `${o} hasn't said one word in Trash Talk. Lurking like ${F.he} lurks in the standings.`);
+    add(F.clowns >= 3, `${o}'s posts have collected ${F.clowns} 🤡 reactions. The league has spoken.`);
+    return L.filter(Boolean);
   }
   // this week's matchup: live score, odds, duds and dead spots in the lineup
   function weekLines(F) {
@@ -1655,10 +1690,11 @@
     add(F.benchLive, F.benchLive && `${o} is ${rec} and STILL has ${F.benchLive.b.name} (${f1(F.benchLive.b.pts)}) rotting on the bench behind ${F.benchLive.s.name} (${f1(F.benchLive.s.pts)}). Lucky, not good.`);
     return L.filter(Boolean);
   }
+  const aNum = (x) => { const t = f1(x); return (/^(8|11\.|18\.)/.test(t) ? 'an ' : 'a ') + t; };
   const an = (g) => (/^[AEF]/.test(g) ? 'an ' : 'a ') + g;
   function roastLines(F) {
     const { o, n, rec } = F; const L = [];
-    if (F.top3) return frontrunner(F);
+    if (F.top3) return [...frontrunner(F), ...extraLines(F)];
     const add = (cond, s) => { if (cond) L.push(s); };
     const gr = (k) => (F.card[k] && F.card[k].g) || '?';
     const bl = F.benchLive, bs = F.benchSeason;
@@ -1669,7 +1705,7 @@
     add(F.lostLast >= 15, F.last && `${o} left ${f1(F.lostLast)} points on ${F.his} bench in week ${F.last.wk}. Coach of the year, if the year is a dumpster fire.`);
     add(!F.winning, `${o} is ${rec}, ${F.place} place and ${F.pfRank} in points. That's not a slump, that's a lifestyle.`);
     add(F.winning, `${o} is ${rec} with ${F.xw} "expected" wins. ${F.He}'s not good, ${F.he}'s a horseshoe-up-the-ass lucky ${F.he === 'she' ? 'witch' : 'son of a bitch'}.`);
-    add(F.worst, F.worst && `${o} dropped a ${f1(F.worst.pts)} in week ${F.worst.wk}. ${F.own(F.worst.opp)} didn't beat ${F.him}, ${F.he} got a forfeit with extra steps.`);
+    add(F.worst, F.worst && `${o} dropped ${aNum(F.worst.pts)} in week ${F.worst.wk}. ${F.own(F.worst.opp)} didn't beat ${F.him}, ${F.he} got a forfeit with extra steps.`);
     add(F.last && F.last.pts < F.last.opp_pts, F.last && `${o} ${F.lastLine}. Somebody check on ${F.him}, ${F.he}'s been staring at the box score since Monday.`);
     add(F.last && F.last.pts > F.last.opp_pts, F.last && `${o} ${F.lastLine} and won't shut the fuck up about it. Even a broken clock, bitch.`);
     add(F.benchRank <= 5, `${o} has left ${F.bench} points on ${F.his} bench this season. That's not a lineup, that's a fucking hostage situation.`);
@@ -1686,7 +1722,7 @@
     add(F.paRank <= 3 && !F.winning, `${o} wants you to know ${F.he}'s ${ord(F.paRank)} in points against. Nobody asked, you whiny little bitch. ${rec}.`);
     add(F.myWp != null, `${o}, I'm ${F.myWp}% to beat your ass this week, and honestly that's me being humble.`);
     add(true, F.poops ? `${o} has logged ${F.poops} 💩 on the Dump Log. Finally, something ${F.he}'s productive at.` : `${o} hasn't logged a single 💩 on the Dump Log. Full of shit, literally and figuratively.`);
-    return L.filter(Boolean);
+    return [...L.filter(Boolean), ...extraLines(F)];
   }
   // personal material on top of the numbers: these come up about two times in three
   const PERSONAL = [
@@ -1771,7 +1807,7 @@
     const top = 200 + Math.max(0, (640 - lines.length * size * 1.25) / 2);
     lines.forEach((l, i) => x.fillText(l, 70, top + i * size * 1.25 + size));
     x.font = '600 40px Inter, system-ui, sans-serif'; x.fillStyle = '#9aa1ad';
-    x.fillText(`— ${T[m.t] ? T[m.t].owner : ''}, ${T[m.t] ? T[m.t].name : ''}`, 70, 960);
+    x.fillText(m.bot ? '— League Bot, Tuesday roast' : `— ${T[m.t] ? T[m.t].owner : ''}, ${T[m.t] ? T[m.t].name : ''}`, 70, 960);
     x.font = '500 30px Inter, system-ui, sans-serif'; x.fillText('weird-people-league.vercel.app', 70, 1015);
     // synchronous so the share menu opens inside the tap (iPhones block it after a delay)
     const bin = atob(c.toDataURL('image/png').split(',')[1]); const u8 = new Uint8Array(bin.length);
@@ -1779,7 +1815,7 @@
     return new Blob([u8], { type: 'image/png' });
   }
   async function shareToChat(m, btn) {
-    const who = T[m.t] ? T[m.t].owner : '';
+    const who = m.bot ? 'League Bot' : T[m.t] ? T[m.t].owner : '';
     const text = `${who}: ${m.text || ''}${m.gif ? '\n' + m.gif : ''}\n\n🏈 League HQ: ${APP_URL}`;
     try {
       if (navigator.share) {
@@ -1793,8 +1829,14 @@
     try { await navigator.clipboard.writeText(text); if (btn) { btn.textContent = 'Copied! Paste it in Messenger'; setTimeout(() => { btn.textContent = '📤 Share'; }, 2500); } } catch { /* nothing else to do */ }
   }
   const avatar = (tid) => { const o = (T[tid] && T[tid].owner) || '?'; const hue = (tid * 67) % 360; return el('span', { class: 'tk-av', style: `background:hsl(${hue} 55% 42%)`, text: o[0] }); };
+  let PKR = null; // season Pick'em standings, for roasts
+  async function loadRoastData() {
+    if (!LB) loadLB();
+    if (PKR && Date.now() - PKR.at < 300000) return;
+    try { PKR = await getJSON(`/api/picks?year=${D.league.year}&week=${D.league.week}`); PKR.at = Date.now(); } catch { PKR = { at: Date.now(), board: {} }; }
+  }
   function renderTalk() {
-    loadTalk(); loadPoop();
+    loadTalk(); loadPoop(); loadRoastData();
     clearInterval(talkTimer); talkTimer = setInterval(() => { if (tab === 'talk' && !document.hidden) loadTalk(true); }, 20000);
     $('#talk-dot').hidden = true;
     const host = $('#talk-compose');
@@ -1839,7 +1881,7 @@
     const host = $('#talk-feed');
     if (!TALK) { host.replaceChildren(el('p', { class: 'note', text: 'Loading…' })); return; }
     if (!TALK.ready) { host.replaceChildren(el('p', { class: 'note', text: 'Trash Talk is unavailable right now.' })); return; }
-    const msgs = TALK.msgs.filter((m) => T[m.t]);
+    const msgs = TALK.msgs.filter((m) => T[m.t] || m.bot);
     if (!msgs.length) { host.replaceChildren(el('div', { class: 'card' }, el('p', { class: 'note', text: 'Dead quiet in here. Somebody start some shit.' }))); return; }
     const isAdmin = ME === ADMIN && pinTok();
     host.replaceChildren(...msgs.map((m) => {
@@ -1853,8 +1895,15 @@
       if (del) del.addEventListener('click', async () => { if (!del.dataset.arm) { del.dataset.arm = 1; del.textContent = 'Sure?'; return; } await talkPost({ action: 'delete', id: m.id, token: pinTok(ADMIN) }); renderTalkFeed(); });
       const sh = el('button', { class: 'linkbtn tk-share', type: 'button', text: '📤 Share' });
       sh.addEventListener('click', () => shareToChat(m, sh));
-      return el('div', { class: 'card tk-msg' + (m.t === ME ? ' me' : '') },
-        el('div', { class: 'tk-head' }, avatar(m.t), el('div', {}, el('b', { text: T[m.t].owner }), el('small', { text: `${T[m.t].name} · ${ago(m.at)}` })), el('div', { class: 'tk-acts' }, sh, del)),
+      let rb = null;
+      if (m.t !== ME && T[m.t]) { // fire back at whoever posted it
+        rb = el('button', { class: 'linkbtn tk-share', type: 'button', text: '🔥 Roast back' });
+        rb.addEventListener('click', () => { talkDraft.target = m.t; { const r = roast(m.t); talkDraft.text = r.startsWith(T[m.t].owner) ? r : `@${T[m.t].owner} ${r}`; } renderTalk(); window.scrollTo({ top: 0, behavior: 'smooth' }); const ta = $('#talk-compose textarea'); if (ta) ta.focus({ preventScroll: true }); });
+      }
+      const who = m.bot ? ['League Bot', `Tuesday roast · ${ago(m.at)}`] : [T[m.t].owner, `${T[m.t].name} · ${ago(m.at)}`];
+      const av = m.bot ? el('span', { class: 'tk-av bot', text: '🤖' }) : avatar(m.t);
+      return el('div', { class: 'card tk-msg' + (m.t === ME ? ' me' : '') + (m.bot ? ' bot' : '') },
+        el('div', { class: 'tk-head' }, av, el('div', {}, el('b', { text: who[0] }), el('small', { text: who[1] })), el('div', { class: 'tk-acts' }, rb, sh, del)),
         m.text ? el('p', { class: 'tk-body', text: m.text }) : null,
         m.gif ? el('img', { class: 'tk-gif-img', src: m.gif, alt: 'GIF', loading: 'lazy' }) : null,
         re);
