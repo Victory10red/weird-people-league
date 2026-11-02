@@ -25,7 +25,7 @@ const clocks = {};
 for (let pro = 1; pro <= 34; pro++) clocks[pro] = pro % 3 === 0 ? { rem: 0, state: 'post', detail: 'Final' } : pro % 3 === 1 ? { rem: 0.45, state: 'in', detail: '3rd 6:12' } : { rem: 1, state: 'pre', detail: 'Sun 12:00 PM' };
 for (const g of games) for (const s of [g.h, g.a]) for (const p of s.players) { const c = clocks[p.pro]; if (c) p.act = Math.round(p.proj * (1 - c.rem) * (0.6 + ((p.name.length * 37) % 80) / 100) * 10) / 10; }
 const live = liveScores({ year: dump.status.year, week: wk, current: wk, games }, clocks);
-const fakeLB = { 'bk:hard': { 3: { s: 412, at: Date.now() - 864e5 }, 10: { s: 260, at: Date.now() - 3e6 } }, 'hol:week': { 8: { s: 9, at: Date.now() } } };
+const fakeLB = { 'bk:hard': { 3: { s: 412, at: Date.now() - 864e5 }, 10: { s: 260, at: Date.now() - 3e6 } } };
 const lbOut = () => Object.fromEntries(Object.entries(fakeLB).map(([k, v]) => [k, Object.entries(v).map(([id, x]) => ({ id: +id, score: x.s, at: x.at })).sort((a, b) => b.score - a.score)]));
 const fakePins = { 3: '1111' };
 const fakeTalk = [{ id: 'z', t: 0, bot: true, text: '🚨 WEEK 7 BASEMENT REPORT: Wes put up 89.4, dead last in the league. Justin beat him by 61.8. Now 3-4.', gif: null, at: Date.now() - 600000, re: { '😂': [3, 8] } }, { id: 'a', t: 3, text: 'Trevor you are 2-5 and it shows. Absolute clown shit.', gif: null, at: Date.now() - 3600000, re: { '😂': [8, 10], '🔥': [3] } }, { id: 'b', t: 10, text: 'Somebody check on Carlos', gif: null, at: Date.now() - 7200000, re: {} }];

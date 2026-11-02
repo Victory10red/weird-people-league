@@ -6,8 +6,8 @@
 import { redis } from '../lib/kv.js';
 import { verify, ADMIN_TEAM } from '../lib/auth.js';
 
-const BOARDS = { bk: ['rookie', 'pro', 'hard', 'extreme'], hol: ['week', 'any', 'season'] };
-const MAX = { bk: 20000, hol: 500 }; // sanity caps so a typo or a tampered request can't top the board forever
+const BOARDS = { bk: ['rookie', 'pro', 'hard', 'extreme'] };
+const MAX = { bk: 20000 }; // sanity caps so a typo or a tampered request can't top the board forever
 
 async function readBoards(run) {
   const keys = Object.entries(BOARDS).flatMap(([g, ls]) => ls.map((l) => `${g}:${l}`));

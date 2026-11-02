@@ -950,57 +950,9 @@
   }
 
 
-  // ---------- PLAY: Higher or Lower ----------
-  const HOL_MODES = { week: 'Same week', any: 'Any week', season: 'Season totals' };
-  let hol = { mode: ['week', 'any', 'season'].includes(store.get('hol-mode')) ? store.get('hol-mode') : 'week', a: null, b: null, streak: 0, wk: null, busy: false, over: false, used: new Set() };
-  const holBest = (m) => Number(store.get('hol-best-' + m)) || 0;
-  const rand = (arr) => arr[Math.floor(Math.random() * arr.length)];
-  function holPool() {
-    const G = D.game || { players: [], weeks: [] };
-    const owner = (tid) => (tid != null && T[tid] ? T[tid] : null);
-    if (hol.mode === 'season') {
-      const curOwner = {}; for (const t of D.teams) for (const r of D.rosters[t.id] || []) curOwner[r.name] = t.id;
-      return G.players.filter((p) => p.s > 0).map((p) => ({ n: p.n, p: p.p, t: p.t, v: p.s, label: `${D.league.year} season so far`, who: owner(curOwner[p.n]), started: null }));
-    }
-    const out = [];
-    for (const p of G.players) for (const [wk, [v, tid, st]] of Object.entries(p.w)) {
-      if (hol.mode === 'week' && Number(wk) !== hol.wk) continue;
-      out.push({ n: p.n, p: p.p, t: p.t, v, wk: Number(wk), label: `Week ${wk}`, who: owner(tid), started: !!st });
-    }
-    return out;
-  }
-  function holPick(pool, a) {
-    const ok = pool.filter((x) => x !== a && x.n !== (a && a.n) && !hol.used.has(x.n + x.label) && (!a || Math.abs(x.v - a.v) >= 0.5));
-    if (!ok.length) return null;
-    if (a && Math.random() < 0.7) { // keep most rounds close enough to be interesting
-      const span = Math.max(8, a.v * 0.45);
-      const close = ok.filter((x) => Math.abs(x.v - a.v) <= span);
-      if (close.length) return rand(close);
-    }
-    return rand(ok);
-  }
-  function holNew() {
-    const G = D.game || { weeks: [] };
-    hol.wk = G.weeks.length ? rand(G.weeks) : null;
-    hol.streak = 0; hol.over = false; hol.busy = false; hol.used = new Set();
-    const pool = holPool();
-    hol.a = holPick(pool, null); if (hol.a) hol.used.add(hol.a.n + hol.a.label);
-    hol.b = holPick(pool, hol.a); if (hol.b) hol.used.add(hol.b.n + hol.b.label);
-  }
-  const POSCLR = { QB: 'pq', RB: 'pr', WR: 'pw', TE: 'pt', K: 'pk', 'D/ST': 'pd' };
-  function holCard(x, hidden, side) {
-    const ctx = x.who ? (hol.mode === 'season' ? `On ${x.who.owner}'s team (${x.who.name})` : `${x.started ? 'Started' : 'Benched'} by ${x.who.owner} (${x.who.name})`) : 'Free agent';
-    return el('div', { class: 'hcard ' + side },
-      el('div', { class: 'hpos ' + (POSCLR[x.p] || '') , text: x.p }),
-      el('div', { class: 'hname', text: x.n }),
-      el('div', { class: 'hteam', text: `${x.t} · ${x.label}` }),
-      el('div', { class: 'hctx', text: ctx }),
-      el('div', { class: 'hval', id: side === 'b' ? 'hol-bval' : null, text: hidden ? '?' : f1(x.v) }),
-      el('div', { class: 'hunit', text: 'fantasy points' }));
-  }
   let playGame = ({ hol: 'pick' })[store.get('play-game')] || (['bk', 'pick', 'poop'].includes(store.get('play-game')) ? store.get('play-game') : 'pick'), bkInst = null;
   let LB = null, lbAt = 0, bkLevel = 'hard';
-  const LB_GAME = () => (playGame === 'bk' ? `bk:${bkLevel}` : `hol:${hol.mode}`);
+  const LB_GAME = () => `bk:${bkLevel}`;
   async function loadLB(force) {
     if (!force && LB && Date.now() - lbAt < 60000) return;
     try { LB = await getJSON('/api/scores'); lbAt = Date.now(); } catch { LB = { ready: false, boards: {} }; }
@@ -1017,9 +969,9 @@
   }
   function renderLB() {
     const key = LB_GAME(), host = $('#lb');
-    const unit = playGame === 'bk' ? 'yds' : 'in a row';
-    $('#lb-title').textContent = playGame === 'bk' ? 'Breakaway leaderboard' : 'Higher or Lower leaderboard';
-    $('#lb-sub').textContent = playGame === 'bk' ? ({ rookie: 'Rookie', pro: 'Pro', hard: 'All-Pro', extreme: 'Extreme 💀' }[bkLevel]) : HOL_MODES[hol.mode];
+    const unit = 'yds';
+    $('#lb-title').textContent = 'Breakaway leaderboard';
+    $('#lb-sub').textContent = { rookie: 'Rookie', pro: 'Pro', hard: 'All-Pro', extreme: 'Extreme 💀' }[bkLevel];
     if (!LB) { host.replaceChildren(el('p', { class: 'note', text: 'Loading…' })); loadLB(); return; }
     if (!LB.ready) { host.replaceChildren(el('p', { class: 'note', text: 'The league leaderboard isn\'t switched on yet (it needs a free database in Vercel). Your best score is still saved on this device.' })); return; }
     // scores set on this device before the board existed (or while offline): offer to add them once
@@ -1283,65 +1235,6 @@
     }
     host.replaceChildren(...[head, ...body, lb, bar].filter(Boolean));
   }
-  function renderHol() {
-    if (!D.game || !D.game.players.length) { $('#hol-board').replaceChildren(el('p', { class: 'note', text: 'No games played yet this season.' })); return; }
-    $('#hol-mode').replaceChildren(...Object.entries(HOL_MODES).map(([k, lab]) => { const b = el('button', { 'aria-pressed': String(k === hol.mode), text: lab }); b.addEventListener('click', () => { hol.mode = k; store.set('hol-mode', k); hol.a = null; renderHol(); renderLB(); }); return b; }));
-    if (!hol.a || !hol.b) holNew();
-    $('#hol-streak').textContent = hol.streak;
-    $('#hol-best').textContent = holBest(hol.mode);
-    const board = $('#hol-board');
-    if (hol.over) {
-      const s = hol.streak, best = holBest(hol.mode);
-      const rank = s >= 15 ? 'Hall of Famer' : s >= 10 ? 'League winner' : s >= 6 ? 'Playoff team' : s >= 3 ? 'Waiver-wire hero' : 'Bench warmer';
-      const again = el('button', { class: 'btn big', type: 'button', text: 'Play again' });
-      again.addEventListener('click', () => { holNew(); renderHol(); });
-      board.replaceChildren(el('div', { class: 'hover' },
-        el('div', { class: 'hover-k', text: 'Game over' }),
-        el('div', { class: 'hover-s', text: String(s) }),
-        el('div', { class: 'hover-r', text: rank }),
-        el('p', { class: 'note', text: s >= best && s > 0 ? 'New personal best on this device!' : `Your best: ${best}` }),
-        el('p', { class: 'note', text: `${hol.b.n} had ${f1(hol.b.v)} vs ${hol.a.n}'s ${f1(hol.a.v)}.` }),
-        again));
-      again.focus();
-      return;
-    }
-    const hi = el('button', { class: 'hbtn up', type: 'button' }, el('span', { text: '▲' }), ' Higher');
-    const lo = el('button', { class: 'hbtn down', type: 'button' }, el('span', { text: '▼' }), ' Lower');
-    hi.addEventListener('click', () => holGuess(true)); lo.addEventListener('click', () => holGuess(false));
-    const bCard = holCard(hol.b, true, 'b');
-    bCard.append(el('div', { class: 'hbtns' }, hi, lo));
-    board.replaceChildren(el('p', { class: 'hq', text: `Did ${hol.b.n} score more or less than ${f1(hol.a.v)}?` }),
-      holCard(hol.a, false, 'a'), el('div', { class: 'hvs', text: 'VS' }), bCard);
-  }
-  function holGuess(higher) {
-    if (hol.busy || hol.over) return;
-    hol.busy = true;
-    const right = higher ? hol.b.v > hol.a.v : hol.b.v < hol.a.v;
-    const valEl = $('#hol-bval'), card = valEl.closest('.hcard');
-    $$('.hbtn').forEach((b) => { b.disabled = true; });
-    const target = hol.b.v, t0 = performance.now(), dur = 650;
-    const step = (now) => { const k = Math.min(1, (now - t0) / dur); valEl.textContent = f1(target * (1 - Math.pow(1 - k, 3))); if (k < 1) requestAnimationFrame(step); else done(); };
-    const done = () => {
-      card.classList.add(right ? 'right' : 'wrong');
-      setTimeout(() => {
-        if (right) {
-          hol.streak++;
-          if (hol.streak > holBest(hol.mode)) store.set('hol-best-' + hol.mode, String(hol.streak));
-          const pool = holPool();
-          hol.a = hol.b; hol.b = holPick(pool, hol.a);
-          if (!hol.b) { hol.used = new Set([hol.a.n + hol.a.label]); hol.b = holPick(pool, hol.a); }
-          if (hol.b) hol.used.add(hol.b.n + hol.b.label);
-        } else { hol.over = true; postScore('hol', hol.mode, hol.streak); }
-        hol.busy = false; renderHol();
-      }, right ? 700 : 1100);
-    };
-    requestAnimationFrame(step);
-  }
-  document.addEventListener('keydown', (e) => {
-    if (tab !== 'play' || playGame !== 'hol' || e.target.closest('select, input')) return;
-    if (e.key === 'ArrowUp') { e.preventDefault(); holGuess(true); }
-    if (e.key === 'ArrowDown') { e.preventDefault(); holGuess(false); }
-  });
 
 
   // ---------- PLAY: the Dump Log ----------
