@@ -340,11 +340,29 @@
     // moves
     const kinds = { 'Close call': 'k-close', Lineup: 'k-lineup', Pickup: 'k-urgent', Stream: 'k-stream', Waiver: 'k-waiver', Trade: 'k-trade', Injury: 'k-warn', Weather: 'k-warn', Vegas: 'k-warn' };
     $('#moves').replaceChildren(...(t.moves && t.moves.length ? t.moves : [{ kind: 'All set', title: 'No moves needed', detail: 'Your lineup is already optimal and nothing on waivers clearly beats what you have.' }]).map((mv) =>
-      el('div', { class: 'move' + (mv.urgent ? ' urgent' : '') }, el('span', { class: 'kind ' + (kinds[mv.kind] || ''), text: mv.kind }), el('div', {}, el('b', { text: mv.title }), el('p', { text: mv.detail })))));
+      el('div', { class: 'move' + (mv.urgent ? ' urgent' : '') }, el('span', { class: 'kind ' + (kinds[mv.kind] || ''), text: mv.kind }), el('div', {}, el('b', { text: mv.title }), el('p', { text: mv.detail }), espnAction(mv, team)))));
 
     renderCompare();
   }
 
+  // one tap from a suggestion to the right ESPN screen (ESPN has no supported way to make moves for you)
+  const ESPN_BASE = 'https://fantasy.espn.com/football';
+  const espnQ = (extra = {}) => new URLSearchParams({ leagueId: D.league.id || 961003394, seasonId: D.league.year, ...extra }).toString();
+  const espnTeamUrl = (tid) => `${ESPN_BASE}/team?${espnQ({ teamId: tid })}`;
+  function espnAction(mv, team) {
+    let label = null, url = null, copy = null;
+    const mine = team === ME;
+    if (mv.addName && mine) { label = `Add ${mv.addName} in ESPN`; url = `${ESPN_BASE}/players/add?${espnQ()}`; copy = mv.addName; }
+    else if (mv.partner != null && mine && T[mv.partner]) { label = `Propose trade to ${T[mv.partner].owner} in ESPN`; url = espnTeamUrl(mv.partner); }
+    else if (mine && /^(Lineup|Close call|Injury|Weather|Vegas)$/.test(mv.kind)) { label = 'Set lineup in ESPN'; url = espnTeamUrl(team); }
+    if (!url) return null;
+    const a = el('a', { class: 'espn-btn', href: url, target: '_blank', rel: 'noopener' }, el('span', { text: label }), el('span', { class: 'espn-arrow', text: '↗' }));
+    if (copy) {
+      a.addEventListener('click', () => { try { navigator.clipboard.writeText(copy); } catch { /* no clipboard */ } });
+      return el('div', { class: 'espn-act' }, a, el('small', { text: `Copies “${copy}”: paste it in ESPN’s Player Name search.` }));
+    }
+    return el('div', { class: 'espn-act' }, a);
+  }
   function viewOutlook(t) {
     const wi = t.whatif || {};
     const fact = (h, b) => el('div', {}, el('strong', { text: h }), el('span', { text: b }));

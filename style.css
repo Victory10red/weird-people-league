@@ -533,3 +533,10 @@ table.cmp td.win { color: var(--good); font-weight: 700; }
 @media (max-width: 700px) { .pk-bar { bottom: calc(76px + env(safe-area-inset-bottom)); } }
 .tk-av.bot { background: #111827; font-size: 18px; }
 .tk-msg.bot { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); background: color-mix(in srgb, var(--accent) 4%, var(--panel)); }
+
+/* buttons that jump to the right ESPN screen */
+.espn-act { margin-top: 8px; display: grid; gap: 3px; justify-items: start; }
+.espn-act small { color: var(--muted); font-size: 11.5px; }
+.espn-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 99px; background: #cc0000; color: #fff; font-size: 12.5px; font-weight: 700; text-decoration: none; }
+.espn-btn:hover { filter: brightness(1.08); }
+.espn-arrow { font-size: 12px; opacity: .85; }
