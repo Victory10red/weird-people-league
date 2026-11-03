@@ -60,22 +60,37 @@
     const OFF = 90; let drag = null;
     const isTouch = (e) => e.pointerType === 'touch' || e.pointerType === 'pen';
     const touchTarget = (cx, cy) => { const r = canvas.getBoundingClientRect(); S.tx = clamp(cx - r.left, 14, W - 14); S.ty = clamp(cy - r.top - OFF, H * 0.35, H - 18); fingerAt = { x: cx - r.left, y: cy - r.top }; };
+    // Easier jukes on a phone: tap anywhere with a second finger, double-tap with your steering thumb,
+    // or flick your thumb fast. The JUKE button still works too.
+    let lastUp = 0, flick = [];
     canvas.addEventListener('pointerdown', (e) => {
       if (!S) return;
-      if (isTouch(e)) { drag = e.pointerId; touchTarget(e.clientX, e.clientY); try { canvas.setPointerCapture(e.pointerId); } catch { /* fine */ } return; }
+      if (isTouch(e)) {
+        if (drag !== null && e.pointerId !== drag) { e.preventDefault(); doJuke(); return; } // second finger = juke
+        const now = performance.now();
+        if (now - lastUp < 300) doJuke(); // double-tap = juke
+        drag = e.pointerId; flick = []; touchTarget(e.clientX, e.clientY); try { canvas.setPointerCapture(e.pointerId); } catch { /* fine */ } return;
+      }
       setTarget(e.clientX, e.clientY); doJuke();
     });
     canvas.addEventListener('pointermove', (e) => {
       if (!S) return;
-      if (isTouch(e)) { if (drag === e.pointerId) touchTarget(e.clientX, e.clientY); return; }
+      if (isTouch(e)) {
+        if (drag !== e.pointerId) return;
+        touchTarget(e.clientX, e.clientY);
+        // flick: thumb moved fast over the last ~80 ms
+        const now = performance.now(); flick.push([now, e.clientX, e.clientY]); while (flick.length && now - flick[0][0] > 80) flick.shift();
+        if (flick.length > 1) { const [t0, x0, y0] = flick[0]; const sp = Math.hypot(e.clientX - x0, e.clientY - y0) / Math.max(1, now - t0); if (sp > 1.9) { doJuke(); flick = []; } }
+        return;
+      }
       setTarget(e.clientX, e.clientY);
     });
-    const endDrag = (e) => { if (drag === e.pointerId) { drag = null; fingerAt = null; } };
+    const endDrag = (e) => { if (drag === e.pointerId) { drag = null; fingerAt = null; lastUp = performance.now(); } };
     canvas.addEventListener('pointerup', endDrag); canvas.addEventListener('pointercancel', endDrag);
     juke.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); doJuke(); });
     const onKey = (e) => { if (!running || !host.isConnected) return; if (e.code === 'Space') { e.preventDefault(); doJuke(); } };
     document.addEventListener('keydown', onKey);
-    function doJuke() { if (!running || !S || S.over || S.jukeCD > 0) return; S.jukeT = 0.38; S.jukeCD = S.L.jukeCD || 2.2; }
+    function doJuke() { if (!running || !S || S.over || S.jukeCD > 0) return; S.jukeT = 0.38; S.jukeCD = S.L.jukeCD || 2.2; try { if (navigator.vibrate) navigator.vibrate(25); } catch { /* no buzz */ } }
 
     // ---------- loop ----------
     function spawn() {
@@ -260,7 +275,7 @@
       const go = document.createElement('button'); go.className = 'btn big'; go.type = 'button'; go.textContent = S && S.over ? 'Run it back' : 'Kick off';
       go.addEventListener('click', start);
       const how = document.createElement('p'); how.className = 'bk-how';
-      how.textContent = (level === 'extreme' ? 'EXTREME: red blitzers sprint at you once they get close, and your juke takes longer to recharge. ' : '') + (matchMedia('(pointer: coarse)').matches ? 'Put your thumb on the field below the runner and steer: he always runs a thumb’s width above your finger, so you can see him. Tap JUKE' : 'Steer with your mouse. Click or press Space') + ' to burst past defenders (they freeze for a beat). Run 100 yards, goal line to goal line, for a touchdown; the defense gets faster after each one.';
+      how.textContent = (level === 'extreme' ? 'EXTREME: red blitzers sprint at you once they get close, and your juke takes longer to recharge. ' : '') + (matchMedia('(pointer: coarse)').matches ? 'Put your thumb on the field below the runner and steer: he always runs a thumb’s width above your finger, so you can see him. To juke: tap anywhere with a second finger, double-tap, flick your thumb, or hit JUKE' : 'Steer with your mouse. Click or press Space') + ' to burst past defenders (they freeze for a beat). Run 100 yards, goal line to goal line, for a touchdown; the defense gets faster after each one.';
       const els = [h, p]; if (sub) { const s2 = document.createElement('div'); s2.className = 'bk-s'; s2.textContent = sub; els.push(s2); }
       els.push(seg, sk, go, how);
       const bb = document.createElement('div'); bb.className = 'bk-best';
