@@ -460,6 +460,76 @@
     $('#weak-pos').textContent = t.need.weak;
     table($('#t-targets'), [{ h: 'Player', k: 'name' }, { h: 'Team', k: 'from', v: (r) => tm(r.from).name }, { h: 'Owner', k: 'own', v: (r) => tm(r.from).owner }, { h: 'ROS', k: 'ros', n: 1 }, { h: 'Season', k: 'season', n: 1, f: f1 }], t.targets);
     renderWaivers();
+    renderWaiverPlan(t); renderTradeFinder(t);
+  }
+  // rest-of-season points per week from a team's best lineup
+  const rosWk = (r) => optimalJS(r.filter((x) => x.slot !== 'IR' && x.inj !== 'OUT' && x.inj !== 'INJURY_RESERVE').map((x) => ({ pos: x.pos, v: (x.ros || 0) / Math.max(1, D.sim.games_left) })));
+  const thisWk = (r) => optimalJS(r.filter((x) => x.slot !== 'IR').map((x) => ({ pos: x.pos, v: x.bye ? 0 : x.proj || 0 })));
+  function renderWaiverPlan(t) {
+    const host = $('#wplan'), mine = D.rosters[t.id] || [];
+    const fas = Object.values(D.waivers || {}).flat().filter((f) => f.inj !== 'OUT' && f.inj !== 'INJURY_RESERVE' && (f.ros || 0) > 0);
+    const base = rosWk(mine), baseWk = thisWk(mine);
+    // drop candidates: bench players outside the best lineup, cheapest first
+    const bench = mine.filter((x) => x.slot !== 'IR' && !x.starter).sort((a, b) => (a.ros || 0) - (b.ros || 0));
+    const plans = [];
+    for (const f of fas) {
+      let best = null;
+      const single = f.pos === 'K' || f.pos === 'D/ST'; // you only carry one: swap it for yours
+      const cands = single ? mine.filter((x) => x.pos === f.pos && x.slot !== 'IR') : bench.slice(0, 6);
+      for (const d of (cands.length ? cands : bench.slice(0, 6))) {
+        const after = mine.filter((x) => x.pid !== d.pid).concat({ ...f, slot: 'Bench', starter: false });
+        const g = rosWk(after) - base, gw = thisWk(after) - baseWk;
+        if (!best || g + gw * 0.3 > best.g + best.gw * 0.3) best = { f, d, g, gw };
+      }
+      if (best && (best.g > 0.4 || best.gw > 2)) plans.push(best);
+    }
+    plans.sort((a, b) => b.g + b.gw * 0.3 - (a.g + a.gw * 0.3));
+    const top = []; const usedDrop = new Set();
+    for (const p of plans) { if (usedDrop.has(p.d.pid)) continue; usedDrop.add(p.d.pid); top.push(p); if (top.length === 5) break; }
+    if (!top.length) { host.replaceChildren(el('p', { class: 'note', text: 'No free agent clearly beats anyone on your bench right now.' })); return; }
+    host.replaceChildren(el('ol', { class: 'wp-list' }, ...top.map((p, i) => el('li', {},
+      el('div', {}, el('b', { text: `Add ${p.f.name}` }), el('span', { class: 'muted', text: ` (${p.f.pos}, ${p.f.team}${p.f.status === 'WAIVERS' ? ', waivers' : ', free agent'}) · drop ${p.d.name}` })),
+      el('div', { class: 'wp-g' }, el('span', { class: p.g > 0 ? 'good' : '', text: `${p.g >= 0 ? '+' : ''}${f1(p.g)} pts/week rest of season` }), el('span', { class: p.gw > 0 ? 'good' : p.gw < 0 ? 'bad' : 'muted', text: p.f.bye ? 'on bye this week' : `${p.gw >= 0 ? '+' : ''}${f1(p.gw)} this week` }), el('span', { class: 'muted', text: `${p.f.owned}% rostered` })),
+      t.id === ME && i === 0 ? espnAction({ addName: p.f.name }, t.id) : null))));
+  }
+  let tfCache = { key: '', out: null };
+  function renderTradeFinder(t) {
+    const host = $('#tfind');
+    const key = `${t.id}:${D.updated}`;
+    if (tfCache.key === key && tfCache.out) { host.replaceChildren(tfCache.out); return; }
+    host.replaceChildren(el('p', { class: 'note', text: 'Searching every trade in the league…' }));
+    setTimeout(() => {
+      const ros = (id) => (D.rosters[id] || []).filter((x) => x.slot !== 'IR');
+      const mine = ros(t.id), myBase = rosWk(mine);
+      const deals = [];
+      for (const o of D.teams) {
+        if (o.id === t.id) continue;
+        const theirs = ros(o.id), theirBase = rosWk(theirs);
+        for (const a of mine) for (const b of theirs) {
+          if (!a.ros || !b.ros || a.ros > b.ros * 1.6 || b.ros > a.ros * 1.6) continue; // keep it believable
+          const me2 = mine.filter((x) => x.pid !== a.pid).concat({ ...b, slot: 'Bench' }), them2 = theirs.filter((x) => x.pid !== b.pid).concat({ ...a, slot: 'Bench' });
+          const gm = rosWk(me2) - myBase, gt = rosWk(them2) - theirBase;
+          if (gm > 0.3 && gt > 0.3) deals.push({ o: o.id, a, b, gm, gt, score: Math.min(gm, gt) + 0.15 * (gm + gt) });
+        }
+      }
+      deals.sort((x, y) => y.score - x.score);
+      const top = []; const per = {};
+      for (const d of deals) { if ((per[d.o] || 0) >= 2) continue; per[d.o] = (per[d.o] || 0) + 1; top.push(d); if (top.length === 4) break; }
+      if (!top.length) { tfCache = { key, out: el('p', { class: 'note', text: 'No trade right now makes both teams better. Check back after this week’s injuries.' }) }; host.replaceChildren(tfCache.out); return; }
+      const before = seasonSim((id) => D.rosters[id] || [], 2500);
+      const list = el('div', { class: 'tf-list' }, ...top.map((d) => {
+        const after = seasonSim((id) => { const r = D.rosters[id] || []; if (id === t.id) return r.filter((x) => x.pid !== d.a.pid).concat({ ...d.b, slot: 'Bench' }); if (id === d.o) return r.filter((x) => x.pid !== d.b.pid).concat({ ...d.a, slot: 'Bench' }); return r; }, 2500);
+        const pm = after[t.id].po - before[t.id].po, pt = after[d.o].po - before[d.o].po;
+        const open = el('button', { class: 'linkbtn', type: 'button', text: 'Open in trade analyzer' });
+        open.addEventListener('click', () => { taA = t.id; taB = d.o; taSel.a = new Set([d.a.pid]); taSel.b = new Set([d.b.pid]); leagueView = 'moves'; store.set('lview', 'moves'); show('league'); setTimeout(() => { const c = $('#ta-out'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 300); });
+        return el('div', { class: 'tf-deal' },
+          el('div', {}, el('b', { text: `Offer ${d.a.name} (${d.a.pos}) to ${tm(d.o).owner} for ${d.b.name} (${d.b.pos})` })),
+          el('div', { class: 'wp-g' }, el('span', { class: 'good', text: `You: +${f1(d.gm)} pts/wk, ${pm >= 0 ? '+' : ''}${f1(pm)}% playoffs` }), el('span', { class: 'muted', text: `${tm(d.o).owner}: +${f1(d.gt)} pts/wk, ${pt >= 0 ? '+' : ''}${f1(pt)}% playoffs` })),
+          el('div', { class: 'tf-acts' }, open, t.id === ME ? espnAction({ partner: d.o, kind: 'Trade' }, t.id) : null));
+      }));
+      tfCache = { key, out: list };
+      if (team === t.id && teamView === 'roster') host.replaceChildren(list);
+    }, 30);
   }
 
   function renderByes(t) {

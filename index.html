@@ -55,7 +55,7 @@
         <label class="viewsel"><span>Viewing</span><select id="team-pick" aria-label="View another team"></select></label>
         <div class="tiles" id="tiles"></div>
         <nav class="subnav" id="subnav" aria-label="My Team sections">
-          <button data-view="week">This week</button><button data-view="roster">Waivers &amp; targets</button><button data-view="outlook">Playoff outlook</button><button data-view="season">Season so far</button>
+          <button data-view="week">This week</button><button data-view="roster">Waivers &amp; trades</button><button data-view="outlook">Playoff outlook</button><button data-view="season">Season so far</button>
         </nav>
 
         <div class="view" data-view="week">
@@ -65,6 +65,8 @@
         </div>
 
         <div class="view" data-view="roster" hidden>
+          <div class="card"><h3>Waiver plan</h3><p class="note">Every free agent tried in your lineup: who adds the most rest-of-season points to your best lineup, and who you'd drop for him. Byes and this week's projection included.</p><div id="wplan" class="wplan"></div></div>
+          <div class="card"><h3>Trade finder</h3><p class="note">Every 1-for-1 swap with every team, kept only when both teams' best lineups get better, then the best few run through the playoff simulator. Deals that help both sides are the ones people say yes to.</p><div id="tfind" class="tfind"></div></div>
           <div class="card"><h3>Best available</h3><p class="note">Free agents and waivers by rest-of-season projection. ESPN and Vegas = this week's projections.</p><div class="seg" id="wv-seg"></div><div class="tbl" id="t-waivers"></div></div>
           <div class="card"><h3>Trade targets: <span id="weak-pos">–</span></h3><p class="note">Best players at your weakest slot sitting outside their own team's best lineup. Test a deal in the Trades tab's analyzer.</p><div class="tbl" id="t-targets"></div></div>
         </div>
