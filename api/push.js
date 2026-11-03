@@ -35,8 +35,13 @@ export default async function handler(req, res) {
     if (b.action === 'test') {
       const [ok] = await run([['SET', `push:test:${id}`, '1', 'NX', 'EX', 30]]);
       if (!ok) return res.status(429).json({ error: 'One test every 30 seconds.' });
-      const n = await notify(run, s.team, 'test', { title: '🏈 League HQ notifications are on', body: 'This is what an alert looks like. Lead changes, big plays and lineup warnings will show up like this.', url: '/#team', tag: 'test' }, [{ id, ...s, prefs: { test: true } }]);
-      return res.status(200).json({ ok: n > 0, sent: n });
+      // wait a few seconds so they can leave the app: phones often skip the banner for the app that's open
+      await new Promise((r) => setTimeout(r, Math.min(8000, Math.max(0, Number(b.delay) || 0))));
+      const errors = [];
+      const n = await notify(run, s.team, 'test', { title: '🏈 League HQ notifications are on', body: 'This is what an alert looks like. Lead changes, big plays and lineup warnings will show up like this.', url: '/#team', tag: 'test' }, [{ id, ...s, prefs: { test: true } }], errors);
+      if (errors.length) await logAct(run, req, s.team, 'push-error', `${errors[0].status || ''} ${errors[0].host} ${errors[0].body}`.trim());
+      else await logAct(run, req, s.team, 'push-test', new URL(s.sub.endpoint).host);
+      return res.status(200).json({ ok: n > 0, sent: n, errors, service: new URL(s.sub.endpoint).host });
     }
     return res.status(400).json({ error: 'Unknown action' });
   } catch (e) {

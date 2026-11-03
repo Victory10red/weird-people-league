@@ -1126,7 +1126,7 @@
   // admin: everything people did, newest first (who, what, when, which kind of device)
   let actFilter = 'all', actShow = 120;
   const ACT = { open: 'opened the app', post: 'posted in Trash Talk', 'post-anon': 'posted anonymously', react: 'reacted', delete: 'deleted their post', 'admin-delete': 'deleted a post (admin)',
-    picks: 'Pick’em:', poop: 'logged a 💩', 'poop-undo': 'undid a 💩', game: 'played', 'admin-reset-picks': 'reset Pick’em picks (admin)', 'admin-remove-score': 'removed a score (admin)', reply: 'replied', 'reply-anon': 'replied anonymously', predict: 'made predictions:', 'push-on': 'turned on notifications 🔔', 'push-off': 'turned off notifications' };
+    picks: 'Pick’em:', poop: 'logged a 💩', 'poop-undo': 'undid a 💩', game: 'played', 'admin-reset-picks': 'reset Pick’em picks (admin)', 'admin-remove-score': 'removed a score (admin)', reply: 'replied', 'reply-anon': 'replied anonymously', predict: 'made predictions:', 'push-on': 'turned on notifications 🔔', 'push-test': 'sent a test notification via', 'push-error': '⚠️ notification failed:', 'push-off': 'turned off notifications' };
   function activityLog(log) {
     const box = el('div', { class: 'act' });
     const people = [...new Set(log.map((e) => e.t))];
@@ -2264,7 +2264,15 @@
       return el('label', { class: 'al-row' }, cb, el('span', {}, el('b', { text: lab }), el('small', { text: d })));
     });
     const test = el('button', { class: 'btn ghost', type: 'button', text: 'Send a test' });
-    test.addEventListener('click', async () => { test.disabled = true; try { const j = await pushCall({ action: 'test', endpoint: sub.endpoint }); alertMsg = j.sent ? '✅ Test sent. It should pop up in a few seconds.' : 'The test didn’t go through. Try turning notifications off and on.'; } catch (e) { alertMsg = e.message; } renderAlerts(); });
+    test.addEventListener('click', async () => {
+      test.disabled = true; test.textContent = 'Sending in 6 seconds… go to your home screen';
+      try {
+        const j = await pushCall({ action: 'test', endpoint: sub.endpoint, delay: 6000 });
+        alertMsg = j.sent ? `✅ Sent through ${j.service}. If nothing popped up, check Settings → Notifications → League HQ and make sure Allow Notifications and Banners are on.`
+          : `The test was rejected${j.errors && j.errors[0] ? ` (${[j.errors[0].status, j.errors[0].body].filter(Boolean).join(': ')})` : ''}. Tap “Turn off on this device”, then turn it back on.`;
+      } catch (e) { alertMsg = e.message; }
+      renderAlerts();
+    });
     const off = el('button', { class: 'linkbtn', type: 'button', text: 'Turn off on this device' });
     off.addEventListener('click', async () => { try { await pushCall({ action: 'off', endpoint: sub.endpoint }); } catch { /* already gone */ } try { await sub.unsubscribe(); } catch { /* fine */ } alertMsg = ''; refreshBell(); renderAlerts(); });
     return card(el('p', { class: 'note', text: `On for ${T[ME].owner} on this device. Pick what you want:` }), ...rows, msg, el('div', { class: 'tk-row' }, test, el('span', { class: 'sp' }), off));
