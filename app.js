@@ -1798,12 +1798,6 @@
       `${F.o} spends more time at the salon getting his roots touched up than on the waiver wire. It shows: ${F.place} place.`,
       `${F.o}'s nails are done, his hair is dyed, his calves are missing and his team is ${F.rec}. Something has to give, and it's not the manicure.`,
       `${F.o} books his manicure before he sets his lineup. ${F.po}% playoff odds, perfect cuticles.`,
-      `${F.o} only does things that benefit ${F.o}. Shocking that the only trade he'd ever accept is one where he gets everything. ${F.rec}.`,
-      `${F.o} is the most selfish man in this league. ${F.top ? `${F.top.name} does the work and ${F.o} takes the credit, every single week.` : 'Even his own players feel used.'}`,
-      `${F.o} would trade his mom for a waiver claim if it helped him. Mommy issues and selfish: the full package.`,
-      `${F.o} offers trades like he plans group dinners: picks the place, orders for himself, and leaves you the bill.`,
-      `${F.o} has never done one thing in his life that didn't benefit ${F.o}. Somehow even that hasn't helped him: ${F.rec}.`,
-      F.po < 55 ? `${F.o} only roots for one team every Sunday: whatever gets ${F.o} paid. ${F.po}% playoff odds, so even that's barely working.` : `${F.o} only roots for one team every Sunday: whatever gets ${F.o} paid. ${F.po}% playoff odds and he'll take all the credit.`,
     ], lines: (F) => [
       `${F.o} works for an NFL player and still has ${an((F.card.draft || {}).g || 'F')} draft grade. The bag guy, everyone.`,
       `${F.o} thinks he's better than everyone. ${F.rec}, ${F.pfRank} in points. He isn't.`,
