@@ -5,6 +5,7 @@
 // POST /api/talk { action:'delete', team, id, token? } (your own, or any with the commissioner token)
 import { redis } from '../lib/kv.js';
 import { verify, ADMIN_TEAM } from '../lib/auth.js';
+import { logAct } from '../lib/activity.js';
 
 const EMOJI = ['🔥', '😂', '💀', '🤡', '💩', '🗑️'];
 const KEEP = 300;
@@ -52,7 +53,8 @@ export default async function handler(req, res) {
         if (!ok) return res.status(429).json({ error: 'Slow down, killer. 5 seconds between posts.' });
         const at = Date.now(), id = at.toString(36) + Math.random().toString(36).slice(2, 6);
         await run([['HSET', 'talk:m', id, JSON.stringify({ id, t: team, text, gif, at, re: {}, ...(b.anon ? { anon: true } : {}) })], ['ZADD', 'talk:z', at, id]]);
-        postedId = id; // the poster's phone remembers its own anonymous posts so it can delete them
+        postedId = id;
+        await logAct(run, req, b.anon ? 0 : team, b.anon ? 'post-anon' : 'post', (text || '[GIF]').slice(0, 120)); // the poster's phone remembers its own anonymous posts so it can delete them
         // keep the wall to the newest KEEP messages
         const [old] = await run([['ZRANGE', 'talk:z', 0, -(KEEP + 1)]]);
         if (old && old.length) await run([['ZREM', 'talk:z', ...old], ['HDEL', 'talk:m', ...old]]);
@@ -64,6 +66,7 @@ export default async function handler(req, res) {
           const i = arr.indexOf(team); if (i >= 0) arr.splice(i, 1); else arr.push(team);
           if (!arr.length) delete m.re[b.emoji];
           await run([['HSET', 'talk:m', m.id, JSON.stringify(m)]]);
+          await logAct(run, req, team, 'react', `${b.emoji} on ${m.anon ? 'an anonymous post' : 'post'}`);
         }
       } else if (b.action === 'delete') {
         const [v] = await run([['HGET', 'talk:m', String(b.id)]]);
@@ -72,6 +75,7 @@ export default async function handler(req, res) {
           const admin = await verify(run, ADMIN_TEAM, b.token);
           if (m.t !== team && !admin) return res.status(403).json({ error: 'You can only delete your own posts' });
           await run([['HDEL', 'talk:m', m.id], ['ZREM', 'talk:z', m.id]]);
+          await logAct(run, req, m.anon ? 0 : team, admin && m.t !== team ? 'admin-delete' : 'delete', (m.text || '').slice(0, 80));
         }
       }
     }

@@ -585,3 +585,14 @@ table.cmp td.win { color: var(--good); font-weight: 700; }
 .tk-av.anon { background: #374151; font-size: 18px; }
 .tk-msg.anon { border-style: dashed; }
 .tk-post .sp { flex: 1; }
+
+/* admin activity log */
+.act { margin-top: 16px; }
+.act .row-head { margin-bottom: 4px; }
+.act-day { margin: 12px 0 4px; font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+.act-row { display: grid; grid-template-columns: 62px 1fr auto; gap: 8px; align-items: baseline; padding: 5px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.act-row.open { color: var(--muted); }
+.act-row.open b { color: var(--fg); }
+.act-t { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 12px; }
+.act-d { color: var(--muted); overflow-wrap: anywhere; }
+.act-dev { font-size: 11px; color: var(--muted); white-space: nowrap; }

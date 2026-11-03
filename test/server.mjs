@@ -29,6 +29,16 @@ const fakeLB = { 'bk:hard': { 3: { s: 412, at: Date.now() - 864e5 }, 10: { s: 26
 const lbOut = () => Object.fromEntries(Object.entries(fakeLB).map(([k, v]) => [k, Object.entries(v).map(([id, x]) => ({ id: +id, score: x.s, at: x.at })).sort((a, b) => b.score - a.score)]));
 const fakePins = { 3: '1111' };
 const fakeTalk = [{ id: 'z', t: 0, bot: true, text: '🚨 WEEK 7 BASEMENT REPORT: Wes put up 89.4, dead last in the league. Justin beat him by 61.8. Now 3-4.', gif: null, at: Date.now() - 600000, re: { '😂': [3, 8] } }, { id: 'a', t: 3, text: 'Trevor you are 2-5 and it shows. Absolute clown shit.', gif: null, at: Date.now() - 3600000, re: { '😂': [8, 10], '🔥': [3] } }, { id: 'b', t: 10, text: 'Somebody check on Carlos', gif: null, at: Date.now() - 7200000, re: {} }];
+const now0 = Date.now(), mn = 60000;
+const fakeAct = [
+  { at: now0 - 2 * mn, t: 3, a: 'open', d: 'home-screen app', dev: 'iPhone' },
+  { at: now0 - 5 * mn, t: 0, a: 'post-anon', d: 'Somebody in this league peed in a barber chair.', dev: 'iPhone' },
+  { at: now0 - 9 * mn, t: 10, a: 'picks', d: 'locked in 9 week 8 picks', dev: 'Android' },
+  { at: now0 - 40 * mn, t: 8, a: 'poop', d: '', dev: 'iPhone' },
+  { at: now0 - 70 * mn, t: 1, a: 'open', d: 'browser', dev: 'Windows' },
+  { at: now0 - 26 * 60 * mn, t: 12, a: 'game', d: 'Breakaway hard: 640 yds (new best)', dev: 'iPhone' },
+  { at: now0 - 27 * 60 * mn, t: 7, a: 'react', d: '😂 on post', dev: 'Android' },
+];
 const fakeSeen = { 3: { last: Date.now() - 5400000, visits: 4 }, 7: { last: Date.now() - 2 * 86400000, visits: 1 } };
 const H = 3600000; const fakePoop = [[8, 0.4], [3, 1.2], [10, 2.5], [8, 5], [1, 9], [8, 26], [12, 30], [3, 50], [6, 75]].map(([t, h]) => ({ t, at: Date.now() - h * H }));
 // pick'em: this week's slate from the saved NFL list; the first 3 games final, the next 2 in progress
@@ -76,8 +86,8 @@ http.createServer((req, res) => {
   }
   if (u.pathname === '/api/seen') {
     res.setHeader('content-type', 'application/json');
-    if (req.method === 'POST') { let body = ''; req.on('data', (c) => { body += c; }); req.on('end', () => { const b = JSON.parse(body || '{}'); const r = (fakeSeen[b.team] ||= { visits: 0 }); r.visits++; r.last = Date.now(); res.end('{"ok":true}'); }); return; }
-    return res.end(JSON.stringify({ ready: true, rows: Object.entries(fakeSeen).map(([id, r]) => ({ id: +id, ...r, pin: !!fakePins[id] })).concat(Object.keys(fakePins).filter((k) => !fakeSeen[k]).map((k) => ({ id: +k, last: null, visits: 0, pin: true }))) }));
+    if (req.method === 'POST') { let body = ''; req.on('data', (c) => { body += c; }); req.on('end', () => { const b = JSON.parse(body || '{}'); const r = (fakeSeen[b.team] ||= { visits: 0 }); r.visits++; r.last = Date.now(); fakeAct.unshift({ at: Date.now(), t: b.team, a: 'open', d: b.app ? 'home-screen app' : 'browser', dev: 'Mac' }); res.end('{"ok":true}'); }); return; }
+    return res.end(JSON.stringify({ ready: true, rows: Object.entries(fakeSeen).map(([id, r]) => ({ id: +id, ...r, pin: !!fakePins[id] })).concat(Object.keys(fakePins).filter((k) => !fakeSeen[k]).map((k) => ({ id: +k, last: null, visits: 0, pin: true }))), log: fakeAct }));
   }
   if (u.pathname === '/api/pin') {
     res.setHeader('content-type', 'application/json');

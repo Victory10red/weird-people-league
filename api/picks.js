@@ -6,6 +6,7 @@
 import { redis } from '../lib/kv.js';
 import { fetchSlate } from '../lib/week.js';
 import { verify, ADMIN_TEAM } from '../lib/auth.js';
+import { logAct } from '../lib/activity.js';
 
 const locked = (g) => g.state !== 'pre' || Date.now() >= new Date(g.kickoff).getTime();
 const readAll = (flat) => { const o = {}; for (let i = 0; i < (flat || []).length; i += 2) { try { o[flat[i]] = JSON.parse(flat[i + 1]); } catch { /* skip */ } } return o; };
@@ -43,6 +44,7 @@ export default async function handler(req, res) {
     if (req.method === 'POST' && q.action === 'reset') {
       if (!(await verify(run, ADMIN_TEAM, q.token))) return res.status(403).json({ error: 'App admin only', pin: true });
       await run([['HDEL', key, String(Number(q.target))]]);
+      await logAct(run, req, ADMIN_TEAM, 'admin-reset-picks', `team ${Number(q.target)}, week ${week}`);
     } else if (req.method === 'POST') {
       if (!Number.isInteger(team) || team < 1 || team > 99) return res.status(400).json({ error: 'Pick who you are first' });
       games = await fetchSlate(year, week, 15000); // fresh enough to enforce kickoff
@@ -59,6 +61,8 @@ export default async function handler(req, res) {
         mine[g.id] = abbr;
       }
       skippedN = skipped.length;
+      const added = Object.keys(mine).length - Object.keys(cur ? JSON.parse(cur) : {}).length;
+      if (added > 0) await logAct(run, req, team, 'picks', `locked in ${added} week ${week} pick${added === 1 ? '' : 's'}`);
       await run([['HSET', key, String(team), JSON.stringify(mine)], ['EXPIRE', key, 400 * 86400]]);
     }
     // this week's picks, other people's hidden until each game locks

@@ -5,6 +5,7 @@
 
 import { redis } from '../lib/kv.js';
 import { verify, ADMIN_TEAM } from '../lib/auth.js';
+import { logAct } from '../lib/activity.js';
 
 const BOARDS = { bk: ['rookie', 'pro', 'hard', 'extreme'] };
 const MAX = { bk: 20000 }; // sanity caps so a typo or a tampered request can't top the board forever
@@ -37,6 +38,7 @@ export default async function handler(req, res) {
         // only the commissioner (unlocked with his PIN) can take scores off the board
         if (!(await verify(run, ADMIN_TEAM, b.token))) return res.status(403).json({ error: 'App admin only' });
         await run([['HDEL', `lb:${game}:${level}`, String(team)]]);
+        await logAct(run, req, ADMIN_TEAM, 'admin-remove-score', `team ${team}, ${game} ${level}`);
         return res.status(200).json({ ready: true, removed: true, boards: await readBoards(run) });
       }
       if (!BOARDS[game] || !BOARDS[game].includes(level) || !Number.isInteger(team) || team < 1 || team > 99 || !Number.isFinite(score) || score < 0 || score > MAX[game]) {
@@ -46,6 +48,7 @@ export default async function handler(req, res) {
       const [cur] = await run([['HGET', key, String(team)]]);
       let prev = -1; try { prev = cur ? JSON.parse(cur).s : -1; } catch { prev = -1; }
       if (score > prev) await run([['HSET', key, String(team), JSON.stringify({ s: score, at: Date.now() })]]);
+      await logAct(run, req, team, 'game', `Breakaway ${level}: ${score} yds${score > prev ? ' (new best)' : ''}`);
       return res.status(200).json({ ready: true, saved: score > prev, boards: await readBoards(run) });
     }
     return res.status(200).json({ ready: true, boards: await readBoards(run) });

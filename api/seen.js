@@ -3,6 +3,7 @@
 // GET  /api/seen?team=4&token=...           -> commissioner only: { rows: [{ id, last, first, visits, pin }] }
 import { redis } from '../lib/kv.js';
 import { verify, ADMIN_TEAM } from '../lib/auth.js';
+import { logAct, readAct } from '../lib/activity.js';
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
@@ -15,7 +16,7 @@ export default async function handler(req, res) {
       if (!Number.isInteger(team) || team < 1 || team > 99) return res.status(400).json({ error: 'team?' });
       const now = Date.now(), k = String(team);
       const [last] = await run([['HGET', 'seen:last', k]]);
-      if (!last || now - Number(last) > 10 * 60000) await run([['HINCRBY', 'seen:visits', k, 1]]);
+      if (!last || now - Number(last) > 10 * 60000) { await run([['HINCRBY', 'seen:visits', k, 1]]); await logAct(run, req, team, 'open', b.app ? 'home-screen app' : 'browser'); }
       await run([['HSET', 'seen:last', k, String(now)], ['HSETNX', 'seen:first', k, String(now)]]);
       return res.status(200).json({ ok: true });
     }
@@ -25,7 +26,7 @@ export default async function handler(req, res) {
     const obj = (flat) => { const o = {}; for (let i = 0; i < (flat || []).length; i += 2) o[flat[i]] = Number(flat[i + 1]); return o; };
     const L = obj(last), F = obj(first), V = obj(visits), P = new Set((pins || []).map(String));
     const ids = new Set([...Object.keys(L), ...P]);
-    return res.status(200).json({ ready: true, rows: [...ids].map((id) => ({ id: Number(id), last: L[id] || null, first: F[id] || null, visits: V[id] || 0, pin: P.has(id) })) });
+    return res.status(200).json({ ready: true, rows: [...ids].map((id) => ({ id: Number(id), last: L[id] || null, first: F[id] || null, visits: V[id] || 0, pin: P.has(id) })), log: await readAct(run, 600) });
   } catch (e) {
     return res.status(502).json({ error: `Unavailable (${e.message})` });
   }

@@ -3,6 +3,7 @@
 // POST /api/poop { team }              -> log one (at most one per 2 minutes per person)
 // POST /api/poop { team, action:'undo'} -> remove that person's most recent entry if it's under 10 minutes old
 import { redis } from '../lib/kv.js';
+import { logAct } from '../lib/activity.js';
 
 const KEY = 'poop:log', KEEP = 20000;
 const parse = (arr) => (arr || []).map((x) => { try { return JSON.parse(x); } catch { return null; } }).filter(Boolean);
@@ -20,13 +21,14 @@ export default async function handler(req, res) {
       const raw = recent || [], mineIdx = parse(raw).findIndex((e) => e.t === team);
       const last = mineIdx >= 0 ? parse([raw[mineIdx]])[0] : null;
       if (b.action === 'undo') {
-        if (last && Date.now() - last.at < 10 * 60000) await run([['LREM', KEY, 1, raw[mineIdx]]]);
+        if (last && Date.now() - last.at < 10 * 60000) { await run([['LREM', KEY, 1, raw[mineIdx]]]); await logAct(run, req, team, 'poop-undo'); }
       } else {
         if (last && Date.now() - last.at < 2 * 60000) {
           const [all] = await run([['LRANGE', KEY, 0, KEEP - 1]]);
           return res.status(429).json({ ready: true, error: 'Easy there. One every 2 minutes.', log: parse(all) });
         }
         await run([['LPUSH', KEY, JSON.stringify({ t: team, at: Date.now() })], ['LTRIM', KEY, 0, KEEP - 1]]);
+        await logAct(run, req, team, 'poop');
       }
     }
     const [all] = await run([['LRANGE', KEY, 0, KEEP - 1]]);

@@ -1085,13 +1085,43 @@
   }
   let adminOpen = false;
   const ago = (ms) => { if (!ms) return 'never'; const m = Math.round((Date.now() - ms) / 60000); if (m < 2) return 'just now'; if (m < 60) return `${m} min ago`; const h = Math.round(m / 60); if (h < 24) return `${h} hr ago`; const d = Math.round(h / 24); return d === 1 ? 'yesterday' : `${d} days ago`; };
+  // admin: everything people did, newest first (who, what, when, which kind of device)
+  let actFilter = 'all', actShow = 120;
+  const ACT = { open: 'opened the app', post: 'posted in Trash Talk', 'post-anon': 'posted anonymously', react: 'reacted', delete: 'deleted their post', 'admin-delete': 'deleted a post (admin)',
+    picks: 'Pick’em:', poop: 'logged a 💩', 'poop-undo': 'undid a 💩', game: 'played', 'admin-reset-picks': 'reset Pick’em picks (admin)', 'admin-remove-score': 'removed a score (admin)' };
+  function activityLog(log) {
+    const box = el('div', { class: 'act' });
+    const people = [...new Set(log.map((e) => e.t))];
+    const sel = el('select', { class: 'wk-pick', 'aria-label': 'Filter activity' }, el('option', { value: 'all', text: 'Everyone' }), el('option', { value: 'open', text: 'App opens only' }),
+      ...people.map((t) => el('option', { value: 't' + t, text: t === 0 ? 'Anonymous' : T[t] ? T[t].owner : `Team ${t}` })));
+    sel.value = actFilter;
+    sel.addEventListener('change', () => { actFilter = sel.value; actShow = 120; box.replaceWith(activityLog(log)); });
+    const rows = log.filter((e) => actFilter === 'all' || (actFilter === 'open' ? e.a === 'open' : 't' + e.t === actFilter));
+    const items = []; let day = '';
+    for (const e of rows.slice(0, actShow)) {
+      const d = new Date(e.at), dk = d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+      if (dk !== day) { day = dk; items.push(el('div', { class: 'act-day', text: dk })); }
+      const who = e.t === 0 ? 'Anonymous' : T[e.t] ? T[e.t].owner : `Team ${e.t}`;
+      items.push(el('div', { class: 'act-row' + (e.a === 'open' ? ' open' : '') },
+        el('span', { class: 'act-t', text: d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) }),
+        el('span', { class: 'act-w' }, el('b', { text: who }), ` ${ACT[e.a] || e.a}`, e.d && e.a !== 'open' ? el('span', { class: 'act-d', text: ` ${e.a === 'post' || e.a === 'post-anon' ? '“' + e.d + '”' : e.d}` }) : null),
+        el('span', { class: 'act-dev', text: e.dev + (e.a === 'open' && e.d ? ` · ${e.d === 'home-screen app' ? 'app' : 'browser'}` : '') })));
+    }
+    const more = rows.length > actShow ? el('button', { class: 'linkbtn', type: 'button', text: `Show more (${rows.length - actShow} older)` }) : null;
+    if (more) more.addEventListener('click', () => { actShow += 200; box.replaceWith(activityLog(log)); });
+    box.append(el('div', { class: 'row-head' }, el('h3', { text: 'Activity log' }), sel),
+      el('p', { class: 'note', text: 'Only you can see this. Names are whoever each phone picked in the app; device type helps spot someone posing as someone else. No IP addresses are stored.' }),
+      ...(items.length ? items : [el('p', { class: 'note', text: 'Nothing logged yet. Activity starts recording from today.' })]), more || '');
+    return box;
+  }
   async function loadSeen(host) {
     try {
-      const j = await getJSON(`/api/seen?ME=${ME}&token=${encodeURIComponent(pinTok())}`);
+      const j = await getJSON(`/api/seen?team=${ME}&token=${encodeURIComponent(pinTok())}`);
       const by = Object.fromEntries((j.rows || []).map((r) => [r.id, r]));
       const rows = D.teams.map((x) => ({ x, r: by[x.id] || { last: null, visits: 0, pin: false } })).sort((a, b) => (b.r.last || 0) - (a.r.last || 0));
-      host.replaceChildren(el('table', { class: 'seen-t' }, el('thead', {}, el('tr', {}, el('th', { text: 'Manager' }), el('th', { text: 'Last seen' }), el('th', { class: 'n', text: 'Visits' }), el('th', { text: '' }))),
+      const seenTable = (el('table', { class: 'seen-t' }, el('thead', {}, el('tr', {}, el('th', { text: 'Manager' }), el('th', { text: 'Last seen' }), el('th', { class: 'n', text: 'Visits' }), el('th', { text: '' }))),
         el('tbody', {}, ...rows.map(({ x, r }) => el('tr', { class: x.id === ME ? 'me' : '' }, el('td', { text: x.owner }), el('td', { class: r.last && Date.now() - r.last < 3600000 ? 'good' : '', text: ago(r.last) }), el('td', { class: 'n', text: String(r.visits || 0) }), el('td', { text: '' }))))));
+      host.replaceChildren(seenTable, activityLog(j.log || []));
     } catch (e) { host.replaceChildren(el('p', { class: 'note', text: `Couldn’t load (${e.message}).` })); }
   }
   // admin: wipe one person's Pick'em picks for the week being viewed (they can re-pick games not yet started)
@@ -2037,7 +2067,7 @@
   function pingSeen() {
     if (!ME || Date.now() - seenAt < 10 * 60000) return;
     seenAt = Date.now();
-    fetch('/api/seen', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ team: ME }) }).catch(() => {});
+    fetch('/api/seen', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ team: ME, app: !!(window.matchMedia('(display-mode: standalone)').matches || navigator.standalone) }) }).catch(() => {});
   }
   document.addEventListener('visibilitychange', () => { if (!document.hidden) pingSeen(); });
   async function loadLeague() {
