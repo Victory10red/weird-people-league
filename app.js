@@ -2020,7 +2020,7 @@
     add(F.po >= 50, `${o} has ${F.po}% playoff odds and thinks ${F.he}'s safe. Same thing the Titanic said, you overconfident dipshit.`);
     add(F.apl > F.apw, `If ${o} played everyone every week ${F.he}'d be ${F.apw}-${F.apl}. The schedule isn't the problem, ${o}. You are.`);
     add(F.card.gpa != null && F.card.rank >= 5, `${o}'s report card: draft ${gr('draft')}, waivers ${gr('wire')}, lineups ${gr('lineup')}. Mom's not putting that one on the fridge.`);
-    add(F.top && F.top.share > 13, F.top && `${F.top.name} is ${f1(F.top.share)}% of ${F.ns} points. Without ${F.him} ${o} is just a ${F.guy} paying league dues for the group chat.`);
+    add(F.top && F.top.share > 13, F.top && `${F.top.name} is ${f1(F.top.share)}% of ${F.ns} points. Without ${F.top.pos === 'D/ST' ? 'them' : 'him'}, ${o} is just a ${F.guy} paying league dues for the group chat.`);
     add(F.car && !F.titles.length, F.at && `${o}: ${F.at.w}-${F.at.l} all-time, zero rings. A legacy of absolutely fucking nothing.`);
     add(F.titles.length, `${o} won one title in ${F.titles[0]} and has been riding it like a washed-up high school QB ever since. ${rec} now, champ.`);
     F.recs.filter((r) => r.kind === 'Lowest score').slice(0, 1).forEach((r) => L.push(`${o} owns a league record: lowest score ever, ${f1(r.pts)} in ${r.season} week ${r.wk}. Frame it, hang it over the toilet.`));
@@ -2216,8 +2216,6 @@
     const out = (wl.length && r < 0.35 && pick(wl)) || (mine && mine.lines && r < 0.8 && pick(mine.lines(F))) || pick(roastLines(F)) || pick(wl) || '';
     lastRoast = out; return out;
   }
-  // full roast pool per person, for the app admin to read (?debug=roast)
-  if (/[?&]debug=roast/.test(location.search)) window.roastBook = () => Object.fromEntries(D.teams.map((t) => { const F = roastFacts(t.id), mine = PERSONAL.find((p) => p.re.test(F.o)); return [F.o, { signature: mine && mine.priority ? mine.priority(F) : [], personal: mine && mine.lines ? mine.lines(F) : [], thisWeek: weekLines(F), stats: roastLines(F) }]; }));
   // ---- sharing to the group chat (Messenger has no API for group chats, so we use the phone's share sheet) ----
   const APP_URL = 'https://weird-people-league.vercel.app/#talk';
   function shareCard(m) { // a 1080x1080 image of the post, for the share sheet
