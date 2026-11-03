@@ -2216,6 +2216,8 @@
     const out = (wl.length && r < 0.35 && pick(wl)) || (mine && mine.lines && r < 0.8 && pick(mine.lines(F))) || pick(roastLines(F)) || pick(wl) || '';
     lastRoast = out; return out;
   }
+  // full roast pool per person, for the app admin to read (?debug=roast)
+  if (/[?&]debug=roast/.test(location.search)) window.roastBook = () => Object.fromEntries(D.teams.map((t) => { const F = roastFacts(t.id), mine = PERSONAL.find((p) => p.re.test(F.o)); return [F.o, { signature: mine && mine.priority ? mine.priority(F) : [], personal: mine && mine.lines ? mine.lines(F) : [], thisWeek: weekLines(F), stats: roastLines(F) }]; }));
   // ---- sharing to the group chat (Messenger has no API for group chats, so we use the phone's share sheet) ----
   const APP_URL = 'https://weird-people-league.vercel.app/#talk';
   function shareCard(m) { // a 1080x1080 image of the post, for the share sheet
