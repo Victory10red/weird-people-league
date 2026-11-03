@@ -1771,6 +1771,10 @@
       `${F.o} claims he ran track at Houston. The fastest thing about him is how quick he makes up a story. ${F.rec}.`,
       `Ask ${F.o} about his University of Houston track days and watch him make up a 40 time on the spot.`,
       `${F.o}'s track career at Houston is like the muscle on his "Mr. Muscle" letterman: never actually there.`,
+      `${F.o} took his wife's last name. First time in his life he committed to a trade and came out ahead.`,
+      `${F.o} gave up his own last name without a fight. That's the same energy he brings to ${F.winning ? 'every close game he somehow wins' : 'every close game'}.`,
+      `${F.o} took his wife's last name. She also sets his lineup now, which explains ${F.winning ? `the ${F.rec}` : `why it's still ${F.rec}`}.`,
+      `${F.o}'s wife let him keep the letterman but took the last name. Smart woman.`,
     ], lines: (F) => [
       `${F.o}'s lineup is like ${F.o}: big, slow, and ${F.bench} points of it sitting on the bench.`,
       `Somebody call SeaWorld, a whale just set his lineup. ${F.o} is ${F.rec}${F.winning ? ' and it is pure luck' : ', it still sucks'}.`,
