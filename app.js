@@ -1766,6 +1766,11 @@
       `${F.o} told us he'd ${F.winning ? 'go undefeated' : 'turn it around'} this year. He also told us he set his lineup on time. Pathological liar, ${F.rec}.`,
       `${F.o}'s "Mr. Muscle" letterman doesn't zip anymore, and neither does his lineup: ${F.eff}% efficiency.`,
       `${F.o} says the jacket still fits. Pathological liar. The jacket is a crop top now.`,
+      `${F.o} says he ran track at the University of Houston. Pathological liar. The only thing he's ever run is up the score at Golden Corral.`,
+      `${F.o} "ran track at U of H." Sure, buddy. Took you 13 years to finish college and you never finished a lap.`,
+      `${F.o} claims he ran track at Houston. The fastest thing about him is how quick he makes up a story. ${F.rec}.`,
+      `Ask ${F.o} about his University of Houston track days and watch him make up a 40 time on the spot.`,
+      `${F.o}'s track career at Houston is like the muscle on his "Mr. Muscle" letterman: never actually there.`,
     ], lines: (F) => [
       `${F.o}'s lineup is like ${F.o}: big, slow, and ${F.bench} points of it sitting on the bench.`,
       `Somebody call SeaWorld, a whale just set his lineup. ${F.o} is ${F.rec}${F.winning ? ' and it is pure luck' : ', it still sucks'}.`,
