@@ -52,20 +52,22 @@ async function closingLines(run, year, week, games) {
   return have;
 }
 // net winnings per person for one week: { team: { m, open } }  (open = money riding on games not decided yet)
-export function money(picks, res, lines, games) {
+export function money(picks, res, lines, games, lockedIds) {
   const n = Number(lines._n) || (games ? games.length : 0) || 16, stake = BANK / n, out = {};
   const sideOf = {}; for (const g of games || []) sideOf[g.id] = g.home.abbr;
+  const c2 = (x) => Math.round(x * 100) / 100;
   for (const [t, p] of Object.entries(picks)) {
-    let m = 0, open = 0;
+    let m = 0, open = 0, pot = 0, potL = 0;
     for (const [gid, abbr] of Object.entries(p)) {
       const w = res[gid], l = lines[gid] || {};
-      if (!w) { open += stake; continue; }
-      if (w === 'TIE') continue;
       const home = sideOf[gid] ? abbr === sideOf[gid] : l.home ? abbr === l.home : null;
       const ml = l.none || home == null ? null : home ? l.h : l.a;
+      if (!w) { open += stake; const up = profit(ml, stake); pot += up; if (lockedIds && lockedIds.has(gid)) potL += up; continue; }
+      if (w === 'TIE') continue;
       m += w === abbr ? profit(ml, stake) : -stake;
     }
-    out[t] = { m: Math.round(m * 100) / 100, open: Math.round(open * 100) / 100 };
+    // pot: winnings if every undecided pick hits; potL: same, counting only games already kicked off
+    out[t] = { m: c2(m), open: c2(open), pot: c2(pot), potL: c2(potL) };
   }
   return out;
 }
@@ -126,7 +128,7 @@ export default async function handler(req, res) {
     const resNow = Object.fromEntries(games.filter((g) => g.winner).map((g) => [g.id, g.winner]));
     const weekBoard = tally(all, resNow);
     const linesNow = await closingLines(run, year, week, games);
-    const weekMoney = money(all, resNow, linesNow, games);
+    const weekMoney = money(all, resNow, linesNow, games, lockedIds);
     for (const t of Object.keys(weekBoard)) Object.assign(weekBoard[t], weekMoney[t] || {});
     // season: every week up to this one that has picks
     const weeks = Array.from({ length: week }, (_, i) => i + 1);
@@ -138,6 +140,10 @@ export default async function handler(req, res) {
       const mo = weeks[i] === week ? weekMoney : money(p, r, await closingLines(run, year, weeks[i]), null);
       for (const [t, v] of Object.entries(tally(p, r))) { const s = (season[t] ||= { c: 0, n: 0, wk: 0, m: 0 }); s.c += v.c; s.n += v.n; s.wk++; s.m = Math.round((s.m + ((mo[t] || {}).m || 0)) * 100) / 100; }
     }
+    // other people's upside only counts games that have kicked off, so it can't give away an open pick
+    const upside = (t) => { const w = weekMoney[t]; return w ? (Number(t) === team ? w.pot : w.potL) : 0; };
+    for (const [t, v] of Object.entries(weekBoard)) { v.pot = upside(t); delete v.potL; }
+    for (const [t, v] of Object.entries(season)) v.pot = upside(t);
     const rows = (o) => Object.entries(o).map(([t, v]) => ({ id: Number(t), ...v, made: count[t] || 0 })).sort((a, b) => b.c - a.c || a.n - b.n);
     const stake = Math.round(100 * BANK / (games.length || 16)) / 100;
     for (const g of games) { const l = linesNow[g.id]; if (!g.ml && l && !l.none) g.ml = { h: l.h, a: l.a, ...(l.est ? { est: 1 } : {}) }; }

@@ -1602,8 +1602,11 @@
         el('span', { class: 'lb-r', text: i === 0 && r.c ? '👑' : String(i + 1) }),
         el('span', { class: 'lb-n' }, el('b', { text: T[r.id].owner }), el('small', { text: T[r.id].name })),
         el('span', { class: 'lb-s' }, el('b', { class: pkBoard === 'money' ? ((r.m || 0) >= 0 ? 'up' : 'down') : '', text: pkBoard === 'money' ? usd(r.m || 0, true) : `${r.c}-${r.n - r.c}` })),
-        el('span', { class: 'lb-d', text: pkBoard === 'money' ? `${r.c}-${r.n - r.c}` : pkBoard === 'season' ? `${r.wk} wk${r.wk === 1 ? '' : 's'} · ${usd(r.m || 0, true)}` : `${r.made} picked${r.m ? ' · ' + usd(r.m, true) : ''}` }))))
-        : el('p', { class: 'note', text: pkBoard === 'week' ? 'Nobody has picked yet this week. Be first.' : 'No picks yet this season.' }));
+        el('span', { class: 'lb-d', title: r.pot ? `If every pick still in play wins: ${usd((r.m || 0) + r.pot, true)}${r.id === ME ? '' : ' (counting only games that have kicked off; picks stay secret until then)'}` : null },
+          el('span', { text: pkBoard === 'money' ? `${r.c}-${r.n - r.c}` : pkBoard === 'season' ? `${r.wk} wk${r.wk === 1 ? '' : 's'} · ${usd(r.m || 0, true)}` : `${r.made} picked · ${usd(r.m || 0, true)}` }),
+          r.pot ? el('small', { class: 'lb-pot', text: `max ${usd((r.m || 0) + r.pot, true)}` }) : null))))
+        : el('p', { class: 'note', text: pkBoard === 'week' ? 'Nobody has picked yet this week. Be first.' : 'No picks yet this season.' }),
+      rows.some((r) => r.pot) ? el('p', { class: 'note lb-potnote', text: 'Max = money if every pick still in play wins. For other people it only counts games that have kicked off, since picks stay secret until then.' }) : null);
     let bar = null;
     if (nDraft) {
       const go = el('button', { class: 'btn big pk-lockbtn' + (pkConfirm ? ' confirm' : ''), type: 'button', text: pkBusy ? 'Locking in…' : pkConfirm ? `Tap again to lock ${nDraft} pick${nDraft === 1 ? '' : 's'} for good` : `🔒 Lock in ${nDraft} pick${nDraft === 1 ? '' : 's'}` });

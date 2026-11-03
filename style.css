@@ -766,3 +766,5 @@ body.tv #tv-exit { top: auto; bottom: 14px; right: auto; left: 18px; }
 
 .pr-opts.rich.one { grid-template-columns: 1fr; }
 .pr-ol > span { white-space: normal; }
+
+.lb-d .lb-pot { display: block; font-size: 11px; color: var(--good); font-variant-numeric: tabular-nums; }
