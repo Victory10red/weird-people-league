@@ -7,6 +7,7 @@
 import { redis } from '../lib/kv.js';
 import { verify, ADMIN_TEAM } from '../lib/auth.js';
 import { logAct } from '../lib/activity.js';
+import { notify } from '../lib/push.js';
 
 const EMOJI = ['🔥', '😂', '💀', '🤡', '💩', '🗑️'];
 const KEEP = 300;
@@ -54,14 +55,23 @@ export default async function handler(req, res) {
         if (b.re_to) {
           const [pv] = await run([['HGET', 'talk:m', String(b.re_to)]]);
           if (!pv) return res.status(404).json({ error: 'That post is gone.' });
-          parent = JSON.parse(pv); if (parent.p) parent = { id: parent.p }; // replies to a reply go under the original post
+          parent = JSON.parse(pv);
+          if (parent.p) { const [tv] = await run([['HGET', 'talk:m', parent.p]]); parent = tv ? JSON.parse(tv) : { id: parent.p }; } // replies to a reply go under the original post
         }
         const [ok] = await run([['SET', `talk:last:${team}`, '1', 'PX', 5000, 'NX']]);
         if (!ok) return res.status(429).json({ error: 'Slow down, killer. 5 seconds between posts.' });
         const at = Date.now(), id = at.toString(36) + Math.random().toString(36).slice(2, 6);
         await run([['HSET', 'talk:m', id, JSON.stringify({ id, t: team, text, gif, at, re: {}, ...(b.anon ? { anon: true } : {}), ...(parent ? { p: parent.id } : {}) })], ['ZADD', 'talk:z', at, id]]);
         postedId = id;
-        await logAct(run, req, b.anon ? 0 : team, parent ? (b.anon ? 'reply-anon' : 'reply') : (b.anon ? 'post-anon' : 'post'), (text || '[GIF]').slice(0, 120)); // the poster's phone remembers its own anonymous posts so it can delete them
+        await logAct(run, req, b.anon ? 0 : team, parent ? (b.anon ? 'reply-anon' : 'reply') : (b.anon ? 'post-anon' : 'post'), (text || '[GIF]').slice(0, 120));
+        // push: whoever was @mentioned, and the author of the post being replied to (never the poster themselves)
+        try {
+          const who = b.anon ? 'Someone' : String(b.who || 'Someone').slice(0, 24);
+          const snippet = (text || 'sent a GIF').slice(0, 140);
+          const mentioned = [...new Set((Array.isArray(b.mentions) ? b.mentions : []).map(Number).filter((x) => Number.isInteger(x) && x > 0 && x !== team))];
+          if (mentioned.length) await notify(run, mentioned, 'talk', { title: `💬 ${who} mentioned you${b.anon ? ' anonymously' : ''}`, body: snippet, url: '/#talk', tag: 'talk-' + id });
+          if (parent && parent.t && parent.t !== team && !mentioned.includes(parent.t)) await notify(run, parent.t, 'talk', { title: `↩️ ${who} replied to your post`, body: snippet, url: '/#talk', tag: 'talk-' + id });
+        } catch { /* a failed notification never blocks the post */ } // the poster's phone remembers its own anonymous posts so it can delete them
         // keep the wall to the newest KEEP messages
         const [old] = await run([['ZRANGE', 'talk:z', 0, -(KEEP + 1)]]);
         if (old && old.length) await run([['ZREM', 'talk:z', ...old], ['HDEL', 'talk:m', ...old]]);

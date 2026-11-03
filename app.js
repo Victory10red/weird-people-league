@@ -1088,7 +1088,7 @@
   // admin: everything people did, newest first (who, what, when, which kind of device)
   let actFilter = 'all', actShow = 120;
   const ACT = { open: 'opened the app', post: 'posted in Trash Talk', 'post-anon': 'posted anonymously', react: 'reacted', delete: 'deleted their post', 'admin-delete': 'deleted a post (admin)',
-    picks: 'Pick’em:', poop: 'logged a 💩', 'poop-undo': 'undid a 💩', game: 'played', 'admin-reset-picks': 'reset Pick’em picks (admin)', 'admin-remove-score': 'removed a score (admin)' };
+    picks: 'Pick’em:', poop: 'logged a 💩', 'poop-undo': 'undid a 💩', game: 'played', 'admin-reset-picks': 'reset Pick’em picks (admin)', 'admin-remove-score': 'removed a score (admin)', reply: 'replied', 'reply-anon': 'replied anonymously', 'push-on': 'turned on notifications 🔔', 'push-off': 'turned off notifications' };
   function activityLog(log) {
     const box = el('div', { class: 'act' });
     const people = [...new Set(log.map((e) => e.t))];
@@ -1104,7 +1104,7 @@
       const who = e.t === 0 ? 'Anonymous' : T[e.t] ? T[e.t].owner : `Team ${e.t}`;
       items.push(el('div', { class: 'act-row' + (e.a === 'open' ? ' open' : '') },
         el('span', { class: 'act-t', text: d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) }),
-        el('span', { class: 'act-w' }, el('b', { text: who }), ` ${ACT[e.a] || e.a}`, e.d && e.a !== 'open' ? el('span', { class: 'act-d', text: ` ${e.a === 'post' || e.a === 'post-anon' ? '“' + e.d + '”' : e.d}` }) : null),
+        el('span', { class: 'act-w' }, el('b', { text: who }), ` ${ACT[e.a] || e.a}`, e.d && e.a !== 'open' ? el('span', { class: 'act-d', text: ` ${/^(post|reply)/.test(e.a) ? '“' + e.d + '”' : e.d}` }) : null),
         el('span', { class: 'act-dev', text: e.dev + (e.a === 'open' && e.d ? ` · ${e.d === 'home-screen app' ? 'app' : 'browser'}` : '') })));
     }
     const more = rows.length > actShow ? el('button', { class: 'linkbtn', type: 'button', text: `Show more (${rows.length - actShow} older)` }) : null;
@@ -1478,6 +1478,7 @@
   }
   async function talkPost(body) {
     try {
+      if (body.action === 'post') { body.who = T[ME] ? T[ME].owner : ''; body.mentions = mentionIds(body.text || ''); }
       const r = await fetch('/api/talk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ team: ME, ...body }) });
       const j = await r.json(); if (j.msgs) { TALK = j; talkAt = Date.now(); }
       talkMsg = r.ok ? '' : (j.error || 'That didn’t post.');
@@ -1942,6 +1943,7 @@
   // @Name mentions: highlighted in posts; a post that mentions you is flagged (push notifications use this too)
   const OWNERS = () => D.teams.map((t) => t.owner).filter(Boolean);
   const mentionRe = () => new RegExp('@(' + OWNERS().map((o) => o.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')\\b', 'gi');
+  const mentionIds = (text) => { const ids = []; let m3; const re = mentionRe(); while ((m3 = re.exec(text))) { const t = D.teams.find((x) => x.owner.toLowerCase() === m3[1].toLowerCase()); if (t && !ids.includes(t.id)) ids.push(t.id); } return ids; };
   const mentionsMe = (text) => !!(ME && T[ME] && new RegExp('@' + T[ME].owner + '\\b', 'i').test(text || ''));
   function richText(text) {
     const out = []; let last = 0; const re = mentionRe(); let m2;
@@ -2070,6 +2072,7 @@
   // phone: bottom tab bar + "More" sheet
   $$('.bnav button[data-tab]').forEach((b) => b.addEventListener('click', () => show(b.dataset.tab)));
   $('#hdr-rundown').addEventListener('click', openWelcome);
+  $('#hdr-bell').addEventListener('click', openAlerts);
   $$('#lsubnav button').forEach((b) => b.addEventListener('click', () => { leagueView = b.dataset.lv; store.set('lview', leagueView); renderLeagueTab(); }));
   // "add to home screen" nudge on phones, once, unless already installed
   (() => {
@@ -2090,6 +2093,67 @@
   })();
   $$('#subnav button').forEach((b) => b.addEventListener('click', () => { teamView = b.dataset.view; store.set('teamview', teamView); renderTeam(); const nav = $('#subnav'); if (nav.getBoundingClientRect().top < 0) nav.scrollIntoView({ block: 'start' }); }));
   $('#team-pick').addEventListener('change', (e) => setTeam(e.target.value));
+  // ---------- push notifications ----------
+  const PUSH_KINDS = [['lineup', '⚠️ Lineup warnings', 'A starter is OUT, on IR or on bye before his game'], ['scores', '📈 Scores', 'Lead changes, big plays for or against you, final result'],
+    ['talk', '💬 Trash Talk', 'Someone @mentions you or replies to your post'], ['pickem', '🏆 Pick’em', 'Games locking within the hour that you haven’t picked']];
+  const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  const standalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  let swReg = null;
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').then((r) => { swReg = r; refreshBell(); }).catch(() => {});
+  async function currentSub() { try { const r = swReg || await navigator.serviceWorker.ready; return await r.pushManager.getSubscription(); } catch { return null; } }
+  const pushPrefs = () => { try { return { ...Object.fromEntries(PUSH_KINDS.map(([k]) => [k, true])), ...JSON.parse(store.get('push-prefs') || '{}') }; } catch { return {}; } };
+  async function refreshBell() { const s = pushSupported() ? await currentSub() : null; $('#hdr-bell').classList.toggle('on', !!s); }
+  const b64 = (str) => { const pad = '='.repeat((4 - (str.length % 4)) % 4); const raw = atob((str + pad).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from([...raw].map((c) => c.charCodeAt(0))); };
+  async function pushCall(body) { const r = await fetch('/api/push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'Something went wrong'); return j; }
+  let alertMsg = '';
+  async function openAlerts() {
+    let host = $('#alerts');
+    if (!host) { host = el('div', { id: 'alerts', class: 'welcome', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Notifications' }); document.body.append(host); host.addEventListener('click', (e) => { if (e.target === host) closeAlerts(); }); }
+    host.hidden = false; document.body.classList.add('noscroll');
+    await renderAlerts();
+  }
+  function closeAlerts() { const h = $('#alerts'); if (h) h.hidden = true; document.body.classList.remove('noscroll'); }
+  async function renderAlerts() {
+    const host = $('#alerts'); if (!host) return;
+    const x = el('button', { class: 'install-x wl-x', type: 'button', 'aria-label': 'Close', text: '✕' }); x.addEventListener('click', closeAlerts);
+    const card = (...kids) => host.replaceChildren(el('div', { class: 'wl-card al-card' }, x, el('h2', { text: '🔔 Notifications' }), ...kids.filter(Boolean)));
+    if (!ME) return card(el('p', { class: 'note', text: 'Pick who you are first (Play tab or the welcome screen), then come back here.' }));
+    if (isIOS && !standalone()) return card(el('p', { text: 'On iPhone, notifications only work from the home-screen app.' }),
+      el('ol', { class: 'al-steps' }, el('li', { text: 'In Safari, tap the Share button (□↑).' }), el('li', { text: 'Tap “Add to Home Screen”.' }), el('li', { text: 'Open League HQ from your home screen and tap 🔔 again.' })));
+    if (!pushSupported()) return card(el('p', { class: 'note', text: 'This browser can’t do notifications. Try Chrome or Safari, or add the app to your home screen.' }));
+    if (Notification.permission === 'denied') return card(el('p', { text: 'Notifications are blocked for League HQ.' }), el('p', { class: 'note', text: isIOS ? 'Turn them on in iPhone Settings → Notifications → League HQ, then come back.' : 'Allow notifications for this site in your browser’s site settings, then come back.' }));
+    const sub = await currentSub();
+    const msg = alertMsg ? el('p', { class: alertMsg.startsWith('✅') ? 'note al-ok' : 'pin-err', text: alertMsg }) : null; alertMsg = '';
+    if (!sub) {
+      const on = el('button', { class: 'btn big', type: 'button', text: 'Turn on notifications' });
+      on.addEventListener('click', async () => {
+        on.disabled = true; on.textContent = 'Turning on…';
+        try {
+          if ((await Notification.requestPermission()) !== 'granted') throw new Error('Notifications weren’t allowed.');
+          const { key } = await getJSON('/api/push');
+          const reg = swReg || await navigator.serviceWorker.ready;
+          const s = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64(key) });
+          await pushCall({ action: 'on', team: ME, sub: s.toJSON(), prefs: pushPrefs() });
+          alertMsg = '✅ Notifications are on for this phone.';
+        } catch (e) { alertMsg = e.message; }
+        refreshBell(); renderAlerts();
+      });
+      return card(el('p', { text: `Get alerts on this ${isIOS || /android/i.test(navigator.userAgent) ? 'phone' : 'device'} for ${T[ME].owner}:` }),
+        el('ul', { class: 'al-list' }, ...PUSH_KINDS.map(([, lab, d]) => el('li', {}, el('b', { text: lab }), el('small', { text: d })))), msg, on);
+    }
+    const prefs = pushPrefs();
+    const rows = PUSH_KINDS.map(([k, lab, d]) => {
+      const cb = el('input', { type: 'checkbox' }); cb.checked = prefs[k] !== false;
+      cb.addEventListener('change', async () => { const p2 = { ...pushPrefs(), [k]: cb.checked }; store.set('push-prefs', JSON.stringify(p2)); try { await pushCall({ action: 'prefs', endpoint: sub.endpoint, prefs: p2 }); } catch (e) { alertMsg = e.message; renderAlerts(); } });
+      return el('label', { class: 'al-row' }, cb, el('span', {}, el('b', { text: lab }), el('small', { text: d })));
+    });
+    const test = el('button', { class: 'btn ghost', type: 'button', text: 'Send a test' });
+    test.addEventListener('click', async () => { test.disabled = true; try { const j = await pushCall({ action: 'test', endpoint: sub.endpoint }); alertMsg = j.sent ? '✅ Test sent. It should pop up in a few seconds.' : 'The test didn’t go through. Try turning notifications off and on.'; } catch (e) { alertMsg = e.message; } renderAlerts(); });
+    const off = el('button', { class: 'linkbtn', type: 'button', text: 'Turn off on this device' });
+    off.addEventListener('click', async () => { try { await pushCall({ action: 'off', endpoint: sub.endpoint }); } catch { /* already gone */ } try { await sub.unsubscribe(); } catch { /* fine */ } alertMsg = ''; refreshBell(); renderAlerts(); });
+    return card(el('p', { class: 'note', text: `On for ${T[ME].owner} on this device. Pick what you want:` }), ...rows, msg, el('div', { class: 'tk-row' }, test, el('span', { class: 'sp' }), off));
+  }
   // ---------- tidy cards: explanations behind ⓘ, deep-dive sections folded until opened ----------
   $$('.card > h3 + p.note, .card > .row-head + p.note, section > .row-head + p.note').forEach((note) => {
     const head = note.previousElementSibling, h = head.matches('h2, h3') ? head : head.querySelector('h2, h3');

@@ -1,0 +1,19 @@
+# Game-day checker for League HQ push alerts (lead changes, big plays, lineup warnings, Pick'em reminders).
+# Runs every 5 minutes during NFL game windows. GitHub's schedule is in UTC and can run a few minutes late.
+name: Game-day alerts
+on:
+  schedule:
+    - cron: '*/5 22-23 * * 4'    # Thursday night (US Central evening)
+    - cron: '*/5 0-5 * * 5'      # ...through the end of Thursday night games
+    - cron: '*/5 15-23 * * 0'    # Sunday: inactives check from ~9:30 a.m. CT, then all day
+    - cron: '*/5 0-5 * * 1'      # ...Sunday night game
+    - cron: '*/5 22-23 * * 1'    # Monday night
+    - cron: '*/5 0-5 * * 2'      # ...through the end of Monday night
+  workflow_dispatch: {}
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Check games and send alerts
+        run: curl -fsS --max-time 60 "https://weird-people-league.vercel.app/api/push?tick=1" || true

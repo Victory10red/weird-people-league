@@ -616,3 +616,16 @@ table.cmp td.win { color: var(--good); font-weight: 700; }
 .tk-rbody p { margin: 2px 0 0; font-size: 14px; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; }
 .tk-rbox { margin-top: 10px; }
 .tk-rtext { margin-top: 0; }
+
+/* header actions + notifications panel */
+.hdr-acts { display: flex; gap: 6px; align-items: center; }
+#hdr-bell.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--panel)); }
+.al-card h2 { margin: 0 0 10px; }
+.al-list { list-style: none; padding: 0; margin: 10px 0 14px; display: grid; gap: 8px; }
+.al-list li, .al-row span { display: grid; gap: 1px; }
+.al-list small, .al-row small { color: var(--muted); font-size: 12px; }
+.al-row { display: grid; grid-template-columns: 22px 1fr; gap: 10px; align-items: start; padding: 10px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+.al-row input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--accent); }
+.al-steps { padding-left: 20px; line-height: 1.6; }
+.al-ok { color: var(--good); font-weight: 600; }
+#alerts .btn.big { width: 100%; margin-top: 8px; }
