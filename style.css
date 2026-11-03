@@ -686,3 +686,38 @@ body.tv #tv-exit { top: auto; bottom: 14px; right: auto; left: 18px; }
 .tf-deal { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
 .tf-acts { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 6px; }
 .tf-acts .espn-act { margin-top: 0; }
+
+/* playoff bracket + toilet bowl */
+.br-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: center; }
+.br-grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.br-col { display: grid; gap: 10px; align-content: center; }
+.br-h { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+.br-game { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.br-game .br-team + .br-team { border-top: 1px solid var(--line); }
+.br-team { display: grid; grid-template-columns: 20px 1fr auto; gap: 6px; align-items: center; padding: 6px 8px; min-height: 40px; }
+.br-team.me { background: color-mix(in srgb, var(--me) 10%, transparent); }
+.br-team.tbd { color: var(--muted); font-size: 12px; font-style: italic; display: flex; }
+.br-seed { font: 700 11px Inter, sans-serif; color: var(--muted); text-align: center; }
+.br-nm { display: grid; min-width: 0; line-height: 1.15; } .br-nm b { font-size: 13.5px; } .br-nm small { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.br-pts { font: 600 15px Oswald, Inter, sans-serif; }
+.br-bye { display: grid; gap: 2px; } .br-bye .br-team { border: 1px dashed var(--line); border-radius: 10px; } .br-bye small { font-size: 11px; color: var(--muted); padding-left: 8px; }
+.br-champ { text-align: center; font: 600 16px Oswald, Inter, sans-serif; color: var(--accent); }
+.br-champ.toilet { color: #92400e; }
+@media (max-width: 620px) { .br-grid, .br-grid.two { grid-template-columns: 1fr; } .br-col { gap: 8px; } }
+
+/* trophy case */
+#champs { display: grid; gap: 10px; }
+.trophy { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; position: relative; }
+.trophy .tr-body { padding: 10px 12px; }
+.tr-photo { display: block; width: 100%; max-height: 320px; object-fit: cover; }
+.trophy .yr { font: 600 13px Inter, sans-serif; color: var(--muted); }
+.trophy .who { font: 600 18px Oswald, Inter, sans-serif; }
+.trophy .how { font-size: 12.5px; color: var(--muted); }
+.tr-cap { margin: 6px 0 0; font-size: 13.5px; }
+.tr-last { margin-top: 6px; font-size: 13px; }
+.tr-edbtn { margin: 0 12px 10px; font-size: 12.5px; }
+.tr-edit { padding: 0 12px 12px; display: grid; gap: 6px; }
+.tr-file { font-size: 12.5px; }
+
+.play-share { display: block; margin: 10px auto 4px; font-size: 13px; }
+.play-share[hidden] { display: none; }

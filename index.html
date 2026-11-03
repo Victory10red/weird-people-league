@@ -125,7 +125,7 @@
     <!-- LEAGUE -->
     <section id="league" class="tab" hidden>
       <nav class="subnav" id="lsubnav" aria-label="League sections">
-        <button data-lv="standings">Standings</button><button data-lv="moves">Trades &amp; pickups</button><button data-lv="draft">Draft</button><button data-lv="history">History</button>
+        <button data-lv="standings">Standings</button><button data-lv="playoffs">Playoffs</button><button data-lv="moves">Trades</button><button data-lv="draft">Draft</button><button data-lv="history">History</button>
       </nav>
       <div class="lview" data-lv="standings">
 
@@ -147,6 +147,11 @@
       </div>
       <div class="card fold" data-fold="clutch"><h3>Clutch &amp; schedule</h3><p class="note">Close = decided by under 10 points. Opp avg = average score of the opponents faced.</p><div class="tbl" id="t-clutch"></div></div>
         <p class="note fold-hint">Tap any section above to open it.</p>
+      </div>
+      <div class="lview" data-lv="playoffs" hidden>
+        <div class="card"><div class="row-head"><h3 id="br-title">Playoff bracket</h3><span class="pill" id="br-pill">–</span></div><p class="note">Top 6 make it; seeds 1 and 2 get a first-round bye. Weeks 15, 16 and 17. Before the playoffs this is the bracket if the season ended today, with each team's odds of winning it all from that spot.</p><div id="bracket" class="bracket"></div></div>
+        <div class="card"><h3>Title odds</h3><p class="note">Chance of making the playoffs (full-season simulation) and of winning the title if the bracket stayed as it is today.</p><div class="tbl" id="t-title"></div></div>
+        <div class="card"><h3>🚽 Toilet Bowl</h3><p class="note">Seeds 7–10. Losers advance. Whoever loses the Toilet Bowl final finishes dead last.</p><div id="toilet" class="bracket toilet"></div></div>
       </div>
       <div class="lview" data-lv="moves" hidden>
 
@@ -174,7 +179,7 @@
       <div class="lview" data-lv="history" hidden>
 
       <div class="grid">
-        <div class="card"><h3>Champions</h3><div id="champs" class="champs"></div></div>
+        <div class="card"><h3>🏆 Trophy case</h3><div id="champs" class="champs"></div></div>
         <div class="card"><h3>Legacy rankings</h3><p class="note">Title 10 pts, runner-up 5, playoff trip 2, plus career all-play record. Seasons on ESPN since 2024.</p><div class="tbl" id="t-career"></div></div>
       </div>
       <div class="card"><h3>Rivalry</h3><div class="rival-pick"><select id="rv-a" aria-label="Owner"></select><span>vs</span><select id="rv-b" aria-label="Opponent"></select></div><div id="rivalry"></div></div>
@@ -197,6 +202,7 @@
       <div id="play-bk" class="play-game" hidden></div>
       <div id="play-pickem" class="play-game pk" hidden></div>
       <div id="play-pred" class="play-game pk" hidden></div>
+      <button id="play-share" class="linkbtn play-share" type="button" hidden></button>
       <div id="play-admin"></div>
       <div class="card play-lb"><div class="row-head"><h3 id="lb-title">League leaderboard</h3><span class="pill" id="lb-sub">–</span></div><div id="lb"></div></div>
     </section>

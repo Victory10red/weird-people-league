@@ -1,4 +1,6 @@
-// League extras that need shared storage. Right now: weekly Predictions.
+// League extras that need shared storage: weekly Predictions and the Trophy case.
+// GET  /api/club?k=trophy                    -> { ready, items: { year: { caption, last, punishment, photo } } }
+// POST /api/club { k:'trophy', year, token, caption?, last?, punishment?, photo? (data URL, or '' to remove) }  app admin only
 // GET  /api/club?k=pred&year=2026&week=8&team=4 -> { ready, week, locksAt, locked, qs, mine, results?, board: { week, season } }
 // POST /api/club { k:'pred', year, week, team, q, a }  -> answer one question (changeable until the week's first kickoff)
 import { redis } from '../lib/kv.js';
@@ -6,6 +8,7 @@ import { fetchLive, nflRemaining } from '../lib/espn.js';
 import { liveScores } from '../lib/live.js';
 import { fetchSlate } from '../lib/week.js';
 import { logAct } from '../lib/activity.js';
+import { verify, ADMIN_TEAM } from '../lib/auth.js';
 
 const half = (x) => Math.floor(x) + 0.5;
 const readHash = (flat) => { const o = {}; for (let i = 0; i < (flat || []).length; i += 2) { try { o[flat[i]] = JSON.parse(flat[i + 1]); } catch { /* skip */ } } return o; };
@@ -73,6 +76,26 @@ export default async function handler(req, res) {
   if (!run) return res.status(200).json({ ready: false });
   try {
     const q = req.method === 'POST' ? (typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {})) : (req.query || {});
+    if (q.k === 'trophy') {
+      if (req.method === 'POST') {
+        if (!(await verify(run, ADMIN_TEAM, q.token))) return res.status(403).json({ error: 'App admin only', pin: true });
+        const year = Number(q.year);
+        if (!Number.isInteger(year) || year < 2000 || year > 2100) return res.status(400).json({ error: 'Bad year' });
+        const [cur] = await run([['HGET', 'trophy', String(year)]]);
+        const item = cur ? JSON.parse(cur) : {};
+        for (const k of ['caption', 'last', 'punishment']) if (q[k] != null) item[k] = String(q[k]).slice(0, 300);
+        if (q.photo != null) {
+          if (q.photo === '') delete item.photo;
+          else if (/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(q.photo) && q.photo.length < 900000) item.photo = q.photo;
+          else return res.status(400).json({ error: 'That photo is too big or not an image.' });
+        }
+        await run([['HSET', 'trophy', String(year), JSON.stringify(item)]]);
+        await logAct(run, req, ADMIN_TEAM, 'trophy', `${year}${q.photo ? ' photo' : ''}`);
+      }
+      const [flat] = await run([['HGETALL', 'trophy']]);
+      res.setHeader('Cache-Control', req.method === 'POST' ? 'no-store' : 'public, s-maxage=60, stale-while-revalidate=600');
+      return res.status(200).json({ ready: true, items: readHash(flat) });
+    }
     if (q.k !== 'pred') return res.status(400).json({ error: 'Unknown' });
     const year = Number(q.year), week = Number(q.week), team = Number(q.team);
     if (!Number.isInteger(year) || !Number.isInteger(week) || week < 1 || week > 18) return res.status(400).json({ error: 'Bad week' });

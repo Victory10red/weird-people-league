@@ -17,15 +17,29 @@
     set(k, v) { try { localStorage.setItem(k, v); } catch { /* private mode */ } },
   };
   const TABS = ['team', 'week', 'talk', 'play', 'league'];
-  const LVIEWS = ['standings', 'moves', 'draft', 'history'];
+  const LVIEWS = ['standings', 'playoffs', 'moves', 'draft', 'history'];
 
   let D = null, LIVE = null, T = {};
   let team = Number(new URLSearchParams(location.search).get('team')) || Number(store.get('team')) || null;
   // who is using this device (games, Dump Log, welcome) — separate from which team is being viewed
   let ME = Number(store.get('me')) || null;
   if (!team && ME) team = ME;
-  let tab = (location.hash || '#team').slice(1);
+  let tab = (location.hash || '#team').slice(1).toLowerCase();
   let leagueView = LVIEWS.includes(store.get('lview')) ? store.get('lview') : 'standings';
+  // shareable links straight to a page: /#pickem, /#predictions, /#playoffs, /#trophies …
+  const ROUTES = {
+    pickem: ['play', 'pick'], picks: ['play', 'pick'], predictions: ['play', 'pred'], predict: ['play', 'pred'], dump: ['play', 'poop'], poop: ['play', 'poop'], breakaway: ['play', 'bk'],
+    standings: ['league', 'standings'], playoffs: ['league', 'playoffs'], bracket: ['league', 'playoffs'], toilet: ['league', 'playoffs'], moves: ['league', 'moves'], trophies: ['league', 'history'],
+    roster: ['team', 'roster'], waivers: ['team', 'roster'], outlook: ['team', 'outlook'], season: ['team', 'season'],
+  };
+  const GAME_ROUTE = { pick: 'pickem', pred: 'predictions', poop: 'dump', bk: 'breakaway' }, LV_ROUTE = { standings: 'standings', playoffs: 'playoffs', moves: 'moves', draft: 'draft', history: 'history' };
+  let linkGame = null, linkTeamView = null;
+  function applyRoute(h) {
+    const r = ROUTES[h]; if (!r) return h;
+    if (r[0] === 'play') linkGame = r[1]; else if (r[0] === 'league') leagueView = r[1]; else linkTeamView = r[1];
+    return r[0];
+  }
+  tab = applyRoute(tab);
   // old links from before the tabs were merged
   if (tab === 'live' || tab === 'scores') tab = 'week';
   if (tab === 'trades') { tab = 'league'; leagueView = 'moves'; }
@@ -33,7 +47,7 @@
   if (!TABS.includes(tab)) tab = 'team';
   let wvPos = 'ALL', yrSel = null, bumpFocus = null;
   let heroOpen = null, heroWeek = null; const weekCache = {};
-  let teamView = ['week', 'roster', 'outlook', 'season'].includes(store.get('teamview')) ? store.get('teamview') : 'week';
+  let teamView = linkTeamView || (['week', 'roster', 'outlook', 'season'].includes(store.get('teamview')) ? store.get('teamview') : 'week');
 
   // ---------- tooltip ----------
   const tipEl = $('#tip');
@@ -819,9 +833,74 @@
   }
 
   // ---------- HISTORY ----------
+  // ---------- Trophy case: champions, photos, last place and the punishment ----------
+  let TROPHY = null, trophyAt = 0, trophyEdit = null;
+  async function loadTrophies(force) {
+    if (!force && TROPHY && Date.now() - trophyAt < 60000) return;
+    trophyAt = Date.now();
+    try { TROPHY = (await getJSON('/api/club?k=trophy')).items || {}; } catch { TROPHY = TROPHY || {}; }
+    if (tab === 'league' && leagueView === 'history') renderTrophies();
+  }
+  function shrinkPhoto(file) { // resize on the phone so uploads stay small
+    return new Promise((resolve, reject) => {
+      const img = new Image(), url = URL.createObjectURL(file);
+      img.onload = () => { const k = Math.min(1, 1100 / Math.max(img.width, img.height)); const c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url); let q = 0.82, d = c.toDataURL('image/jpeg', q); while (d.length > 850000 && q > 0.4) { q -= 0.1; d = c.toDataURL('image/jpeg', q); } resolve(d); };
+      img.onerror = () => reject(new Error('Couldn’t read that image')); img.src = url;
+    });
+  }
+  async function saveTrophy(year, body) {
+    const r = await fetch('/api/club', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ k: 'trophy', year, token: pinTok(ADMIN), ...body }) });
+    const j = await r.json().catch(() => ({})); if (pinFail(j)) return; if (!r.ok) throw new Error(j.error || 'Didn’t save');
+    TROPHY = j.items || TROPHY;
+  }
+  function renderTrophies() {
+    const host = $('#champs');
+    if (!TROPHY) { host.replaceChildren(el('p', { class: 'note', text: 'Loading the trophy case…' })); loadTrophies(); return; }
+    const isAdmin = ME === ADMIN && pinTok();
+    const years = [...new Set([D.league.year, ...D.champs.map((c) => c.year)])].sort((a, b) => b - a);
+    host.replaceChildren(...years.map((y) => {
+      const c = D.champs.find((x) => x.year === y), it = TROPHY[y] || {};
+      const leader = !c ? [...D.teams].sort((a, b) => b.playoffs - a.playoffs)[0] : null;
+      const card = el('div', { class: 'trophy' + (it.photo ? ' has-photo' : '') },
+        it.photo ? el('img', { class: 'tr-photo', src: it.photo, alt: `${y} champion photo`, loading: 'lazy' }) : null,
+        el('div', { class: 'tr-body' },
+          el('div', { class: 'yr', text: `${y}` }),
+          c ? el('div', { class: 'who', text: `🏆 ${c.owner} · ${c.team}` }) : el('div', { class: 'who muted', text: `Season in progress · favorite right now: ${leader ? leader.owner : '–'}` }),
+          c ? el('div', { class: 'how', text: `${c.record}${c.seed ? ', ' + ord(c.seed) + ' seed' : ''} · beat ${c.runner_up} ${c.final}` }) : null,
+          it.caption ? el('p', { class: 'tr-cap', text: it.caption }) : null,
+          it.last ? el('div', { class: 'tr-last' }, el('b', { text: `🚽 Last place: ${it.last}` }), it.punishment ? el('span', { text: ` · Punishment: ${it.punishment}` }) : null) : null));
+      if (isAdmin) {
+        if (trophyEdit === y) {
+          const cap = el('input', { class: 'tk-gif', placeholder: 'Caption (optional)', value: it.caption || '' });
+          const last = el('input', { class: 'tk-gif', placeholder: 'Last place (name)', value: it.last || '' });
+          const pun = el('input', { class: 'tk-gif', placeholder: 'Punishment', value: it.punishment || '' });
+          const file = el('input', { type: 'file', accept: 'image/*', class: 'tr-file' });
+          const msg = el('p', { class: 'note' });
+          const save = el('button', { class: 'btn', type: 'button', text: 'Save' });
+          save.addEventListener('click', async () => {
+            save.disabled = true; msg.textContent = 'Saving…';
+            try {
+              const body = { caption: cap.value, last: last.value, punishment: pun.value };
+              if (file.files && file.files[0]) body.photo = await shrinkPhoto(file.files[0]);
+              await saveTrophy(y, body); trophyEdit = null; renderTrophies();
+            } catch (e) { msg.textContent = e.message; save.disabled = false; }
+          });
+          const rm = it.photo ? el('button', { class: 'linkbtn', type: 'button', text: 'Remove photo' }) : null;
+          if (rm) rm.addEventListener('click', async () => { try { await saveTrophy(y, { photo: '' }); renderTrophies(); } catch (e) { msg.textContent = e.message; } });
+          const cancel = el('button', { class: 'linkbtn', type: 'button', text: 'Cancel' }); cancel.addEventListener('click', () => { trophyEdit = null; renderTrophies(); });
+          card.append(el('div', { class: 'tr-edit' }, el('label', { class: 'note', text: 'Photo' }), file, cap, last, pun, el('div', { class: 'tk-row' }, save, cancel, rm), msg));
+        } else {
+          const ed = el('button', { class: 'linkbtn tr-edbtn', type: 'button', text: it.photo || it.last ? 'Edit' : 'Add photo / last place' });
+          ed.addEventListener('click', () => { trophyEdit = y; renderTrophies(); });
+          card.append(ed);
+        }
+      }
+      return card;
+    }));
+  }
   function renderHistory() {
     const H = D.history;
-    $('#champs').replaceChildren(...[...D.champs].reverse().map((c) => el('div', { class: 'champ' }, el('div', { class: 'yr', text: c.year }), el('div', { class: 'who', text: `${c.owner} · ${c.team}` }), el('div', { class: 'how', text: `${c.record}, ${c.seed ? ord(c.seed) + ' seed' : ''} · beat ${c.runner_up} ${c.final}` }))));
+    renderTrophies();
     const myOwner = team ? tm(team).owner : null;
     table($('#t-career'), [{ h: '#', k: 'rank', n: 1 }, { h: 'Owner', k: 'owner' }, { h: 'Legacy', k: 'legacy', n: 1, f: f1 }, { h: 'Titles', k: 'titles', n: 1 }, { h: 'Finals', k: 'finals', n: 1, wide: 1 }, { h: 'Playoffs', k: 'playoffs', n: 1, wide: 1 }, { h: 'Record', k: 'w', f: (_, r) => `${r.w}-${r.l}` }, { h: 'All-play', k: 'allplay', n: 1, f: pct, wide: 1 }, { h: 'Avg finish', k: 'avg_finish', n: 1, f: (v) => (v ? f1(v) : '–'), wide: 1 }], H.career, { isMe: (r) => r.owner === myOwner });
     // rivalry
@@ -997,7 +1076,7 @@
     tot += Math.max(0, ...['RB', 'WR', 'TE'].map((p) => (by[p] || [])[0] || 0));
     take('D/ST', 1); take('K', 1); return tot;
   }
-  function seasonSim(rosterOf, N = 6000) {
+  function seasonSim(rosterOf, N = 6000, withTitle = false) {
     const S = D.sim, ids = D.teams.map((t) => t.id);
     const ros = {}, wk = {};
     for (const t of ids) { const r = rosterOf(t).filter((x) => x.slot !== 'IR');
@@ -1007,14 +1086,16 @@
     const adj = S.avg - ids.reduce((s, t) => s + str[t], 0) / ids.length; for (const t of ids) str[t] += adj;
     let seed = 961003394; const rnd = () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let x = Math.imul(seed ^ (seed >>> 15), 1 | seed); x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x; return ((x ^ (x >>> 14)) >>> 0) / 4294967296; };
     const gauss = () => { let u = 0, v = 0; while (!u) u = rnd(); v = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
-    const po = Object.fromEntries(ids.map((t) => [t, 0])), byes = { ...po };
+    const po = Object.fromEntries(ids.map((t) => [t, 0])), byes = { ...po }, fin = { ...po }, ttl = { ...po };
+    const play = (a, b) => (str[a] + S.sd * gauss() >= str[b] + S.sd * gauss() ? a : b);
     for (let i = 0; i < N; i++) {
       const w = {}, pf = {}; for (const t of ids) { w[t] = S.base[t][0]; pf[t] = S.base[t][1]; }
       for (const [k, h, a] of S.remaining) { const sh = (k === S.cur ? wk[h] : str[h]) + S.sd * gauss(), sa = (k === S.cur ? wk[a] : str[a]) + S.sd * gauss(); pf[h] += sh; pf[a] += sa; if (sh > sa) w[h]++; else w[a]++; }
       const order = [...ids].sort((x, y) => w[y] - w[x] || pf[y] - pf[x]);
       for (let k = 0; k < S.po; k++) po[order[k]]++; byes[order[0]]++; byes[order[1]]++;
+      if (withTitle && S.po >= 6) { const s1 = play(order[0], play(order[3], order[4])), s2 = play(order[1], play(order[2], order[5])); fin[s1]++; fin[s2]++; ttl[play(s1, s2)]++; }
     }
-    const out = {}; for (const t of ids) out[t] = { po: 100 * po[t] / N, bye: 100 * byes[t] / N, ros: ros[t], wk: wk[t] }; return out;
+    const out = {}; for (const t of ids) out[t] = { po: 100 * po[t] / N, bye: 100 * byes[t] / N, ros: ros[t], wk: wk[t], final: 100 * fin[t] / N, title: 100 * ttl[t] / N }; return out;
   }
   function renderAnalyzer() {
     if (!D.sim) return;
@@ -1073,7 +1154,17 @@
   }
 
 
-  let playGame = ({ hol: 'pick' })[store.get('play-game')] || (['bk', 'pick', 'pred', 'poop'].includes(store.get('play-game')) ? store.get('play-game') : 'pick'), bkInst = null;
+  let playGame = linkGame || ({ hol: 'pick' })[store.get('play-game')] || (['bk', 'pick', 'pred', 'poop'].includes(store.get('play-game')) ? store.get('play-game') : 'pick'), bkInst = null;
+  // the address bar always holds a link someone can share: #pickem, #playoffs, #talk …
+  function routeHash() { return tab === 'play' ? GAME_ROUTE[playGame] : tab === 'league' ? LV_ROUTE[leagueView] : tab; }
+  function syncHash() { history.replaceState(null, '', location.pathname + location.search + '#' + routeHash()); }
+  async function shareLink() {
+    const label = tab === 'play' ? ({ pick: 'Pick’em', pred: 'Predictions', poop: 'the Dump Log', bk: 'Breakaway' })[playGame] : tab === 'league' ? ({ playoffs: 'the playoff bracket', history: 'the trophy case' })[leagueView] || 'League HQ' : 'League HQ';
+    const url = location.origin + '/#' + routeHash(), wk = LIVE ? ` Week ${LIVE.week}` : '';
+    const text = tab === 'play' && (playGame === 'pick' || playGame === 'pred') ? `${wk.trim()} ${label} are open. Get yours in:` : `Check out ${label}:`;
+    try { if (navigator.share) { await navigator.share({ text, url }); return 'shared'; } } catch (e) { if (e && e.name === 'AbortError') return ''; }
+    try { await navigator.clipboard.writeText(`${text} ${url}`); return 'Link copied — paste it in the group chat'; } catch { return url; }
+  }
   let LB = null, lbAt = 0, bkLevel = 'hard';
   const LB_GAME = () => `bk:${bkLevel}`;
   async function loadLB(force) {
@@ -1283,7 +1374,8 @@
     $('#play-pick').hidden = !ok; $$('.play-game').forEach((g) => { if (!ok) g.hidden = true; }); $('.play-lb').hidden = !ok;
     if (!ok) return;
     loadLB();
-    $$('#play-pick button').forEach((b) => { b.setAttribute('aria-pressed', String(b.dataset.game === playGame)); b.onclick = () => { playGame = b.dataset.game; store.set('play-game', playGame); renderPlay(); }; });
+    $$('#play-pick button').forEach((b) => { b.setAttribute('aria-pressed', String(b.dataset.game === playGame)); b.onclick = () => { playGame = b.dataset.game; store.set('play-game', playGame); syncHash(); renderPlay(); }; });
+    const sh = $('#play-share'); if (sh) { sh.hidden = !(playGame === 'pick' || playGame === 'pred'); sh.textContent = `🔗 Send ${playGame === 'pred' ? 'Predictions' : 'Pick’em'} link to the group`; sh.onclick = async () => { const m = await shareLink(); if (m && m !== 'shared') { sh.textContent = m; setTimeout(() => renderPlay(), 3000); } }; }
     $('#play-bk').hidden = playGame !== 'bk'; $('#play-pickem').hidden = playGame !== 'pick'; $('#play-pred').hidden = playGame !== 'pred'; $('#play-poop').hidden = playGame !== 'poop'; $('.play-lb').hidden = playGame !== 'bk';
     if (playGame === 'poop') { renderPoop(); return; }
     if (playGame === 'bk') {
@@ -1568,10 +1660,10 @@
       const x0 = el('button', { class: 'install-x wl-x', type: 'button', 'aria-label': 'Close', text: '✕' }); x0.addEventListener('click', closeWelcome);
       host.onclick = (e) => { if (e.target === host) closeWelcome(); };
       host.replaceChildren(el('div', { class: 'wl-card' }, x0, el('div', { class: 'wl-hi' }, el('small', { text: 'Welcome to League HQ' }), el('h2', { text: 'Who are you?' })),
-        el('p', { class: 'note', text: 'This phone will remember. You can still look at anyone’s team from the menu at the top.' }),
+        el('p', { class: 'note', text: deepLinked && tab === 'play' && (playGame === 'pick' || playGame === 'pred') ? `Tap your name and you’ll go straight to ${playGame === 'pred' ? 'Predictions' : 'Pick’em'}. This phone will remember you.` : 'This phone will remember. You can still look at anyone’s team from the menu at the top.' }),
         el('div', { class: 'pickgrid wl-pick' }, ...[...D.teams].sort((a, b) => a.owner.localeCompare(b.owner)).map((t) => {
           const b = el('button', { class: 'pickbtn' }, el('b', { text: t.owner }), el('span', { text: t.name }));
-          b.addEventListener('click', () => setMe(t.id)); return b;
+          b.addEventListener('click', () => { setMe(t.id); if (deepLinked) closeWelcome(); }); return b;
         }))));
       return;
     }
@@ -2191,10 +2283,70 @@
   }
 
   // ---------- render orchestration ----------
+  // ---------- Playoffs: winners bracket (seeds 1-6, byes for 1-2) and Toilet Bowl (7-10, losers advance) ----------
+  function bracketSim(seeds, N = 20000) { // seeds: [teamId by seed]; returns champion counts
+    const S = D.sim, str = {};
+    for (const id of seeds) { const r = (D.rosters[id] || []).filter((x) => x.slot !== 'IR'); str[id] = 0.6 * optimalJS(r.map((x) => ({ pos: x.pos, v: (x.ros || 0) / Math.max(1, S.games_left) }))) + 0.4 * (S.recent[id] || S.avg); }
+    let seed = 7; const rnd = () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let x = Math.imul(seed ^ (seed >>> 15), 1 | seed); x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x; return ((x ^ (x >>> 14)) >>> 0) / 4294967296; };
+    const g = () => { let u = 0; while (!u) u = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rnd()); };
+    const play = (a, b) => (str[a] + S.sd * g() >= str[b] + S.sd * g() ? a : b);
+    const champ = Object.fromEntries(seeds.map((id) => [id, 0])), final = { ...champ };
+    for (let i = 0; i < N; i++) {
+      const w36 = play(seeds[2], seeds[5]), w45 = play(seeds[3], seeds[4]);
+      const s1 = play(seeds[0], w45), s2 = play(seeds[1], w36); // 1 plays the lowest seed left
+      final[s1]++; final[s2]++; champ[play(s1, s2)]++;
+    }
+    return { champ: Object.fromEntries(seeds.map((id) => [id, 100 * champ[id] / N])), final: Object.fromEntries(seeds.map((id) => [id, 100 * final[id] / N])) };
+  }
+  let PO_SIM = null;
+  function renderPlayoffs() {
+    const L = D.league, wks = D.po_weeks || [L.reg_weeks + 1, L.reg_weeks + 2, L.reg_weeks + 3];
+    const bySeed = [...D.teams].sort((a, b) => (a.seed || 99) - (b.seed || 99)).map((t) => t.id);
+    const winners = bySeed.slice(0, L.playoff_teams), losers = bySeed.slice(L.playoff_teams, L.playoff_teams + 4);
+    const games = (D.po_games || []);
+    const started = games.length > 0;
+    $('#br-title').textContent = started ? `${L.year} playoffs` : 'If the season ended today';
+    $('#br-pill').textContent = started ? 'Live bracket' : `After week ${Math.max(0, ...L.done)}`;
+    const seedOf = Object.fromEntries(bySeed.map((id, i) => [id, i + 1]));
+    const liveScore = (id, wk) => { if (!LIVE || LIVE.week !== wk) return null; const g = LIVE.games.find((x) => x.h.id === id || x.a.id === id); return g ? (g.h.id === id ? g.h.pts : g.a.pts) : null; };
+    const actual = (wk, ids) => games.find((m) => m.wk === wk && ids.includes(m.h) && ids.includes(m.a));
+    const slot = (id, wk, label) => {
+      if (id == null) return el('div', { class: 'br-team tbd', text: label || 'TBD' });
+      const pts = (() => { const m = games.find((x) => x.wk === wk && (x.h === id || x.a === id)); if (m) return m.h === id ? m.hp : m.ap; return liveScore(id, wk); })();
+      return el('div', { class: 'br-team' + (id === team ? ' me' : '') }, el('span', { class: 'br-seed', text: seedOf[id] || '' }), el('span', { class: 'br-nm' }, el('b', { text: tm(id).owner }), el('small', { text: tm(id).name })), pts ? el('span', { class: 'br-pts', text: f1(pts) }) : null);
+    };
+    const winner = (wk, a, b) => { const m = a != null && b != null ? actual(wk, [a, b]) : null; return m && m.win && m.win !== 'UNDECIDED' ? (m.win === 'HOME' ? m.h : m.a) : null; };
+    const game = (wk, a, b, la, lb) => el('div', { class: 'br-game' }, slot(a, wk, la), slot(b, wk, lb));
+    const [W1, W2, W3] = wks;
+    const q1 = winner(W1, winners[2], winners[5]), q2 = winner(W1, winners[3], winners[4]);
+    const sA = q2, sB = q1; // 1 meets the 4/5 winner, 2 meets the 3/6 winner
+    const f1w = winner(W2, winners[0], sA), f2w = winner(W2, winners[1], sB);
+    const champ = winner(W3, f1w, f2w);
+    const col = (title, ...kids) => el('div', { class: 'br-col' }, el('div', { class: 'br-h', text: title }), ...kids);
+    $('#bracket').replaceChildren(el('div', { class: 'br-grid' },
+      col(`Week ${W1} · Round 1`, el('div', { class: 'br-bye' }, slot(winners[0], W1), el('small', { text: 'bye' })), game(W1, winners[3], winners[4]), game(W1, winners[2], winners[5]), el('div', { class: 'br-bye' }, slot(winners[1], W1), el('small', { text: 'bye' }))),
+      col(`Week ${W2} · Semifinals`, game(W2, winners[0], sA, null, '4/5 winner'), game(W2, winners[1], sB, null, '3/6 winner')),
+      col(`Week ${W3} · Championship`, game(W3, f1w, f2w, 'Semifinal winner', 'Semifinal winner'), champ ? el('div', { class: 'br-champ', text: `🏆 ${tm(champ).owner}` }) : null)));
+    // title odds
+    // before the playoffs: whole rest of the season (anyone can still sneak in); once they start: the actual bracket
+    let sim;
+    if (started || !D.sim || !D.sim.remaining.length) sim = bracketSim(winners);
+    else { if (!PO_SIM || PO_SIM.k !== D.updated) { const r = seasonSim((id) => D.rosters[id] || [], 5000, true); PO_SIM = { k: D.updated, champ: {}, final: {} }; for (const id in r) { PO_SIM.champ[id] = r[id].title; PO_SIM.final[id] = r[id].final; } } sim = PO_SIM; }
+    table($('#t-title'), [{ h: 'Team', k: 'id', v: (r) => tm(r.id).owner }, { h: 'Seed', k: 'seed', n: 1, v: (r) => seedOf[r.id] }, { h: 'Playoffs', k: 'po', n: 1, bar: 1, v: (r) => tm(r.id).playoffs, f: pct },
+      { h: 'Final', k: 'fi', n: 1, v: (r) => (sim.final[r.id] ?? null), f: (v) => (v == null ? '–' : pct(v)), wide: 1 }, { h: 'Title', k: 'ti', n: 1, v: (r) => (sim.champ[r.id] ?? null), f: (v) => (v == null ? '–' : pct(v)) }],
+      [...D.teams].sort((a, b) => (sim.champ[b.id] ?? -1) - (sim.champ[a.id] ?? -1) || b.playoffs - a.playoffs).map((t) => ({ id: t.id })), { isMe: (r) => r.id === team });
+    // toilet bowl: 7v10 and 8v9; the two losers meet; that loser is last
+    const lose = (wk, a, b) => { const w = winner(wk, a, b); return w == null ? null : w === a ? b : a; };
+    const tl1 = lose(W1, losers[0], losers[3]), tl2 = lose(W1, losers[1], losers[2]);
+    const last = tl1 != null && tl2 != null ? lose(W2, tl1, tl2) : null;
+    $('#toilet').replaceChildren(el('div', { class: 'br-grid two' },
+      col(`Week ${W1} · Round 1 (losers advance)`, game(W1, losers[0], losers[3]), game(W1, losers[1], losers[2])),
+      col(`Week ${W2} · Toilet Bowl`, game(W2, tl1, tl2, '7/10 loser', '8/9 loser'), last ? el('div', { class: 'br-champ toilet', text: `🚽 ${tm(last).owner} finishes dead last` }) : el('p', { class: 'note', text: started ? '' : `Right now: ${losers.map((id) => tm(id).owner).join(', ')}.` }))));
+  }
   function renderLeagueTab() {
     $$('#lsubnav button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.lv === leagueView)));
     $$('#league .lview').forEach((v) => { v.hidden = v.dataset.lv !== leagueView; });
-    ({ standings: renderLeague, moves: renderTrades, draft: renderDraft, history: renderHistory })[leagueView]();
+    ({ standings: renderLeague, playoffs: renderPlayoffs, moves: renderTrades, draft: renderDraft, history: renderHistory })[leagueView]();
   }
   function renderAll() {
     if (!D) return;
@@ -2207,10 +2359,16 @@
     $$('.tab').forEach((s) => { s.hidden = s.id !== t; });
     $$('.tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === t)));
     $$('.bnav button[data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === t));
-    history.replaceState(null, '', location.pathname + location.search + '#' + t);
+    syncHash();
     renderAll();
     if (!keepScroll) window.scrollTo(0, 0);
   }
+  window.addEventListener('hashchange', () => {
+    const h = location.hash.slice(1).toLowerCase(); if (!h || h === routeHash() || h.includes('welcome')) return;
+    const t = applyRoute(h); if (!TABS.includes(t)) return;
+    if (linkGame) { playGame = linkGame; linkGame = null; } if (linkTeamView) { teamView = linkTeamView; linkTeamView = null; }
+    show(t);
+  });
   function setMe(id) {
     const prev = ME;
     ME = Number(id) || null;
@@ -2258,7 +2416,7 @@
   $('#tv-btn').addEventListener('click', tvOn);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && document.body.classList.contains('tv')) tvOff(); });
   document.addEventListener('visibilitychange', async () => { if (!document.hidden && document.body.classList.contains('tv') && !tvLock) { try { tvLock = await navigator.wakeLock.request('screen'); } catch { /* fine */ } } });
-  $$('#lsubnav button').forEach((b) => b.addEventListener('click', () => { leagueView = b.dataset.lv; store.set('lview', leagueView); renderLeagueTab(); }));
+  $$('#lsubnav button').forEach((b) => b.addEventListener('click', () => { leagueView = b.dataset.lv; store.set('lview', leagueView); syncHash(); renderLeagueTab(); }));
   // "add to home screen" nudge on phones, once, unless already installed
   (() => {
     const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;

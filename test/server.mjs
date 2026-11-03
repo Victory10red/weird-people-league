@@ -65,13 +65,17 @@ const picksOut = (team) => {
   return { ready: true, year: 2026, week: wk, games: slate, mine: fakePicks[team] || {}, picked, made: Object.fromEntries(Object.entries(fakePicks).map(([t, p]) => [t, Object.keys(p).length])), board: { week: rows, season: rows.map((r) => ({ ...r, c: r.c + 20, n: r.n + 40, wk: 4 })) } };
 };
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
+const fakeTrophy = { 2025: { caption: 'Hoisting it at the draft party', last: 'Edwin', punishment: '24 hours at a Waffle House' } };
 http.createServer((req, res) => {
   const u = new URL(req.url, 'http://x');
+  if (u.pathname === '/api/club' && u.searchParams.get('k') === 'trophy' || (u.pathname === '/api/club' && req.method === 'POST' && req.headers['x-k'] === 'trophy')) {
+    res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify({ ready: true, items: fakeTrophy }));
+  }
   if (u.pathname === '/api/club') {
     res.setHeader('content-type', 'application/json');
     fakePred.qs ||= makeQuestions(live);
     const out = (team) => ({ ready: true, week: live.week, locksAt: new Date(Date.now() + 3 * 86400000).toISOString(), locked: false, qs: fakePred.qs, results: null, mine: fakePred.ans[team] || {}, made: Object.keys(fakePred.ans).length, board: { week: [], season: [{ id: 3, c: 9, n: 14, wk: 2 }, { id: 4, c: 7, n: 14, wk: 2 }] } });
-    if (req.method === 'POST') { let body = ''; req.on('data', (c) => { body += c; }); req.on('end', () => { const b = JSON.parse(body || '{}'); (fakePred.ans[b.team] ||= {})[b.q] = b.a; res.end(JSON.stringify(out(b.team))); }); return; }
+    if (req.method === 'POST') { let body = ''; req.on('data', (c) => { body += c; }); req.on('end', () => { const b = JSON.parse(body || '{}'); if (b.k === 'trophy') { const it = (fakeTrophy[b.year] ||= {}); for (const f of ['caption', 'last', 'punishment', 'photo']) if (f in b) { if (b[f]) it[f] = b[f]; else delete it[f]; } return res.end(JSON.stringify({ ok: true, items: fakeTrophy })); } (fakePred.ans[b.team] ||= {})[b.q] = b.a; res.end(JSON.stringify(out(b.team))); }); return; }
     return res.end(JSON.stringify(out(Number(u.searchParams.get('team')))));
   }
   if (u.pathname === '/api/push') { res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify({ ready: true, key: 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U' })); }
