@@ -1645,7 +1645,16 @@
       `Ask ${F.o} how his week went and you already know: "same old same old." Translation: ${F.po}% playoff odds, red hair, zero soul.`,
       ...F.recs.filter((r) => r.kind === 'Lowest score').slice(0, 1).map((r) => `${F.o} holds the league record for lowest score (${f1(r.pts)} in ${r.season}). Same old same old since day one, you obligated ginger.`),
     ] },
-    { re: /^wes/i, lines: (F) => [
+    { re: /^wes/i, priority: (F) => [
+      `${F.o} is a certified lover boy. Loves everybody except his own lineup: ${F.bench} points left on the bench.`,
+      `${F.o} is such a simp he'd trade his RB1 for a girl's Venmo. ${F.rec}.`,
+      `${F.o} simps for his players the way he simps for girls: all in, gets nothing back. ${F.avg} a week.`,
+      `Certified Lover Boy ${F.o}: shows up shirtless, flexes, tells his kicker "I love you." Still ${F.rec}.`,
+      F.wkg ? `${F.o} sent ${F.wkg.oppO} "good luck this week ❤️". ${F.wkg.oppO} left him on read and is ${F.wkg.wp < 50 ? 100 - F.wkg.wp : 100 - F.wkg.wp}% to win.` : `${F.o} texts his opponent "good luck this week ❤️" every Sunday. Nobody has ever texted back.`,
+      `${F.o} simps so hard he benches his best players so their feelings don't get hurt. ${F.place} place.`,
+      `${F.o} is a simp, a redhead and a bodybuilder. Three things that have never won a fantasy league. ${F.rec}.`,
+      `${F.o} would accept any trade if the other guy said "please." That's how you end up ${F.rec}, lover boy.`,
+    ], lines: (F) => [
       `${F.o} can bench 315 but can't bench the right fucking player. ${F.bench} points left on the pine.`,
       F.benchSeason && `${F.o} is benching ${F.benchSeason.b.name} (${f1(F.benchSeason.b.avg)} a game). The only time he's ever benched the heavy one.`,
       `${F.o} is the only bodybuilder in history whose team still has no legs: ${F.pfRank} in points.`,
@@ -1676,7 +1685,30 @@
       `${F.o} plays Madden on Rookie and still throws picks. ${F.n} is that, but with ${F.bench} points on the bench.`,
       `Give ${F.o} a controller and he loses to the tutorial. Give him a roster and he goes ${F.rec}. Consistent, at least.`,
     ] },
-    { re: /^justin/i, lines: (F) => [
+    { re: /^edwin/i, priority: (F) => [
+      `${F.o} has been 5'5" since 7th grade. ${F.winning ? `His team is ${F.rec} and peaking early too. Neither one is growing from here.` : `His team stopped growing around the same time: ${F.rec}.`}`,
+      `${F.o} is a Raven in the Air Force. Thanks for your service, bitch. Now go set your lineup.`,
+      `${F.o} goes to Disney twice a year but wouldn't pay the $50 buy-in. Mickey gets paid, the league gets stiffed.`,
+      `${F.o} drops thousands on Disney every year and fought this league over $50. Happiest place on earth, cheapest man in the league.`,
+      `${F.o} is 5'5" and ${F.rec}. One of those numbers is going to change this season. It's not the 5'5".`,
+      `${F.o} guards Air Force planes for a living${F.beatdown ? ` and still couldn't guard against ${F.own(F.beatdown.opp)} in week ${F.beatdown.wk} (lost by ${f1(-F.beatdown.m)})` : ` and still can't protect a lead`}. Thanks for your service, bitch.`,
+      `${F.o} has been to Disney more times this year than he's paid league dues. Paid dues count: zero.`,
+      `${F.o} still has to stand on his tiptoes for the Space Mountain height check. 5'5" since 7th grade, ${F.place} place, $0 paid.`,
+      F.lostFinal && F.lostFinal.length ? `${F.o} lost the ${F.lostFinal[0].year} championship and decided the fix was not paying the $50 this year. Can't lose money if you never put any in.` : `${F.o} won't put $50 on the line because deep down he knows how this ends.`,
+      `The Air Force calls ${F.o} a Raven. We call him a 5'5" freeloader with a Disney annual pass.`,
+    ] },
+    { re: /^justin/i, priority: (F) => [
+      `${F.o} went to college for 13 years and came out selling paint. Same plan he used to build ${F.n}: take forever, end up somewhere weird.`,
+      `13 years of college and ${F.o} still can't read a depth chart.`,
+      `${F.o} sells paint for a living. Explains the lineup: grabs whatever's on the shelf and slaps it in there.`,
+      `${F.o} moved to Colorado to smoke weed, which explains the ${F.bench} points on his bench. He forgot they were there.`,
+      `${F.o} sets his lineup high every Sunday. You can tell: ${F.eff}% lineup efficiency.`,
+      `${F.o} took 13 years to finish college. ${F.titles.length ? 'He somehow has a title' : 'At this pace he wins a fantasy title around 2052'}.`,
+      F.winning ? `${F.o} is ${F.rec} and thinks it's skill. It's the Colorado air, buddy. Enjoy it before it wears off.` : `${F.o} is ${F.rec}. Stay in Colorado, man. It's the only thing helping.`,
+      `${F.o}'s paint store has 400 colors and his team still only comes in one: ${F.winning ? 'lucky' : 'dogshit brown'}.`,
+      F.dropped ? `13 years of college and ${F.o} still dropped ${F.dropped.name}, who's put up ${f1(F.dropped.pts)} since. Was that before or after the edible?` : `${F.o} drafts like a guy who moved to Colorado to smoke weed: confident, hungry and with zero memory of what he just did.`,
+      `${F.o} paints walls by day and watches paint dry by night. Same energy as his lineup decisions.`,
+    ], lines: (F) => [
       `${F.o}'s lineup is like ${F.o}: big, slow, and ${F.bench} points of it sitting on the bench.`,
       `Somebody call SeaWorld, a whale just set his lineup. ${F.o} is ${F.rec}${F.winning ? ' and it is pure luck' : ', it still sucks'}.`,
       F.winning ? `${F.o} is ${F.rec} and eating it up. Literally, the whole buffet. Save room for the playoff choke, big man.` : `${F.o} isn't on a losing streak, he's on a buffet streak. Same results: ${F.rec}.`,
@@ -1706,7 +1738,7 @@
     const r = Math.random(), wl = weekLines(F);
     // someone's signature material comes first when they have it (Carlos: politics)
     if (mine && mine.priority && Math.random() < 0.6) { const p = pick(mine.priority(F)); if (p) { lastRoast = p; return p; } }
-    const out = (wl.length && r < 0.35 && pick(wl)) || (mine && r < 0.8 && pick(mine.lines(F))) || pick(roastLines(F)) || pick(wl) || '';
+    const out = (wl.length && r < 0.35 && pick(wl)) || (mine && mine.lines && r < 0.8 && pick(mine.lines(F))) || pick(roastLines(F)) || pick(wl) || '';
     lastRoast = out; return out;
   }
   // ---- sharing to the group chat (Messenger has no API for group chats, so we use the phone's share sheet) ----
