@@ -1695,7 +1695,7 @@
       `${F.o} has been to Disney more times this year than he's paid league dues. Paid dues count: zero.`,
       `${F.o} still has to stand on his tiptoes for the Space Mountain height check. 5'5" since 7th grade, ${F.place} place, $0 paid.`,
       F.lostFinal && F.lostFinal.length ? `${F.o} lost the ${F.lostFinal[0].year} championship and decided the fix was not paying the $50 this year. Can't lose money if you never put any in.` : `${F.o} won't put $50 on the line because deep down he knows how this ends.`,
-      `The Air Force calls ${F.o} a Raven. We call him a 5'5" freeloader with a Disney annual pass.`,
+      `The Air Force calls ${F.o} a Raven. We call him a 5'5" guy with a Disney annual pass and no league dues.`,
     ] },
     { re: /^justin/i, priority: (F) => [
       `${F.o} went to college for 13 years and came out selling paint. Same plan he used to build ${F.n}: take forever, end up somewhere weird.`,
