@@ -1772,7 +1772,7 @@
       `Ask ${F.o} about his University of Houston track days and watch him make up a 40 time on the spot.`,
       `${F.o}'s track career at Houston is like the muscle on his "Mr. Muscle" letterman: never actually there.`,
       `${F.o} took his wife's last name. First time in his life he committed to a trade and came out ahead.`,
-      `${F.o} gave up his own last name without a fight. That's the same energy he brings to ${F.winning ? 'every close game he somehow wins' : 'every close game'}.`,
+      `${F.o} gave up his own last name without a fight. ${F.winning ? `Same energy as his ${F.rec} team: zero fight, all luck.` : `Same energy he brings to every close game. ${F.rec}.`}`,
       `${F.o} took his wife's last name. She also sets his lineup now, which explains ${F.winning ? `the ${F.rec}` : `why it's still ${F.rec}`}.`,
       `${F.o}'s wife let him keep the letterman but took the last name. Smart woman.`,
     ], lines: (F) => [
