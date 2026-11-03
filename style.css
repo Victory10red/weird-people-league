@@ -629,3 +629,36 @@ table.cmp td.win { color: var(--good); font-weight: 700; }
 .al-steps { padding-left: 20px; line-height: 1.6; }
 .al-ok { color: var(--good); font-weight: 600; }
 #alerts .btn.big { width: 100%; margin-top: 8px; }
+
+/* win odds over the day */
+.wpc { margin: 8px 0 2px; }
+.wpc svg { display: block; width: 100%; height: auto; overflow: visible; }
+.wpc .grid text { font-size: 10px; fill: var(--muted); }
+.wpc .grid line { stroke: var(--line); }
+.wpc-end { font: 700 12px Inter, sans-serif; fill: var(--accent); }
+.wpc-note { margin: 2px 0 0; font-size: 12px; }
+.wpc-empty { margin: 4px 0; font-size: 12px; }
+
+/* scoreboard actions */
+.sb-acts { display: flex; gap: 8px; align-items: center; }
+#tv-btn { font-size: 12.5px; padding: 5px 10px; }
+@media (max-width: 700px) { #tv-btn { display: none; } } /* phones: TV mode is for a laptop or TV */
+/* TV mode */
+body.tv { background: #0b0d11; color: #f3f4f6; --bg: #0b0d11; --panel: #151922; --panel-2: #1c212c; --line: #2a303c; --fg: #f3f4f6; --muted: #9aa3b2; }
+body.tv .top, body.tv .bnav, body.tv #install, body.tv .foot, body.tv main > section:not(#week) { display: none !important; }
+body.tv #week > :not(.row-head):not(#games) { display: none !important; }
+body.tv #week .info-btn, body.tv #tv-btn { display: none; }
+body.tv main.wrap { max-width: none; padding: 18px 28px 28px; }
+body.tv #week .row-head h2 { font-size: 34px; }
+body.tv #games { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 18px; }
+body.tv .game { font-size: 20px; padding: 18px 22px; cursor: default; }
+body.tv .game .lineups { display: none !important; }
+body.tv .game b, body.tv .game .nm { font-size: 24px; }
+body.tv .game .pts, body.tv .game .score, body.tv .game .sc { font-size: 48px; }
+#tv-exit, #tv-clock { display: none; }
+body.tv #tv-exit { display: block; position: fixed; top: 14px; right: 18px; z-index: 50; font: 600 13px Inter, sans-serif; color: #cbd5e1; background: #1c212c; border: 1px solid #2a303c; border-radius: 99px; padding: 6px 12px; cursor: pointer; opacity: .6; }
+body.tv #tv-exit:hover { opacity: 1; }
+body.tv #tv-clock { display: block; position: fixed; bottom: 14px; right: 22px; font: 600 22px Oswald, Inter, sans-serif; color: #64748b; }
+html:has(body.tv) { background: #0b0d11; }
+body.tv { min-height: 100vh; }
+body.tv #tv-exit { top: auto; bottom: 14px; right: auto; left: 18px; }

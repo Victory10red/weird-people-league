@@ -128,6 +128,23 @@ http.createServer((req, res) => {
     return res.end(JSON.stringify({ ready: true, boards: lbOut() }));
   }
   if (u.pathname === '/api/league') { res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify(league)); }
+  if (u.pathname === '/api/live' && u.searchParams.get('series')) {
+    res.setHeader('content-type', 'application/json');
+    const series = {}; const t0 = Date.now() - 5 * 3600000;
+    for (const g of live.games) {
+      let p = 0.5; const arr = [];
+      for (let i = 0; i <= 60; i++) {
+        const seed = Math.sin((g.h.id * 31 + g.a.id * 7 + i) * 12.9898) * 43758.5453; const r = seed - Math.floor(seed);
+        p = Math.min(0.97, Math.max(0.03, p + (r - 0.5) * 0.09));
+        const pt = [t0 + i * 5 * 60000, Math.round(p * 1000) / 1000, Math.round(i * 1.4 * 10) / 10, Math.round(i * 1.2 * 10) / 10];
+        if (i === 18) { p = Math.min(0.97, p + 0.16); pt[1] = Math.round(p * 1000) / 1000; pt.push(['H:Joe Burrow +8.6']); }
+        if (i === 41) { p = Math.max(0.03, p - 0.2); pt[1] = Math.round(p * 1000) / 1000; pt.push(['A:Kyren Williams +9.4']); }
+        arr.push(pt);
+      }
+      series[g.h.id + '-' + g.a.id] = arr;
+    }
+    return res.end(JSON.stringify({ series }));
+  }
   if (u.pathname === '/api/live') {
     res.setHeader('content-type', 'application/json');
     const w = Number(u.searchParams.get('week'));

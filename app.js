@@ -221,6 +221,44 @@
     else bits.push(`${tm(them.id).owner} is done at ${f1(them.pts)}.`);
     return el('p', { class: 'need' }, ...bits.map((b, i) => (i ? ' ' + b : b)));
   }
+  // ---- win odds over the day (recorded every ~5 minutes during games) ----
+  let WP = null, wpAt = 0, wpKey = '';
+  async function loadWP() {
+    if (!LIVE) return;
+    const k = `${LIVE.year}:${LIVE.week}`;
+    if (WP && wpKey === k && Date.now() - wpAt < 60000) return;
+    wpAt = Date.now(); wpKey = k;
+    try { WP = (await getJSON(`/api/live?series=1&year=${LIVE.year}&week=${LIVE.week}`)).series || {}; } catch { WP = WP || {}; }
+    $$('.wpc[data-k]').forEach((host) => drawWP(host, host.dataset.k, Number(host.dataset.me)));
+  }
+  // host: container; key "h-a"; me: the team whose odds to show
+  function wpChart(key, me) { const host = el('div', { class: 'wpc', 'data-k': key, 'data-me': me }); setTimeout(() => { if (WP) drawWP(host, key, me); else loadWP(); }, 0); return host; }
+  function drawWP(host, key, me) {
+    const pts = (WP && WP[key]) || [];
+    if (!host.isConnected) return;
+    const [hId] = key.split('-').map(Number), meHome = me === hId;
+    if (pts.length < 2) { host.replaceChildren(el('p', { class: 'note wpc-empty', text: 'The win-odds line fills in during games (a point every few minutes).' })); return; }
+    const w = W(host), h = 118, m = { l: 30, r: 40, t: 10, b: 18 };
+    const svg = svgIn(host, w, h);
+    const t0 = pts[0][0], t1 = Math.max(pts[pts.length - 1][0], t0 + 3600000);
+    const x = d3.scaleTime([t0, t1], [m.l, w - m.r]), y = d3.scaleLinear([0, 100], [h - m.b, m.t]);
+    const val = (p) => 100 * (meHome ? p[1] : 1 - p[1]);
+    svg.append('g').attr('class', 'grid').attr('transform', `translate(0,${h - m.b})`).call(d3.axisBottom(x).ticks(Math.max(2, Math.floor(w / 110))).tickFormat(d3.timeFormat('%-I%p')).tickSize(0)).call((a) => a.select('.domain').remove());
+    svg.append('g').attr('class', 'grid').attr('transform', `translate(${m.l},0)`).call(d3.axisLeft(y).tickValues([0, 50, 100]).tickFormat((v) => v + '%').tickSize(-(w - m.l - m.r))).call((a) => a.select('.domain').remove());
+    const line = d3.line().x((p) => x(p[0])).y((p) => y(val(p))).curve(d3.curveStepAfter);
+    const area = d3.area().x((p) => x(p[0])).y0(y(50)).y1((p) => y(val(p))).curve(d3.curveStepAfter);
+    svg.append('path').attr('d', area(pts)).attr('fill', css('--accent')).attr('fill-opacity', 0.1);
+    svg.append('path').attr('d', line(pts)).attr('fill', 'none').attr('stroke', css('--accent')).attr('stroke-width', 2.2);
+    // big plays: green for yours, red for theirs
+    const marks = []; pts.forEach((p, i) => (p[4] || []).forEach((n) => { const mine = (n[0] === 'H') === meHome; marks.push({ p, prev: pts[i - 1] || p, text: n.slice(2), mine }); }));
+    svg.selectAll('circle.wpm').data(marks).join('circle').attr('class', 'wpm').attr('cx', (d) => x(d.p[0])).attr('cy', (d) => y(val(d.p))).attr('r', 4.5)
+      .attr('fill', (d) => (d.mine ? css('--good') : css('--bad'))).attr('stroke', css('--panel')).attr('stroke-width', 1.5)
+      .call((sel) => hover(sel, (d) => d.text, (d) => `${Math.round(val(d.prev))}% → ${Math.round(val(d.p))}% · ${new Date(d.p[0]).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`));
+    const last = pts[pts.length - 1];
+    svg.append('text').attr('x', x(last[0]) + 6).attr('y', y(val(last))).attr('dy', '.35em').attr('class', 'wpc-end').text(Math.round(val(last)) + '%');
+    const big = marks.map((d) => ({ ...d, sw: val(d.p) - val(d.prev) })).sort((a, b) => Math.abs(b.sw) - Math.abs(a.sw))[0];
+    if (big && Math.abs(big.sw) >= 3) host.append(el('p', { class: 'note wpc-note', text: `Biggest swing: ${big.text} (${big.sw > 0 ? '+' : ''}${Math.round(big.sw)}%)` }));
+  }
   function wpBar(hw, done) {
     return [el('div', { class: 'wp' }, el('i', { style: `width:${hw}%` }), el('i', { style: `width:${100 - hw}%` })),
       el('div', { class: 'wpl' }, el('span', { text: `${hw}% win` }), el('span', { text: done ? 'Final' : 'win odds' }), el('span', { text: `${100 - hw}% win` }))];
@@ -240,7 +278,7 @@
       const k = g.h.id + '-' + g.a.id;
       const hw = Math.round(g.hwin * 100);
       const card = el('div', { class: 'game' + (meRow({ h: g.h.id, a: g.a.id }) ? ' mine' : '') + (open.has(k) ? ' open' : ''), 'data-k': k, role: 'button', tabindex: '0' },
-        sideBlock(g.h, g.h.pts > g.a.pts), sideBlock(g.a, g.a.pts > g.h.pts), ...wpBar(hw, g.done), el('div', { class: 'lineups' }, el('div', { class: 'need-wrap' }, needLine(g.h, g.a, g.h.id === team)), lineupList(g.h), lineupList(g.a)));
+        sideBlock(g.h, g.h.pts > g.a.pts), sideBlock(g.a, g.a.pts > g.h.pts), ...wpBar(hw, g.done), el('div', { class: 'lineups' }, el('div', { class: 'need-wrap' }, needLine(g.h, g.a, g.h.id === team), wpChart(`${g.h.id}-${g.a.id}`, g.a.id === team ? g.a.id : g.h.id)), lineupList(g.h), lineupList(g.a)));
       const toggle = () => card.classList.toggle('open');
       card.addEventListener('click', toggle);
       card.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
@@ -337,7 +375,7 @@
       hero.replaceChildren(el('div', { class: 'game hero-card mine' + (heroOpen ? ' open' : '') },
         heroHead,
         sideBlock(me, me.pts > them.pts, vegasMe ? `Vegas ${f1(vegasMe)}` : ''), sideBlock(them, them.pts > me.pts, vegasThem ? `Vegas ${f1(vegasThem)}` : ''),
-        ...wpBar(hw, live.done), needLine(me, them, true), stakes, tog,
+        ...wpBar(hw, live.done), heroWeek == null || heroWeek === (LIVE && LIVE.current) ? wpChart(live.h.id + '-' + live.a.id, team) : null, needLine(me, them, true), stakes, tog,
         el('div', { class: 'lineups' }, lineupList(me), lineupList(them)),
         el('p', { class: 'note legend lineups-only', text: 'Q / D / O = questionable / doubtful / out. Avg = points per game this season. ESPN = ESPN projection. Vegas = his average × how much more or less Vegas expects his team to score than usual (green = Vegas likes him more than ESPN, red = less). vs Opp = points per game the opponent gives up to that position (all of its RBs or WRs combined), ranked 1st (stingiest) to 32nd. Green = soft matchup, red = tough.' })));
     } else if (m) {
@@ -2073,6 +2111,30 @@
   $$('.bnav button[data-tab]').forEach((b) => b.addEventListener('click', () => show(b.dataset.tab)));
   $('#hdr-rundown').addEventListener('click', openWelcome);
   $('#hdr-bell').addEventListener('click', openAlerts);
+  // ---------- TV mode: just the scoreboard, big, full screen, refreshing every 30 seconds ----------
+  let tvLock = null, tvTimer = null;
+  async function tvOn() {
+    document.body.classList.add('tv');
+    if (!$('#tv-exit')) { const x = el('button', { id: 'tv-exit', type: 'button', text: '✕ Exit TV mode' }); x.addEventListener('click', tvOff); document.body.append(x); }
+    if (!$('#tv-clock')) document.body.append(el('div', { id: 'tv-clock' }));
+    const tickClock = () => { const c = $('#tv-clock'); if (c) c.textContent = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); };
+    tickClock();
+    try { await document.documentElement.requestFullscreen(); } catch { /* not allowed: still works windowed */ }
+    try { tvLock = await navigator.wakeLock.request('screen'); } catch { /* fine */ }
+    clearInterval(tvTimer); tvTimer = setInterval(() => { tickClock(); loadLive(); }, 30000);
+    if (tab !== 'week') show('week'); else renderWeek();
+    $$('#games .game').forEach((g) => g.classList.remove('open'));
+    window.scrollTo(0, 0);
+  }
+  function tvOff() {
+    document.body.classList.remove('tv'); clearInterval(tvTimer);
+    try { if (document.fullscreenElement) document.exitFullscreen(); } catch { /* fine */ }
+    try { if (tvLock) tvLock.release(); } catch { /* fine */ } tvLock = null;
+    renderAll();
+  }
+  $('#tv-btn').addEventListener('click', tvOn);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && document.body.classList.contains('tv')) tvOff(); });
+  document.addEventListener('visibilitychange', async () => { if (!document.hidden && document.body.classList.contains('tv') && !tvLock) { try { tvLock = await navigator.wakeLock.request('screen'); } catch { /* fine */ } } });
   $$('#lsubnav button').forEach((b) => b.addEventListener('click', () => { leagueView = b.dataset.lv; store.set('lview', leagueView); renderLeagueTab(); }));
   // "add to home screen" nudge on phones, once, unless already installed
   (() => {
@@ -2204,6 +2266,7 @@
       LIVE = await getJSON('/api/live');
       if (D && tab === 'team') renderTeam();
       if (D && tab === 'week') { renderScores(); renderTop(); }
+      if (D && (tab === 'week' || tab === 'team')) { wpAt = 0; loadWP(); }
       maybeWelcome();
       loadTalk();
       if (tab === 'talk' && talkDraft.target == null) renderTalk();
