@@ -1407,17 +1407,17 @@
     } catch (e) { prMsg = e.message; }
     prBusy = false; renderPred();
   }
-  let prConfirm = false;
+  let prConfirm = false, prLocking = false;
   async function predLock() {
     if (prBusy) return;
     if (!prConfirm) { prConfirm = true; renderPred(); return; }
-    prBusy = true; prConfirm = false; prMsg = ''; renderPred();
+    prBusy = true; prLocking = true; prConfirm = false; prMsg = ''; renderPred();
     try {
       const r = await fetch('/api/club', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ k: 'pred', year: D.league.year, week: PR.wk, team: ME, action: 'lock' }) });
       const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Didn’t lock');
       const wk = PR.wk; PR = j; PR.wk = wk; PR.me = ME; prMsg = '✓ Locked in. Good luck.';
     } catch (e) { prMsg = e.message; }
-    prBusy = false; renderPred();
+    prBusy = false; prLocking = false; renderPred();
   }
   function renderPred() {
     const host = $('#play-pred');
@@ -1478,7 +1478,7 @@
     if (!frozen && answered) {
       const all = answered === PR.qs.length;
       const go = el('button', { class: 'btn big pk-lockbtn' + (prConfirm ? ' confirm' : ''), type: 'button', disabled: all ? null : 'disabled',
-        text: prBusy ? 'Locking in…' : !all ? `Answer all ${PR.qs.length} to lock in (${answered} done)` : prConfirm ? 'Tap again to lock in for good' : `🔒 Lock in my ${PR.qs.length} predictions` });
+        text: prLocking ? 'Locking in…' : !all ? `Answer all ${PR.qs.length} to lock in (${answered} done)` : prConfirm ? 'Tap again to lock in for good' : `🔒 Lock in my ${PR.qs.length} predictions` });
       go.addEventListener('click', predLock);
       bar = el('div', { class: 'pk-bar' }, el('small', { text: all ? 'Once you lock in, your answers can’t change. Everyone sees you’re in.' : 'Your answers save as you go. Lock in when you’re done.' }), go);
     }
