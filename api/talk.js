@@ -1,6 +1,6 @@
 // Trash Talk wall. Messages: { id, t: teamId, text, gif, at, re: { '🔥': [teamIds] } }
 // GET  /api/talk                                   -> { ready, msgs } newest first (last 300)
-// POST /api/talk { action:'post', team, text, gif }
+// POST /api/talk { action:'post', team, text, gif, anon }  anon posts show as "Anonymous"; the poster is kept server-side only
 // POST /api/talk { action:'react', team, id, emoji } (toggles)
 // POST /api/talk { action:'delete', team, id, token? } (your own, or any with the commissioner token)
 import { redis } from '../lib/kv.js';
@@ -29,13 +29,15 @@ async function list(run) {
   const [ids] = await run([['ZREVRANGE', 'talk:z', 0, KEEP - 1]]);
   if (!ids || !ids.length) return [];
   const [vals] = await run([['HMGET', 'talk:m', ...ids]]);
-  return (vals || []).map((v) => { try { return JSON.parse(v); } catch { return null; } }).filter(Boolean);
+  return (vals || []).map((v) => { try { return JSON.parse(v); } catch { return null; } }).filter(Boolean)
+    .map((m) => (m.anon ? { ...m, t: 0 } : m)); // never reveal who posted an anonymous one
 }
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   const run = redis();
   if (!run) return res.status(200).json({ ready: false, msgs: [] });
+  let postedId = null;
   try {
     if (req.method === 'POST') {
       const b = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
@@ -49,7 +51,8 @@ export default async function handler(req, res) {
         const [ok] = await run([['SET', `talk:last:${team}`, '1', 'PX', 5000, 'NX']]);
         if (!ok) return res.status(429).json({ error: 'Slow down, killer. 5 seconds between posts.' });
         const at = Date.now(), id = at.toString(36) + Math.random().toString(36).slice(2, 6);
-        await run([['HSET', 'talk:m', id, JSON.stringify({ id, t: team, text, gif, at, re: {} })], ['ZADD', 'talk:z', at, id]]);
+        await run([['HSET', 'talk:m', id, JSON.stringify({ id, t: team, text, gif, at, re: {}, ...(b.anon ? { anon: true } : {}) })], ['ZADD', 'talk:z', at, id]]);
+        postedId = id; // the poster's phone remembers its own anonymous posts so it can delete them
         // keep the wall to the newest KEEP messages
         const [old] = await run([['ZRANGE', 'talk:z', 0, -(KEEP + 1)]]);
         if (old && old.length) await run([['ZREM', 'talk:z', ...old], ['HDEL', 'talk:m', ...old]]);
@@ -72,7 +75,7 @@ export default async function handler(req, res) {
         }
       }
     }
-    return res.status(200).json({ ready: true, msgs: await list(run) });
+    return res.status(200).json({ ready: true, msgs: await list(run), posted: postedId });
   } catch (e) {
     return res.status(502).json({ ready: false, error: `Trash Talk unavailable (${e.message})`, msgs: [] });
   }

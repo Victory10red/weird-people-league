@@ -579,3 +579,9 @@ table.cmp td.win { color: var(--good); font-weight: 700; }
 @media (display-mode: standalone) {
   body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top); background: var(--bg); z-index: 60; pointer-events: none; }
 }
+
+.tk-anon { font: 600 12.5px Inter, sans-serif; color: var(--muted); background: var(--panel-2); border: 1px dashed var(--line); border-radius: 99px; padding: 6px 11px; cursor: pointer; }
+.tk-anon.on { color: #fff; background: #374151; border: 1px solid #374151; }
+.tk-av.anon { background: #374151; font-size: 18px; }
+.tk-msg.anon { border-style: dashed; }
+.tk-post .sp { flex: 1; }

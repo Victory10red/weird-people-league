@@ -1436,13 +1436,14 @@
 
 
   // ---------- TRASH TALK ----------
-  let TALK = null, talkAt = 0, talkTimer = null, talkMsg = '', talkDraft = { text: '', gif: '', target: null };
+  let TALK = null, talkAt = 0, talkTimer = null, talkMsg = '', talkDraft = { text: '', gif: '', target: null, anon: false };
+  const myAnon = () => { try { return JSON.parse(store.get('talk-anon-mine') || '[]'); } catch { return []; } };
   const TALK_EMOJI = ['🔥', '😂', '💀', '🤡', '💩', '🗑️'];
   async function loadTalk(force) {
     if (!force && TALK && Date.now() - talkAt < 15000) return;
     try { TALK = await getJSON('/api/talk'); talkAt = Date.now(); } catch { TALK = TALK || { ready: false, msgs: [] }; }
     const newest = TALK.msgs && TALK.msgs[0] ? TALK.msgs[0].at : 0, seen = Number(store.get('talk-seen')) || 0;
-    $('#talk-dot').hidden = !(newest > seen && tab !== 'talk' && TALK.msgs[0].t !== ME);
+    $('#talk-dot').hidden = !(newest > seen && tab !== 'talk' && TALK.msgs[0].t !== ME && !myAnon().includes(TALK.msgs[0].id));
     if (tab === 'talk') { store.set('talk-seen', String(newest)); renderTalkFeed(); }
   }
   async function talkPost(body) {
@@ -1634,7 +1635,15 @@
   }
   // personal material on top of the numbers: these come up about two times in three
   const PERSONAL = [
-    { re: /^brandon/i, lines: (F) => [
+    { re: /^brandon/i, priority: (F) => [
+      `${F.o} peed in his barber's chair mid-haircut. Still not the worst thing he's done this season: ${F.rec}.`,
+      `${F.o} hides his insecurities behind tattoos and his best players on the bench: ${F.bench} points benched.`,
+      `${F.o} is a swinger. Explains the roster: he'll start anybody's guys.`,
+      `${F.o} swings, and he still can't get one trade partner to commit.`,
+      `${F.o}'s barber charges him extra now. Hazard pay.`,
+      `${F.o} got another tattoo to cover up the pain of being ${F.rec}. Same old same old.`,
+      `Same old same old: ${F.o} pisses himself at the barber and blames the clippers. Pisses away a lineup and blames the projections.`,
+    ], lines: (F) => [
       `Same old same old: ${F.rec}, ${F.pfRank} in points, ${F.bench} points rotting on the bench. Same old ginger bitch.`,
       `${F.o} doesn't play fantasy football, he fulfills an obligation. ${F.eff}% lineup efficiency says he's half-assing that too.`,
       F.last && `${F.o} sets his lineup out of obligation, ${F.lastLine}, then blames the sun for burning his ginger ass. Same old same old.`,
@@ -1663,12 +1672,19 @@
       `Two redheads in this league and somehow ${F.o} is the one getting burned: ${F.po}% playoff odds.`,
       ...F.recs.filter((r) => r.kind === 'Biggest blowout').slice(0, 1).map((r) => `${F.o} has the biggest blowout in league history (${r.season}) and peaked right there, like every bodybuilder at 25. ${F.rec} now.`),
     ] },
-    { re: /^jacky/i, lines: (F) => [
-      F.po < 50 ? `${F.o} is 5'2" and her playoff odds (${F.po}%) are somehow even shorter.` : `${F.o} is 5'2" and her trophy case is even emptier. ${F.po}% playoff odds, 0 rings, 0 inches of growth since 8th grade.`,
+    { re: /^jacky/i, priority: (F) => [
+      `${F.o} is 4'11" and drives a 2014 Civic with 160,000 miles. Both have been running on fumes for years, just like ${F.n}.`,
+      `${F.o} walks 2,000 steps a day. Her waiver claims get even less exercise.`,
+      `${F.o}'s 2014 Civic has 160,000 miles and more horsepower than her lineup.`,
+      `${F.o} gets 2,000 steps a day: one trip to the fridge and back to set a bad lineup.`,
+      F.winning ? `${F.o} is 4'11" and somehow ${F.place} place. Her playoff odds (${F.po}%) are taller than she is.` : `${F.o} is 4'11" and ${F.rec}. Nothing about this is measuring up.`,
+      `${F.o} can't see over the steering wheel of her 2014 Civic or over the rest of this league.`,
+    ], lines: (F) => [
+      F.po < 50 ? `${F.o} is 4'11" and her playoff odds (${F.po}%) are somehow even shorter.` : `${F.o} is 4'11" and her trophy case is even emptier. ${F.po}% playoff odds, 0 rings, 0 inches of growth since 8th grade.`,
       `${F.o} has to stand on the bench to see over her lineup. Makes sense, that's where her ${F.bench} points are.`,
       F.seed > 5 ? `${F.o} can't reach the top shelf or the top half of the standings. ${F.place} place, short queen.` : `${F.o} is ${F.place} and still can't reach the top shelf. Short queen, short-lived.`,
       `${F.n} averages ${F.avg} a week. Like its manager, it comes up short.`,
-      F.worst && `${F.o} scored ${f1(F.worst.pts)} in week ${F.worst.wk}. Even her lowlights are 5'2".`,
+      F.worst && `${F.o} scored ${f1(F.worst.pts)} in week ${F.worst.wk}. Even her lowlights are 4'11".`,
     ] },
     { re: /^carlos/i, priority: (F) => [
       `${F.o} is a liberal, which explains the ${F.bench} points on his bench. He thinks every player deserves equal playing time.`,
@@ -1679,6 +1695,9 @@
       F.po < 50 ? `${F.o}'s playoff odds are ${F.po}%. He's calling for a recount.` : `${F.o} is ${F.rec} and already writing an op-ed about how the playoff format is unfair.`,
       `${F.o} runs ${F.n} like a government program: way over budget, nothing gets done, and somehow he wants more funding.`,
       `${F.o} would trade his whole roster for one free agent if you called it a "stimulus package."`,
+      `${F.o} grew a mustache. Still can't grow a winning record: ${F.rec}.`,
+      `${F.o}'s new mustache is doing more work than his starting lineup.`,
+      `${F.o} grew a mustache so he'd finally have something on his face besides disappointment. ${F.po}% playoff odds.`,
     ], lines: (F) => [
       `${F.o} sucks at video games, and fantasy football is just a video game with spreadsheets. Do the math: ${F.rec}.`,
       F.bk ? `${F.o}'s best Breakaway run is ${F.bk.r.score} yards on ${F.bk.l}. The commissioner, ladies and gentlemen.` : `${F.o} hasn't even posted a Breakaway score. Scared of a mouse game, commissioner?`,
@@ -1697,6 +1716,37 @@
       F.lostFinal && F.lostFinal.length ? `${F.o} lost the ${F.lostFinal[0].year} championship and decided the fix was not paying the $50 this year. Can't lose money if you never put any in.` : `${F.o} won't put $50 on the line because deep down he knows how this ends.`,
       `The Air Force calls ${F.o} a Raven. We call him a 5'5" guy with a Disney annual pass and no league dues.`,
     ] },
+    { re: /^darla/i, priority: (F) => [
+      `${F.o} is a stay-at-home mom with two kids and still has more free time than her bench: ${F.bench} points sitting there doing nothing.`,
+      `${F.o} runs two kids full-time and ${F.n} part-time. Guess which one gets the effort. ${F.rec}.`,
+      `${F.o} sets her lineup during nap time. You can tell: ${F.eff}% lineup efficiency.`,
+      `Two kids, a house and ${F.n}. Only one of them is a complete mess, and it's the one that's ${F.rec}.`,
+      `${F.o} puts her starters in timeout and lets the bench play. ${F.bench} points benched this season.`,
+      F.po < 50 ? `${F.o} is a stay-at-home mom. Her team's staying home for the playoffs too: ${F.po}%.` : `${F.o} is ${F.rec} with two kids hanging off her. Imagine what she could do with a nap.`,
+    ] },
+    { re: /^tanner/i, priority: (F) => [
+      `${F.o} works for his daddy, so ${F.n} is the only thing he's ever had to run himself. And look: ${F.rec}.`,
+      `${F.o} has weighed 230 for four straight years. Most consistent thing about him. His lineup sure isn't.`,
+      `${F.o} is a conservative who left ${F.bench} points on the bench. Fiscally responsible, my ass.`,
+      `${F.o} sets his lineup six beers deep. ${F.eff}% lineup efficiency, which is honestly impressive for six beers.`,
+      `${F.o} neglects his wife, his kids and his waiver wire. At least he's consistent.`,
+      `${F.o} wants small government and an even smaller playoff field, because that's the only way he sneaks in. ${F.po}% odds.`,
+      `${F.o} got his job from daddy. Nobody's handing him a playoff spot though: ${F.po}%.`,
+      F.benchLive ? `${F.o} drinks to forget his lineup. It's working: he forgot ${F.benchLive.b.name} (${f1(F.benchLive.b.pts)}) on the bench.` : `${F.o} drinks to forget his lineup. It's working: he forgot the ${F.bench} points on his bench.`,
+      `${F.o}'s kids see him less than his starters do, and his starters barely see the field. ${F.rec}.`,
+    ] },
+    { re: /^trevor/i, priority: (F) => [
+      `${F.o} looks like Mike Wazowski and sets his lineup like he only has one eye. ${F.rec}.`,
+      `${F.o} is hitting puberty at 33. His team's going through some changes too: ${F.rec}.`,
+      `${F.o} is a top-500 Magneto in Marvel Rivals and ${F.place} in this league. Priorities.`,
+      `${F.o} works full-time unemployed, remotely, and still can't find time to set a lineup.`,
+      `${F.o} orders sour cream with a side of Chipotle. His lineup is the same: all sauce, no meat. ${F.avg} a week.`,
+      `${F.o} neglects his dogs and his bench: ${F.bench} points left sitting there waiting for a walk.`,
+      `${F.o} has juicy nipples and a dry roster.`,
+      `${F.o} built this whole app and still can't build a winning lineup. ${F.rec}.`,
+      `${F.o} sets his lineup the way he drinks: way too much, then regrets it Sunday night.`,
+      `Mike Wazowski over here going through puberty at 33 and calling himself a GM. ${F.pfRank} in points, buddy.`,
+    ] },
     { re: /^justin/i, priority: (F) => [
       `${F.o} went to college for 13 years and came out selling paint. Same plan he used to build ${F.n}: take forever, end up somewhere weird.`,
       `13 years of college and ${F.o} still can't read a depth chart.`,
@@ -1708,6 +1758,10 @@
       `${F.o}'s paint store has 400 colors and his team still only comes in one: ${F.winning ? 'lucky' : 'dogshit brown'}.`,
       F.dropped ? `13 years of college and ${F.o} still dropped ${F.dropped.name}, who's put up ${f1(F.dropped.pts)} since. Was that before or after the edible?` : `${F.o} drafts like a guy who moved to Colorado to smoke weed: confident, hungry and with zero memory of what he just did.`,
       `${F.o} paints walls by day and watches paint dry by night. Same energy as his lineup decisions.`,
+      `${F.o} still wears his high school letterman. It says "Mr. Muscle." The muscle left. The jacket stayed.`,
+      `${F.o}'s letterman says "Mr. Muscle." His roster says "${F.winning ? 'Mr. Luck' : 'Mr. Bust'}." ${F.rec}.`,
+      `${F.o} says he's ${F.rec} because of skill. He's a pathological liar, so consider the source.`,
+      `${F.o} swears he set his lineup on time last week. Pathological liar. ${F.lostLast >= 10 ? `He left ${f1(F.lostLast)} on the bench in week ${F.last.wk}.` : 'Nobody believes him.'}`,
     ], lines: (F) => [
       `${F.o}'s lineup is like ${F.o}: big, slow, and ${F.bench} points of it sitting on the bench.`,
       `Somebody call SeaWorld, a whale just set his lineup. ${F.o} is ${F.rec}${F.winning ? ' and it is pure luck' : ', it still sucks'}.`,
@@ -1720,7 +1774,14 @@
       ((F.card.draft || {}).gp || 0) >= 3 ? `${F.o} drafts like he eats: everything in sight, no plan, and somehow lucked into ${an(F.card.draft.g)}. Even a whale swallows a good fish sometimes.` : `${F.o} drafts like he eats: everything in sight, no plan, ${an((F.card.draft || {}).g || 'F')} by Sunday night.`,
       ...F.recs.filter((r) => r.kind === 'Lowest score').slice(0, 1).map((r) => `${F.o} owns the record for lowest score ever (${f1(r.pts)}). Only time in his life he went that light.`),
     ] },
-    { re: /^mirza/i, lines: (F) => [
+    { re: /^mirza/i, priority: (F) => [
+      `${F.o} dyes his hair and wears pants year-round to hide his calves. Can't hide ${F.rec} though.`,
+      `${F.o} wears pants in July because he has no calves. His team has no legs either: ${F.pfRank} in points.`,
+      F.pfRankN <= 5 ? `${F.o} gets manicures. Pretty hands, ${F.avg} a week, and still ${F.rec}. All polish, no wins.` : `${F.o} gets manicures. Pretty hands, ugly lineup: ${F.avg} a week.`,
+      F.top ? `${F.o} has mommy issues, which explains why he needs ${F.top.name} to carry him (${f1(F.top.share)}% of his points).` : `${F.o} has mommy issues and still wants someone to carry him.`,
+      `${F.o} dyes his hair to cover the grays this team gave him. ${F.rec}.`,
+      `${F.o} works for an NFL player and still couldn't find a calf muscle in the whole organization.`,
+    ], lines: (F) => [
       `${F.o} works for an NFL player and still has ${an((F.card.draft || {}).g || 'F')} draft grade. The bag guy, everyone.`,
       `${F.o} thinks he's better than everyone. ${F.rec}, ${F.pfRank} in points. He isn't.`,
       F.titles.length ? `${F.o} won it all in ${F.titles[0]} and has been acting like an NFL owner ever since. You fetch a player's dry cleaning, Mirza.` : `${F.o}, carrying an NFL player's bags doesn't make you a GM.`,
@@ -1758,7 +1819,7 @@
     const top = 200 + Math.max(0, (640 - lines.length * size * 1.25) / 2);
     lines.forEach((l, i) => x.fillText(l, 70, top + i * size * 1.25 + size));
     x.font = '600 40px Inter, system-ui, sans-serif'; x.fillStyle = '#9aa1ad';
-    x.fillText(m.bot ? '— League Bot, Tuesday roast' : `— ${T[m.t] ? T[m.t].owner : ''}, ${T[m.t] ? T[m.t].name : ''}`, 70, 960);
+    x.fillText(m.anon ? '— Anonymous' : m.bot ? '— League Bot, Tuesday roast' : `— ${T[m.t] ? T[m.t].owner : ''}, ${T[m.t] ? T[m.t].name : ''}`, 70, 960);
     x.font = '500 30px Inter, system-ui, sans-serif'; x.fillText('weird-people-league.vercel.app', 70, 1015);
     // synchronous so the share menu opens inside the tap (iPhones block it after a delay)
     const bin = atob(c.toDataURL('image/png').split(',')[1]); const u8 = new Uint8Array(bin.length);
@@ -1766,7 +1827,7 @@
     return new Blob([u8], { type: 'image/png' });
   }
   async function shareToChat(m, btn) {
-    const who = m.bot ? 'League Bot' : T[m.t] ? T[m.t].owner : '';
+    const who = m.bot ? 'League Bot' : m.anon ? 'Anonymous' : T[m.t] ? T[m.t].owner : '';
     const text = `${who}: ${m.text || ''}${m.gif ? '\n' + m.gif : ''}\n\n🏈 League HQ: ${APP_URL}`;
     try {
       if (navigator.share) {
@@ -1806,23 +1867,26 @@
     tgt.value = tgtVal; tgt.addEventListener('change', () => { talkDraft.target = Number(tgt.value); });
     const gen = el('button', { class: 'btn ghost', type: 'button', text: '🔥 Roast' });
     gen.addEventListener('click', () => { ta.value = talkDraft.text = roast(Number(tgt.value)); ta.focus(); });
-    const post = el('button', { class: 'btn', type: 'button', text: 'Post' });
+    const post = el('button', { class: 'btn', type: 'button', text: talkDraft.anon ? 'Post anonymously' : 'Post' });
     const postShare = el('button', { class: 'btn ghost', type: 'button', text: 'Post + send to chat' });
+    const anonBtn = el('button', { class: 'tk-anon' + (talkDraft.anon ? ' on' : ''), type: 'button', 'aria-pressed': String(talkDraft.anon), title: 'Nobody sees who posted it' }, '🕵️ Anonymous');
+    anonBtn.addEventListener('click', () => { talkDraft.anon = !talkDraft.anon; talkDraft.text = ta.value; talkDraft.gif = gifIn.value; renderTalk(); });
     const doPost = async (share) => {
       post.disabled = postShare.disabled = true;
-      const draft = { t: ME, text: ta.value.trim(), gif: gifIn.value.trim() };
+      const draft = { t: ME, text: ta.value.trim(), gif: gifIn.value.trim(), anon: talkDraft.anon };
       if (share && (draft.text || draft.gif)) shareToChat(draft, postShare); // open the share menu right away, while the tap still counts
-      const ok = await talkPost({ action: 'post', text: draft.text, gif: draft.gif || undefined });
+      const ok = await talkPost({ action: 'post', text: draft.text, gif: draft.gif || undefined, anon: draft.anon || undefined });
+      if (ok && draft.anon && TALK && TALK.posted) store.set('talk-anon-mine', JSON.stringify([TALK.posted, ...myAnon()].slice(0, 200)));
       if (ok) { talkDraft.text = ''; talkDraft.gif = ''; }
       renderTalk();
     };
     post.addEventListener('click', () => doPost(false));
     postShare.addEventListener('click', () => doPost(true));
     host.replaceChildren(...[
-      el('div', { class: 'row-head' }, el('h3', { text: '💬 Trash Talk' }), el('span', { class: 'note', text: `as ${T[ME].owner}` })),
+      el('div', { class: 'row-head' }, el('h3', { text: '💬 Trash Talk' }), el('span', { class: 'note', text: talkDraft.anon ? 'as 🕵️ Anonymous' : `as ${T[ME].owner}` })),
       ta, gifIn,
       el('div', { class: 'tk-row' }, el('span', { class: 'note', text: 'Roast generator:' }), tgt, gen),
-      el('div', { class: 'tk-row tk-post' }, postShare, post),
+      el('div', { class: 'tk-row tk-post' }, anonBtn, el('span', { class: 'sp' }), postShare, post),
       talkMsg ? el('p', { class: 'pin-err', text: talkMsg }) : null,
       el('p', { class: 'note tk-tip', text: 'GIF tip: find one on giphy.com or in your keyboard’s GIF search, tap Share → Copy link, paste it above. “Send to chat” opens your phone’s share menu: pick Messenger, then the league group.' })].filter(Boolean));
     talkMsg = '';
@@ -1832,7 +1896,8 @@
     const host = $('#talk-feed');
     if (!TALK) { host.replaceChildren(el('p', { class: 'note', text: 'Loading…' })); return; }
     if (!TALK.ready) { host.replaceChildren(el('p', { class: 'note', text: 'Trash Talk is unavailable right now.' })); return; }
-    const msgs = TALK.msgs.filter((m) => T[m.t] || m.bot);
+    const msgs = TALK.msgs.filter((m) => T[m.t] || m.bot || m.anon);
+    const mineAnon = new Set(myAnon());
     if (!msgs.length) { host.replaceChildren(el('div', { class: 'card' }, el('p', { class: 'note', text: 'Dead quiet in here. Somebody start some shit.' }))); return; }
     const isAdmin = ME === ADMIN && pinTok();
     host.replaceChildren(...msgs.map((m) => {
@@ -1842,7 +1907,7 @@
         b.addEventListener('click', async () => { if (!ME) return; await talkPost({ action: 'react', id: m.id, emoji: e }); renderTalkFeed(); });
         return b;
       }));
-      const del = (m.t === ME || isAdmin) ? el('button', { class: 'linkbtn tk-del', type: 'button', text: 'Delete' }) : null;
+      const del = (m.t === ME || isAdmin || (m.anon && mineAnon.has(m.id))) ? el('button', { class: 'linkbtn tk-del', type: 'button', text: 'Delete' }) : null;
       if (del) del.addEventListener('click', async () => { if (!del.dataset.arm) { del.dataset.arm = 1; del.textContent = 'Sure?'; return; } await talkPost({ action: 'delete', id: m.id, token: pinTok(ADMIN) }); renderTalkFeed(); });
       const sh = el('button', { class: 'linkbtn tk-share', type: 'button', text: '📤 Share' });
       sh.addEventListener('click', () => shareToChat(m, sh));
@@ -1851,9 +1916,9 @@
         rb = el('button', { class: 'linkbtn tk-share', type: 'button', text: '🔥 Roast back' });
         rb.addEventListener('click', () => { talkDraft.target = m.t; { const r = roast(m.t); talkDraft.text = r.startsWith(T[m.t].owner) ? r : `@${T[m.t].owner} ${r}`; } renderTalk(); window.scrollTo({ top: 0, behavior: 'smooth' }); const ta = $('#talk-compose textarea'); if (ta) ta.focus({ preventScroll: true }); });
       }
-      const who = m.bot ? ['League Bot', `Tuesday roast · ${ago(m.at)}`] : [T[m.t].owner, `${T[m.t].name} · ${ago(m.at)}`];
-      const av = m.bot ? el('span', { class: 'tk-av bot', text: '🤖' }) : avatar(m.t);
-      return el('div', { class: 'card tk-msg' + (m.t === ME ? ' me' : '') + (m.bot ? ' bot' : '') },
+      const who = m.bot ? ['League Bot', `Tuesday roast · ${ago(m.at)}`] : m.anon ? ['Anonymous', `${mineAnon.has(m.id) ? 'you posted this · ' : ''}${ago(m.at)}`] : [T[m.t].owner, `${T[m.t].name} · ${ago(m.at)}`];
+      const av = m.bot ? el('span', { class: 'tk-av bot', text: '🤖' }) : m.anon ? el('span', { class: 'tk-av anon', text: '🕵️' }) : avatar(m.t);
+      return el('div', { class: 'card tk-msg' + (m.t === ME ? ' me' : '') + (m.bot ? ' bot' : '') + (m.anon ? ' anon' : '') },
         el('div', { class: 'tk-head' }, av, el('div', {}, el('b', { text: who[0] }), el('small', { text: who[1] })), el('div', { class: 'tk-acts' }, rb, sh, del)),
         m.text ? el('p', { class: 'tk-body', text: m.text }) : null,
         m.gif ? el('img', { class: 'tk-gif-img', src: m.gif, alt: 'GIF', loading: 'lazy' }) : null,

@@ -68,11 +68,11 @@ http.createServer((req, res) => {
     res.setHeader('content-type', 'application/json');
     if (req.method === 'POST') { let body = ''; req.on('data', (c) => { body += c; }); req.on('end', () => {
       const b = JSON.parse(body || '{}');
-      if (b.action === 'post') fakeTalk.unshift({ id: String(Date.now()), t: b.team, text: b.text || '', gif: b.gif || null, at: Date.now(), re: {} });
+      let posted = null; if (b.action === 'post') { posted = String(Date.now()); fakeTalk.unshift({ id: posted, t: b.team, text: b.text || '', gif: b.gif || null, at: Date.now(), re: {}, ...(b.anon ? { anon: true } : {}) }); }
       if (b.action === 'react') { const m = fakeTalk.find((x) => x.id === b.id); if (m) { const a = (m.re[b.emoji] ||= []); const i = a.indexOf(b.team); if (i >= 0) a.splice(i, 1); else a.push(b.team); } }
-      if (b.action === 'delete') { const i = fakeTalk.findIndex((x) => x.id === b.id); if (i >= 0) fakeTalk.splice(i, 1); }
-      res.end(JSON.stringify({ ready: true, msgs: fakeTalk })); }); return; }
-    return res.end(JSON.stringify({ ready: true, msgs: fakeTalk }));
+      if (b.action === 'delete') { const i = fakeTalk.findIndex((x) => x.id === b.id); if (i >= 0 && fakeTalk[i].t === b.team) fakeTalk.splice(i, 1); }
+      res.end(JSON.stringify({ ready: true, msgs: fakeTalk.map((m) => (m.anon ? { ...m, t: 0 } : m)), posted })); }); return; }
+    return res.end(JSON.stringify({ ready: true, msgs: fakeTalk.map((m) => (m.anon ? { ...m, t: 0 } : m)) }));
   }
   if (u.pathname === '/api/seen') {
     res.setHeader('content-type', 'application/json');
