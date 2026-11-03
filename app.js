@@ -1474,7 +1474,7 @@
     try { TALK = await getJSON('/api/talk'); talkAt = Date.now(); } catch { TALK = TALK || { ready: false, msgs: [] }; }
     const newest = TALK.msgs && TALK.msgs[0] ? TALK.msgs[0].at : 0, seen = Number(store.get('talk-seen')) || 0;
     $('#talk-dot').hidden = !(newest > seen && tab !== 'talk' && TALK.msgs[0].t !== ME && !myAnon().includes(TALK.msgs[0].id));
-    if (tab === 'talk') { store.set('talk-seen', String(newest)); renderTalkFeed(); }
+    if (tab === 'talk') { store.set('talk-seen', String(newest)); if (!(document.activeElement && document.activeElement.closest && document.activeElement.closest('.tk-rbox'))) renderTalkFeed(); } // don't yank the keyboard mid-reply
   }
   async function talkPost(body) {
     try {
@@ -1939,14 +1939,41 @@
     talkMsg = '';
     renderTalkFeed();
   }
+  // @Name mentions: highlighted in posts; a post that mentions you is flagged (push notifications use this too)
+  const OWNERS = () => D.teams.map((t) => t.owner).filter(Boolean);
+  const mentionRe = () => new RegExp('@(' + OWNERS().map((o) => o.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')\\b', 'gi');
+  const mentionsMe = (text) => !!(ME && T[ME] && new RegExp('@' + T[ME].owner + '\\b', 'i').test(text || ''));
+  function richText(text) {
+    const out = []; let last = 0; const re = mentionRe(); let m2;
+    while ((m2 = re.exec(text))) {
+      if (m2.index > last) out.push(text.slice(last, m2.index));
+      const isMe = ME && T[ME] && m2[1].toLowerCase() === T[ME].owner.toLowerCase();
+      out.push(el('span', { class: 'mention' + (isMe ? ' me' : ''), text: m2[0] }));
+      last = m2.index + m2[0].length;
+    }
+    if (last < text.length) out.push(text.slice(last));
+    return out;
+  }
+  const replyOpen = new Set(); const replyDraft = {}; let replyFocus = null;
   function renderTalkFeed() {
     const host = $('#talk-feed');
     if (!TALK) { host.replaceChildren(el('p', { class: 'note', text: 'Loading…' })); return; }
     if (!TALK.ready) { host.replaceChildren(el('p', { class: 'note', text: 'Trash Talk is unavailable right now.' })); return; }
-    const msgs = TALK.msgs.filter((m) => T[m.t] || m.bot || m.anon);
+    const all = TALK.msgs.filter((m) => T[m.t] || m.bot || m.anon);
+    const kids = {}; for (const m of all) if (m.p) (kids[m.p] ||= []).push(m);
+    for (const k of Object.values(kids)) k.sort((a, b) => a.at - b.at);
+    const msgs = all.filter((m) => !m.p);
     const mineAnon = new Set(myAnon());
     if (!msgs.length) { host.replaceChildren(el('div', { class: 'card' }, el('p', { class: 'note', text: 'Dead quiet in here. Somebody start some shit.' }))); return; }
     const isAdmin = ME === ADMIN && pinTok();
+    const whoOf = (m) => (m.bot ? ['League Bot', `Tuesday roast · ${ago(m.at)}`] : m.anon ? ['Anonymous', `${mineAnon.has(m.id) ? 'you posted this · ' : ''}${ago(m.at)}`] : [T[m.t].owner, `${T[m.t].name} · ${ago(m.at)}`]);
+    const avOf = (m) => (m.bot ? el('span', { class: 'tk-av bot', text: '🤖' }) : m.anon ? el('span', { class: 'tk-av anon', text: '🕵️' }) : avatar(m.t));
+    const delBtn = (m) => {
+      if (!(m.t === ME || isAdmin || (m.anon && mineAnon.has(m.id)))) return null;
+      const del = el('button', { class: 'linkbtn tk-del', type: 'button', text: 'Delete' });
+      del.addEventListener('click', async () => { if (!del.dataset.arm) { del.dataset.arm = 1; del.textContent = 'Sure?'; return; } await talkPost({ action: 'delete', id: m.id, token: pinTok(ADMIN) }); renderTalkFeed(); });
+      return del;
+    };
     host.replaceChildren(...msgs.map((m) => {
       const re = el('div', { class: 'tk-re' }, ...TALK_EMOJI.map((e) => {
         const who = (m.re && m.re[e]) || [], mine = who.includes(ME);
@@ -1954,8 +1981,6 @@
         b.addEventListener('click', async () => { if (!ME) return; await talkPost({ action: 'react', id: m.id, emoji: e }); renderTalkFeed(); });
         return b;
       }));
-      const del = (m.t === ME || isAdmin || (m.anon && mineAnon.has(m.id))) ? el('button', { class: 'linkbtn tk-del', type: 'button', text: 'Delete' }) : null;
-      if (del) del.addEventListener('click', async () => { if (!del.dataset.arm) { del.dataset.arm = 1; del.textContent = 'Sure?'; return; } await talkPost({ action: 'delete', id: m.id, token: pinTok(ADMIN) }); renderTalkFeed(); });
       const sh = el('button', { class: 'linkbtn tk-share', type: 'button', text: '📤 Share' });
       sh.addEventListener('click', () => shareToChat(m, sh));
       let rb = null;
@@ -1963,13 +1988,42 @@
         rb = el('button', { class: 'linkbtn tk-share', type: 'button', text: '🔥 Roast back' });
         rb.addEventListener('click', () => { talkDraft.target = m.t; { const r = roast(m.t); talkDraft.text = r.startsWith(T[m.t].owner) ? r : `@${T[m.t].owner} ${r}`; } renderTalk(); window.scrollTo({ top: 0, behavior: 'smooth' }); const ta = $('#talk-compose textarea'); if (ta) ta.focus({ preventScroll: true }); });
       }
-      const who = m.bot ? ['League Bot', `Tuesday roast · ${ago(m.at)}`] : m.anon ? ['Anonymous', `${mineAnon.has(m.id) ? 'you posted this · ' : ''}${ago(m.at)}`] : [T[m.t].owner, `${T[m.t].name} · ${ago(m.at)}`];
-      const av = m.bot ? el('span', { class: 'tk-av bot', text: '🤖' }) : m.anon ? el('span', { class: 'tk-av anon', text: '🕵️' }) : avatar(m.t);
-      return el('div', { class: 'card tk-msg' + (m.t === ME ? ' me' : '') + (m.bot ? ' bot' : '') + (m.anon ? ' anon' : '') },
-        el('div', { class: 'tk-head' }, av, el('div', {}, el('b', { text: who[0] }), el('small', { text: who[1] })), el('div', { class: 'tk-acts' }, rb, sh, del)),
-        m.text ? el('p', { class: 'tk-body', text: m.text }) : null,
+      const who = whoOf(m);
+      // replies
+      const rs = kids[m.id] || [];
+      const replyList = rs.length ? el('div', { class: 'tk-replies' }, ...rs.map((r) => {
+        const w = whoOf(r);
+        return el('div', { class: 'tk-reply' + (r.t === ME ? ' me' : '') + (mentionsMe(r.text) ? ' mentioned' : '') },
+          avOf(r), el('div', { class: 'tk-rbody' }, el('div', { class: 'tk-rhead' }, el('b', { text: w[0] }), el('small', { text: ago(r.at) }), delBtn(r)),
+            r.text ? el('p', {}, ...richText(r.text)) : null, r.gif ? el('img', { class: 'tk-gif-img', src: r.gif, alt: 'GIF', loading: 'lazy' }) : null));
+      })) : null;
+      const replyBtn = el('button', { class: 'linkbtn tk-replybtn', type: 'button', text: rs.length ? `💬 Reply (${rs.length})` : '💬 Reply' });
+      replyBtn.addEventListener('click', () => { if (replyOpen.has(m.id)) replyOpen.delete(m.id); else { replyOpen.add(m.id); replyFocus = m.id; if (replyDraft[m.id] == null) replyDraft[m.id] = { text: !m.anon && !m.bot && m.t !== ME && T[m.t] ? `@${T[m.t].owner} ` : '', anon: false }; } renderTalkFeed(); });
+      let box = null;
+      if (replyOpen.has(m.id) && ME) {
+        const dr = replyDraft[m.id];
+        const rta = el('textarea', { class: 'tk-text tk-rtext', rows: '2', maxlength: '600', placeholder: 'Reply…' }); rta.value = dr.text;
+        rta.addEventListener('input', () => { dr.text = rta.value; });
+        const anon = el('button', { class: 'tk-anon' + (dr.anon ? ' on' : ''), type: 'button' }, '🕵️ Anonymous');
+        anon.addEventListener('click', () => { dr.anon = !dr.anon; renderTalkFeed(); });
+        const send = el('button', { class: 'btn', type: 'button', text: 'Reply' });
+        send.addEventListener('click', async () => {
+          if (!rta.value.trim()) return;
+          send.disabled = true;
+          const ok = await talkPost({ action: 'post', text: rta.value.trim(), re_to: m.id, anon: dr.anon || undefined });
+          if (ok && dr.anon && TALK && TALK.posted) store.set('talk-anon-mine', JSON.stringify([TALK.posted, ...myAnon()].slice(0, 200)));
+          if (ok) { delete replyDraft[m.id]; replyOpen.delete(m.id); }
+          renderTalkFeed();
+        });
+        box = el('div', { class: 'tk-rbox' }, rta, el('div', { class: 'tk-row' }, anon, el('span', { class: 'sp' }), send), talkMsg ? el('p', { class: 'pin-err', text: talkMsg }) : null);
+        if (replyFocus === m.id) { replyFocus = null; setTimeout(() => { rta.focus(); rta.setSelectionRange(rta.value.length, rta.value.length); }, 0); }
+      }
+      return el('div', { class: 'card tk-msg' + (m.t === ME ? ' me' : '') + (m.bot ? ' bot' : '') + (m.anon ? ' anon' : '') + (mentionsMe(m.text) ? ' mentioned' : '') },
+        el('div', { class: 'tk-head' }, avOf(m), el('div', {}, el('b', { text: who[0] }), el('small', { text: who[1] })), el('div', { class: 'tk-acts' }, rb, sh, delBtn(m))),
+        mentionsMe(m.text) ? el('span', { class: 'tk-tag', text: '📣 mentions you' }) : null,
+        m.text ? el('p', { class: 'tk-body' }, ...richText(m.text)) : null,
         m.gif ? el('img', { class: 'tk-gif-img', src: m.gif, alt: 'GIF', loading: 'lazy' }) : null,
-        re);
+        el('div', { class: 'tk-foot' }, re, replyBtn), replyList, box);
     }));
   }
 

@@ -1,6 +1,7 @@
 // Trash Talk wall. Messages: { id, t: teamId, text, gif, at, re: { '🔥': [teamIds] } }
 // GET  /api/talk                                   -> { ready, msgs } newest first (last 300)
-// POST /api/talk { action:'post', team, text, gif, anon }  anon posts show as "Anonymous"; the poster is kept server-side only
+// POST /api/talk { action:'post', team, text, gif, anon, re_to }  re_to = id of the post being replied to
+// (was) POST /api/talk { action:'post', team, text, gif, anon }  anon posts show as "Anonymous"; the poster is kept server-side only
 // POST /api/talk { action:'react', team, id, emoji } (toggles)
 // POST /api/talk { action:'delete', team, id, token? } (your own, or any with the commissioner token)
 import { redis } from '../lib/kv.js';
@@ -49,12 +50,18 @@ export default async function handler(req, res) {
         const gif = b.gif ? gifUrl(b.gif) : null;
         if (b.gif && !gif) return res.status(400).json({ error: 'That GIF link didn’t work. Use a GIPHY or Tenor link.' });
         if (!text && !gif) return res.status(400).json({ error: 'Say something.' });
+        let parent = null;
+        if (b.re_to) {
+          const [pv] = await run([['HGET', 'talk:m', String(b.re_to)]]);
+          if (!pv) return res.status(404).json({ error: 'That post is gone.' });
+          parent = JSON.parse(pv); if (parent.p) parent = { id: parent.p }; // replies to a reply go under the original post
+        }
         const [ok] = await run([['SET', `talk:last:${team}`, '1', 'PX', 5000, 'NX']]);
         if (!ok) return res.status(429).json({ error: 'Slow down, killer. 5 seconds between posts.' });
         const at = Date.now(), id = at.toString(36) + Math.random().toString(36).slice(2, 6);
-        await run([['HSET', 'talk:m', id, JSON.stringify({ id, t: team, text, gif, at, re: {}, ...(b.anon ? { anon: true } : {}) })], ['ZADD', 'talk:z', at, id]]);
+        await run([['HSET', 'talk:m', id, JSON.stringify({ id, t: team, text, gif, at, re: {}, ...(b.anon ? { anon: true } : {}), ...(parent ? { p: parent.id } : {}) })], ['ZADD', 'talk:z', at, id]]);
         postedId = id;
-        await logAct(run, req, b.anon ? 0 : team, b.anon ? 'post-anon' : 'post', (text || '[GIF]').slice(0, 120)); // the poster's phone remembers its own anonymous posts so it can delete them
+        await logAct(run, req, b.anon ? 0 : team, parent ? (b.anon ? 'reply-anon' : 'reply') : (b.anon ? 'post-anon' : 'post'), (text || '[GIF]').slice(0, 120)); // the poster's phone remembers its own anonymous posts so it can delete them
         // keep the wall to the newest KEEP messages
         const [old] = await run([['ZRANGE', 'talk:z', 0, -(KEEP + 1)]]);
         if (old && old.length) await run([['ZREM', 'talk:z', ...old], ['HDEL', 'talk:m', ...old]]);
@@ -74,7 +81,8 @@ export default async function handler(req, res) {
           const m = JSON.parse(v);
           const admin = await verify(run, ADMIN_TEAM, b.token);
           if (m.t !== team && !admin) return res.status(403).json({ error: 'You can only delete your own posts' });
-          await run([['HDEL', 'talk:m', m.id], ['ZREM', 'talk:z', m.id]]);
+          const kids = m.p ? [] : (await list(run)).filter((x) => x.p === m.id).map((x) => x.id); // deleting a post takes its replies with it
+          await run([['HDEL', 'talk:m', m.id, ...kids], ['ZREM', 'talk:z', m.id, ...kids]]);
           await logAct(run, req, m.anon ? 0 : team, admin && m.t !== team ? 'admin-delete' : 'delete', (m.text || '').slice(0, 80));
         }
       }
