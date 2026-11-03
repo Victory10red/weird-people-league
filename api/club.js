@@ -2,7 +2,8 @@
 // GET  /api/club?k=trophy                    -> { ready, items: { year: { caption, last, punishment, photo } } }
 // POST /api/club { k:'trophy', year, token, caption?, last?, punishment?, photo? (data URL, or '' to remove) }  app admin only
 // GET  /api/club?k=pred&year=2026&week=8&team=4 -> { ready, week, locksAt, locked, qs, mine, results?, board: { week, season } }
-// POST /api/club { k:'pred', year, week, team, q, a }  -> answer one question (changeable until the week's first kickoff)
+// POST /api/club { k:'pred', year, week, team, q, a }  -> answer one question (changeable until you lock in, or the week's first kickoff)
+// POST /api/club { k:'pred', year, week, team, action:'lock' } -> lock in all your answers for good (every question answered)
 import { redis } from '../lib/kv.js';
 import { fetchLive, nflRemaining } from '../lib/espn.js';
 import { liveScores } from '../lib/live.js';
@@ -153,10 +154,21 @@ export default async function handler(req, res) {
     const locksAt = slate.length ? slate.map((g) => g.kickoff).sort()[0] : null;
     const locked = !!locksAt && Date.now() >= new Date(locksAt).getTime();
     const { qs, results } = await getWeek(run, year, week, locked);
-    const key = `predans:${year}:${week}`;
+    const key = `predans:${year}:${week}`, lkey = `predlock:${year}:${week}`;
     if (req.method === 'POST') {
       if (!Number.isInteger(team) || team < 1 || team > 99) return res.status(400).json({ error: 'Pick who you are first' });
       if (locked) return res.status(409).json({ error: 'Predictions locked at the first kickoff of the week.' });
+      const [mineLock] = await run([['HGET', lkey, String(team)]]);
+      if (mineLock) return res.status(409).json({ error: 'You already locked in your predictions for this week.' });
+    }
+    if (req.method === 'POST' && q.action === 'lock') {
+      const [cur] = await run([['HGET', key, String(team)]]);
+      const mine = cur ? JSON.parse(cur) : {};
+      const left = qs.filter((x) => !mine[x.id]).length;
+      if (left) return res.status(400).json({ error: `Answer all ${qs.length} first (${left} left).` });
+      await run([['HSET', lkey, String(team), String(Date.now())], ['EXPIRE', lkey, 400 * 86400]]);
+      await logAct(run, req, team, 'predict-lock', `locked in week ${week} predictions`);
+    } else if (req.method === 'POST') {
       const qq = qs.find((x) => x.id === q.q);
       if (!qq || !qq.opts.some((o) => o.v === q.a)) return res.status(400).json({ error: 'Pick one of the options' });
       const [cur] = await run([['HGET', key, String(team)]]);
@@ -165,8 +177,11 @@ export default async function handler(req, res) {
       await run([['HSET', key, String(team), JSON.stringify(mine)], ['EXPIRE', key, 400 * 86400]]);
       if (!was) await logAct(run, req, team, 'predict', `week ${week} predictions`);
     }
-    const [flat] = await run([['HGETALL', key]]);
-    const all = readHash(flat);
+    const [flat, lflat] = await run([['HGETALL', key], ['HGETALL', lkey]]);
+    const all = readHash(flat), lockedIn = readHash(lflat);
+    // who has done what so far (counts only, never the answers, until the week locks)
+    const ids = new Set(qs.map((x) => x.id));
+    const status = Object.fromEntries(Object.entries(all).map(([t, a]) => [t, { n: Object.keys(a).filter((k) => ids.has(k)).length, at: lockedIn[t] || null }]));
     // everyone's answers stay hidden until the lock
     const weekBoard = results ? Object.entries(all).map(([t, a]) => ({ id: Number(t), ...score(a, results) })).sort((a, b) => b.c - a.c) : [];
     const season = {};
@@ -177,7 +192,7 @@ export default async function handler(req, res) {
       for (const [t, a] of Object.entries(ans)) { const s = score(a, rr), x = (season[t] ||= { c: 0, n: 0, wk: 0 }); x.c += s.c; x.n += s.n; x.wk++; }
     }
     return res.status(200).json({ ready: true, week, locksAt, locked, qs, results, mine: Number.isInteger(team) ? all[team] || {} : {},
-      picks: locked ? all : undefined, made: Object.keys(all).length,
+      picks: locked ? all : undefined, made: Object.keys(all).length, status, total: qs.length, lockedAt: Number.isInteger(team) ? lockedIn[team] || null : null,
       board: { week: weekBoard, season: Object.entries(season).map(([t, v]) => ({ id: Number(t), ...v })).sort((a, b) => b.c - a.c || a.n - b.n) } });
   } catch (e) {
     return res.status(502).json({ ready: false, error: `Predictions unavailable (${e.message})` });

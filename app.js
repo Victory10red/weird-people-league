@@ -1287,7 +1287,7 @@
   // admin: everything people did, newest first (who, what, when, which kind of device)
   let actFilter = 'all', actShow = 120;
   const ACT = { open: 'opened the app', post: 'posted in Trash Talk', 'post-anon': 'posted anonymously', react: 'reacted', delete: 'deleted their post', 'admin-delete': 'deleted a post (admin)',
-    picks: 'Pick’em:', poop: 'logged a 💩', 'poop-undo': 'undid a 💩', game: 'played', 'admin-reset-picks': 'reset Pick’em picks (admin)', 'admin-remove-score': 'removed a score (admin)', reply: 'replied', 'reply-anon': 'replied anonymously', predict: 'made predictions:', 'push-on': 'turned on notifications 🔔', 'push-test': 'sent a test notification via', 'push-error': '⚠️ notification failed:', 'push-off': 'turned off notifications' };
+    picks: 'Pick’em:', poop: 'logged a 💩', 'poop-undo': 'undid a 💩', game: 'played', 'admin-reset-picks': 'reset Pick’em picks (admin)', 'admin-remove-score': 'removed a score (admin)', reply: 'replied', 'reply-anon': 'replied anonymously', predict: 'made predictions:', 'predict-lock': 'Predictions:', 'push-on': 'turned on notifications 🔔', 'push-test': 'sent a test notification via', 'push-error': '⚠️ notification failed:', 'push-off': 'turned off notifications' };
   function activityLog(log) {
     const box = el('div', { class: 'act' });
     const people = [...new Set(log.map((e) => e.t))];
@@ -1407,18 +1407,32 @@
     } catch (e) { prMsg = e.message; }
     prBusy = false; renderPred();
   }
+  let prConfirm = false;
+  async function predLock() {
+    if (prBusy) return;
+    if (!prConfirm) { prConfirm = true; renderPred(); return; }
+    prBusy = true; prConfirm = false; prMsg = ''; renderPred();
+    try {
+      const r = await fetch('/api/club', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ k: 'pred', year: D.league.year, week: PR.wk, team: ME, action: 'lock' }) });
+      const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Didn’t lock');
+      const wk = PR.wk; PR = j; PR.wk = wk; PR.me = ME; prMsg = '✓ Locked in. Good luck.';
+    } catch (e) { prMsg = e.message; }
+    prBusy = false; renderPred();
+  }
   function renderPred() {
     const host = $('#play-pred');
     if (!PR || PR.wk !== (prWeek || D.league.week) || PR.me !== ME) { host.replaceChildren(el('div', { class: 'card' }, el('p', { class: 'note', text: 'Loading this week’s predictions…' }))); if (!prBusy) { prBusy = true; loadPred().finally(() => { prBusy = false; }); } return; }
     if (!PR.ready) { host.replaceChildren(el('div', { class: 'card' }, el('p', { class: 'note', text: PR.error || 'Predictions need the league database.' }))); return; }
     const wk = PR.wk, mine = PR.mine || {}, res = PR.results;
     const answered = PR.qs.filter((q) => mine[q.id]).length;
+    const frozen = PR.locked || !!PR.lockedAt; // the week has started, or you locked in
+    const hm = (ts) => new Date(Number(ts)).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
     const right = res ? PR.qs.filter((q) => mine[q.id] && mine[q.id] === res[q.id]).length : 0;
     const nav = (d, lab) => { const b = el('button', { class: 'btn ghost pk-nav', type: 'button', text: lab, disabled: (wk + d < 1 || wk + d > D.league.week) ? 'disabled' : null }); b.addEventListener('click', () => { prWeek = wk + d; PR = null; renderPred(); }); return b; };
     const lockTxt = PR.locksAt ? new Date(PR.locksAt).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' }) : null;
     const head = el('div', { class: 'card pk-head' },
       el('div', { class: 'pk-title' }, nav(-1, '‹'), el('div', {}, el('h2', { text: `Week ${wk} Predictions` }), el('small', { text: res ? `You went ${right} for ${answered}` : `${answered} of ${PR.qs.length} answered` })), nav(1, '›')),
-      el('p', { class: 'note', text: res ? 'Graded from the final scores.' : PR.locked ? 'Locked. Results come in when the week is final.' : `Free picks on our own league. Change them any time until the first kickoff${lockTxt ? ` (${lockTxt})` : ''}. Everyone’s answers show after that.` }),
+      el('p', { class: 'note', text: res ? 'Graded from the final scores.' : PR.locked ? 'Locked. Results come in when the week is final.' : PR.lockedAt ? `🔒 You locked in ${hm(PR.lockedAt)}. Everyone’s answers show at the first kickoff${lockTxt ? ` (${lockTxt})` : ''}.` : `Answer all ${PR.qs.length}, then lock in. You can change answers until you lock (deadline: first kickoff${lockTxt ? `, ${lockTxt}` : ''}). The standings show who’s locked in.` }),
       prMsg ? el('p', { class: prMsg.startsWith('✓') ? 'note al-ok' : 'pin-err', text: prMsg }) : null);
     const teamQ = (q) => q.kind === 'top' || q.kind === 'low' || q.kind === 'match';
     const label = (q, o) => (teamQ(q) && T[o.v] ? T[o.v].owner : o.label);
@@ -1432,12 +1446,12 @@
         const on = mine[q.id] === o.v, isAns = res && res[q.id] === o.v;
         const n = PR.picks ? crowd.filter((a) => a[q.id] === o.v).length : null, sub = subOf(q, o);
         const tipTxt = [label(q, o), sub, o.p != null ? `The app gives this a ${o.p}% chance` : '', n ? `${n} of us picked it` : ''].filter(Boolean).join(' · ');
-        const b = el('button', { class: 'pr-opt' + (on ? ' on' : '') + (res ? (isAns ? ' won' : on ? ' lost' : '') : '') + (sub || o.p != null ? ' rich' : ''), type: 'button', disabled: PR.locked ? 'disabled' : null, title: tipTxt },
+        const b = el('button', { class: 'pr-opt' + (on ? ' on' : '') + (res ? (isAns ? ' won' : on ? ' lost' : '') : '') + (sub || o.p != null ? ' rich' : ''), type: 'button', disabled: frozen ? 'disabled' : null, title: tipTxt },
           el('span', { class: 'pr-ol' }, el('span', { text: label(q, o) }), sub ? el('small', { class: 'pr-sub', text: sub }) : null),
           el('span', { class: 'pr-or' }, o.p != null ? el('small', { class: 'pr-p' + (best === o ? ' bot' : ''), text: `${best === o ? '🤖 ' : ''}${o.p}%` }) : null,
             n != null && n > 0 ? el('small', { class: 'pr-n2', text: `${n} 👤` }) : null),
           on && res ? el('span', { class: 'pk-mark', text: isAns ? '✅' : '❌' }) : null);
-        if (!PR.locked) b.addEventListener('click', () => predAnswer(q.id, o.v));
+        if (!frozen) b.addEventListener('click', () => { prConfirm = false; predAnswer(q.id, o.v); });
         return b;
       });
       return el('div', { class: 'card pr-q' }, el('div', { class: 'pr-n', text: `${i + 1}` }), el('div', {}, el('b', { text: qText(q) }),
@@ -1445,13 +1459,30 @@
         el('div', { class: 'pr-opts' + (q.opts.length > 2 ? ' many' : '') + (q.opts.some((o) => o.sub || o.p != null) ? ' rich' : '') + (q.kind === 'star' || q.kind === 'bench' || q.kind === 'close' ? ' one' : '') }, ...btns)));
     });
     const rows = (PR.board && PR.board[prBoard]) || [];
+    const st = PR.status || {};
+    const statusList = !res && prBoard === 'week' ? el('ul', { class: 'lb pr-status' }, ...[...D.teams].map((t) => ({ t, s: st[t.id] || { n: 0, at: null } }))
+      .sort((a, b) => (!!b.s.at - !!a.s.at) || (a.s.at && b.s.at ? a.s.at - b.s.at : b.s.n - a.s.n) || a.t.owner.localeCompare(b.t.owner))
+      .map(({ t, s }) => el('li', { class: t.id === ME ? 'me' : '' },
+        el('span', { class: 'lb-r', text: s.at ? '🔒' : s.n ? '✏️' : '·' }),
+        el('span', { class: 'lb-n' }, el('b', { text: t.owner }), el('small', { text: t.name })),
+        el('span', { class: 'lb-s' }, el('b', { class: s.at ? 'up' : '', text: s.at ? 'Locked in' : s.n ? `${s.n} of ${PR.total || PR.qs.length}` : 'Not started' })),
+        el('span', { class: 'lb-d', text: s.at ? hm(s.at) : '' })))) : null;
     const segb = (k, lab) => { const b = el('button', { 'aria-pressed': String(prBoard === k), text: lab }); b.addEventListener('click', () => { prBoard = k; renderPred(); }); return b; };
     const lb = el('div', { class: 'card pk-lb' }, el('div', { class: 'row-head' }, el('h3', { text: 'Prediction standings' }), el('div', { class: 'seg' }, segb('week', `Week ${wk}`), segb('season', 'Season'))),
-      rows.length ? el('ul', { class: 'lb' }, ...rows.filter((r) => T[r.id]).map((r, i) => el('li', { class: r.id === ME ? 'me' : '' },
+      statusList || (rows.length ? el('ul', { class: 'lb' }, ...rows.filter((r) => T[r.id]).map((r, i) => el('li', { class: r.id === ME ? 'me' : '' },
         el('span', { class: 'lb-r', text: i === 0 && r.c ? '👑' : String(i + 1) }), el('span', { class: 'lb-n' }, el('b', { text: T[r.id].owner }), el('small', { text: T[r.id].name })),
         el('span', { class: 'lb-s' }, el('b', { text: `${r.c}/${r.n}` })), el('span', { class: 'lb-d', text: prBoard === 'season' ? `${r.wk} wk${r.wk === 1 ? '' : 's'}` : '' }))))
-        : el('p', { class: 'note', text: prBoard === 'week' ? (res ? 'Nobody predicted this week.' : 'Standings show once the week is final.') : 'No graded weeks yet.' }));
-    host.replaceChildren(head, ...cards, lb);
+        : el('p', { class: 'note', text: prBoard === 'week' ? (res ? 'Nobody predicted this week.' : 'Standings show once the week is final.') : 'No graded weeks yet.' })));
+    // lock-in bar
+    let bar = null;
+    if (!frozen && answered) {
+      const all = answered === PR.qs.length;
+      const go = el('button', { class: 'btn big pk-lockbtn' + (prConfirm ? ' confirm' : ''), type: 'button', disabled: all ? null : 'disabled',
+        text: prBusy ? 'Locking in…' : !all ? `Answer all ${PR.qs.length} to lock in (${answered} done)` : prConfirm ? 'Tap again to lock in for good' : `🔒 Lock in my ${PR.qs.length} predictions` });
+      go.addEventListener('click', predLock);
+      bar = el('div', { class: 'pk-bar' }, el('small', { text: all ? 'Once you lock in, your answers can’t change. Everyone sees you’re in.' : 'Your answers save as you go. Lock in when you’re done.' }), go);
+    }
+    host.replaceChildren(...[head, ...cards, lb, bar].filter(Boolean));
   }
   // ---------- NFL Pick'em: pick the winner of every game, locks at kickoff ----------
   let PK = null, pkWeek = null, pkBoard = 'week', pkMsg = '', pkBusy = false;
