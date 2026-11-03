@@ -1762,6 +1762,10 @@
       `${F.o}'s letterman says "Mr. Muscle." His roster says "${F.winning ? 'Mr. Luck' : 'Mr. Bust'}." ${F.rec}.`,
       `${F.o} says he's ${F.rec} because of skill. He's a pathological liar, so consider the source.`,
       `${F.o} swears he set his lineup on time last week. Pathological liar. ${F.lostLast >= 10 ? `He left ${f1(F.lostLast)} on the bench in week ${F.last.wk}.` : 'Nobody believes him.'}`,
+      `Fun fact from ${F.o}: he's "basically ${F.winning ? 'undefeated' : '.500'}" and "benched the right guys every week." ${F.rec} and ${F.bench} points on the bench say otherwise.`,
+      `${F.o} told us he'd ${F.winning ? 'go undefeated' : 'turn it around'} this year. He also told us he set his lineup on time. Pathological liar, ${F.rec}.`,
+      `${F.o}'s "Mr. Muscle" letterman doesn't zip anymore, and neither does his lineup: ${F.eff}% efficiency.`,
+      `${F.o} says the jacket still fits. Pathological liar. The jacket is a crop top now.`,
     ], lines: (F) => [
       `${F.o}'s lineup is like ${F.o}: big, slow, and ${F.bench} points of it sitting on the bench.`,
       `Somebody call SeaWorld, a whale just set his lineup. ${F.o} is ${F.rec}${F.winning ? ' and it is pure luck' : ', it still sucks'}.`,
@@ -1781,6 +1785,10 @@
       F.top ? `${F.o} has mommy issues, which explains why he needs ${F.top.name} to carry him (${f1(F.top.share)}% of his points).` : `${F.o} has mommy issues and still wants someone to carry him.`,
       `${F.o} dyes his hair to cover the grays this team gave him. ${F.rec}.`,
       `${F.o} works for an NFL player and still couldn't find a calf muscle in the whole organization.`,
+      `${F.o}'s skincare routine has more steps than his win streak. ${F.rec}.`,
+      `${F.o} spends more time at the salon getting his roots touched up than on the waiver wire. It shows: ${F.place} place.`,
+      `${F.o}'s nails are done, his hair is dyed, his calves are missing and his team is ${F.rec}. Something has to give, and it's not the manicure.`,
+      `${F.o} books his manicure before he sets his lineup. ${F.po}% playoff odds, perfect cuticles.`,
     ], lines: (F) => [
       `${F.o} works for an NFL player and still has ${an((F.card.draft || {}).g || 'F')} draft grade. The bag guy, everyone.`,
       `${F.o} thinks he's better than everyone. ${F.rec}, ${F.pfRank} in points. He isn't.`,
