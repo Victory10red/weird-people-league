@@ -1445,6 +1445,29 @@
   }
   // ---------- NFL Pick'em: pick the winner of every game, locks at kickoff ----------
   let PK = null, pkWeek = null, pkBoard = 'week', pkMsg = '', pkBusy = false;
+  const pkOpen = new Set(); // games with the details panel open
+  const canHover = window.matchMedia && matchMedia('(hover: hover) and (pointer: fine)').matches;
+  // everything we know about one NFL game: odds, records, projected score, weather, our league's players in it
+  function pkInfo(g, wk) {
+    const cur = D && wk === D.league.week;
+    const n = cur ? (D.nfl || []).find((x) => x.home.abbr === g.home.abbr && x.away.abbr === g.away.abbr) : null;
+    const hwin = g.hwin ?? n?.hwin ?? null;
+    const side = (s, ns, home) => ({ abbr: s.abbr, name: s.name, rec: s.rec || ns?.rec || null, win: hwin == null ? null : Math.round(100 * (home ? hwin : 1 - hwin)), implied: ns?.implied ?? null, ppg: ns?.ppg ?? null, papg: ns?.papg ?? null });
+    const players = [];
+    if (cur) for (const t of D.teams) for (const r of D.rosters[t.id] || []) if ((r.nfl === g.home.abbr || r.nfl === g.away.abbr) && r.slot !== 'IR') players.push({ ...r, tid: t.id });
+    players.sort((a, b) => (b.starter - a.starter) || b.proj - a.proj);
+    return { a: side(g.away, n?.away, false), h: side(g.home, n?.home, true), total: g.total ?? n?.odds?.total ?? null, line: n?.odds?.details || (g.fav && g.line != null ? (g.line ? `${g.fav} -${g.line}` : 'Pick ’em') : null), n, players };
+  }
+  function pkTipText(x, s) {
+    const bits = [];
+    if (s.rec) bits.push(`Record ${s.rec}`);
+    if (s.win != null) bits.push(`${s.win}% to win (Vegas)`);
+    if (s.implied != null) bits.push(`Projected ${f1(s.implied)} pts`);
+    if (s.ppg != null) bits.push(`Scores ${f1(s.ppg)}/game, allows ${f1(s.papg)}`);
+    const ours = x.players.filter((p) => p.nfl === s.abbr && p.starter).slice(0, 4);
+    if (ours.length) bits.push('League starters: ' + ours.map((p) => `${p.name} (${tm(p.tid).owner}) ${f1(p.proj)}`).join(', '));
+    return bits.join('\n');
+  }
   const logo = (abbr) => { const i = el('img', { class: 'pk-logo', src: `https://a.espncdn.com/i/teamlogos/nfl/500/${String(abbr).toLowerCase()}.png`, alt: '', loading: 'lazy' }); i.addEventListener('error', () => { i.style.visibility = 'hidden'; }); return i; };
   async function loadPickem() {
     const wk = pkWeek || D.league.week;
@@ -1497,21 +1520,47 @@
     const groups = []; for (const g of games) { const d = day(g); if (!groups.length || groups[groups.length - 1][0] !== d) groups.push([d, []]); groups[groups.length - 1][1].push(g); }
     const card = (g) => {
       const started = isLocked(g), lockedIn = !!mine[g.id], lk = started || lockedIn, my = mine[g.id] || draft[g.id], who = (PK.picked && PK.picked[g.id]) || {};
+      const x = pkInfo(g, wk);
       const side = (s) => {
         const chosen = my === s.abbr, won = g.winner === s.abbr;
         const b = el('button', { class: 'pk-team' + (chosen ? (lockedIn ? ' on' : ' draft') : '') + (g.done ? (won ? ' won' : ' lost') : ''), type: 'button', disabled: lk ? 'disabled' : null, 'aria-pressed': String(chosen) },
           logo(s.abbr),
           el('div', { class: 'pk-tn' }, el('b', { text: s.abbr }), el('small', { text: s.name })),
-          s.score != null ? el('span', { class: 'pk-sc', text: String(s.score) }) : null,
+          s.score != null ? el('span', { class: 'pk-sc', text: String(s.score) }) : el('span', { class: 'pk-rec', text: (s.abbr === g.home.abbr ? x.h : x.a).rec || '' }),
           chosen ? el('span', { class: 'pk-mark', text: g.done ? (won ? '✅' : '❌') : lockedIn ? '🔒' : '✓' }) : null);
         if (!lk) b.addEventListener('click', () => pickTeam(g, s.abbr));
+        if (canHover) { const sx = s.abbr === g.home.abbr ? x.h : x.a; b.addEventListener('mousemove', (ev) => tip.show(ev, sx.name && sx.name !== sx.abbr ? `${sx.abbr} ${sx.name}` : sx.abbr, pkTipText(x, sx))); b.addEventListener('mouseleave', () => tip.hide()); }
         return b;
       };
       const t = new Date(g.kickoff).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
       const split = started && Object.keys(who).length ? el('div', { class: 'pk-split' }, ...[g.away.abbr, g.home.abbr].filter((a) => who[a]).map((a) => el('span', {}, el('b', { text: `${a}: ` }), who[a].map((id) => (T[id] ? T[id].owner : '?')).join(', ')))) : null;
       return el('div', { class: 'card pk-game' + (my ? ' picked' : '') + (started ? ' locked' : '') },
-        el('div', { class: 'pk-meta' }, el('span', { text: g.state === 'pre' ? t : g.status || (g.done ? 'Final' : 'Live') }), g.fav && g.line != null && !g.done ? el('span', { text: `Vegas: ${g.fav} by ${g.line}` }) : null),
-        el('div', { class: 'pk-teams' }, side(g.away), el('span', { class: 'pk-at', text: '@' }), side(g.home)), split);
+        el('div', { class: 'pk-meta' }, el('span', { text: g.state === 'pre' ? t : g.status || (g.done ? 'Final' : 'Live') }), x.line && !g.done ? el('span', { text: `${x.line}${x.total ? ` · O/U ${f1(x.total)}` : ''}` }) : null),
+        el('div', { class: 'pk-teams' }, side(g.away), el('span', { class: 'pk-at', text: '@' }), side(g.home)),
+        x.a.win != null && !g.done ? el('div', { class: 'pk-odds', title: 'Chance to win from the Vegas moneyline' },
+          el('span', { class: 'pk-oa', text: `${x.a.win}%` }),
+          el('div', { class: 'pk-obar' }, el('i', { style: `width:${x.a.win}%` })),
+          el('span', { class: 'pk-oh', text: `${x.h.win}%` })) : null,
+        split, pkDetails(g, x, my));
+    };
+    const pkDetails = (g, x, my) => {
+      const isOpen = pkOpen.has(g.id);
+      const btn = el('button', { class: 'linkbtn pk-more', type: 'button', 'aria-expanded': String(isOpen), text: isOpen ? 'Hide details ▴' : `Details ▾${x.players.length ? ` · ${x.players.filter((p) => p.starter).length} league starters` : ''}` });
+      btn.addEventListener('click', () => { if (pkOpen.has(g.id)) pkOpen.delete(g.id); else pkOpen.add(g.id); renderPickem(); });
+      if (!isOpen) return btn;
+      const row = (lab, fa, fh, best) => { const va = fa(x.a), vh = fh ? fh(x.h) : fa(x.h); if (va == null && vh == null) return null; const b = best && va != null && vh != null && va !== vh ? (best(va, vh) ? 'a' : 'h') : ''; return el('tr', {}, el('td', { class: 'pk-dl', text: lab }), el('td', { class: b === 'a' ? 'good' : '', text: va == null ? '–' : String(fmtv(lab, va)) }), el('td', { class: b === 'h' ? 'good' : '', text: vh == null ? '–' : String(fmtv(lab, vh)) })); };
+      const fmtv = (lab, v) => (typeof v === 'number' ? (lab.includes('win') ? v + '%' : f1(v)) : v);
+      const tbl = el('table', { class: 'pk-dt' }, el('thead', {}, el('tr', {}, el('th', {}), el('th', { text: x.a.abbr }), el('th', { text: x.h.abbr }))),
+        el('tbody', {}, row('Record', (s) => s.rec), row('Chance to win', (s) => s.win, null, (a, h) => a > h), row('Vegas projected score', (s) => s.implied, null, (a, h) => a > h),
+          row('Points per game', (s) => s.ppg, null, (a, h) => a > h), row('Points allowed per game', (s) => s.papg, null, (a, h) => a < h)));
+      const n = x.n, wx = n ? wxText(n) : null;
+      const facts = el('p', { class: 'note pk-facts', text: [x.line ? `Spread ${x.line}` : null, x.total ? `over/under ${f1(x.total)}` : null, wx && wx !== '–' ? `weather ${wx}` : null, g.venue || n?.venue || null].filter(Boolean).join(' · ') });
+      const pl = x.players.length ? el('div', { class: 'pk-pl' }, el('div', { class: 'pk-plh', text: `Our league’s players in this game (Week ${PK.wk} projections)` }),
+        ...x.players.map((p) => el('div', { class: 'pk-pr' + (p.tid === ME ? ' me' : '') + (p.starter ? '' : ' bench') },
+          el('span', { class: pcls(p.pos), text: p.pos }), el('span', { class: 'pk-pn' }, el('b', { text: p.name }), el('small', { text: `${p.nfl} · ${tm(p.tid).owner}${p.starter ? '' : ' · bench'}${p.inj ? ' · ' + p.inj : ''}` })),
+          el('span', { class: 'pk-pp', text: g.state === 'pre' ? f1(p.proj) : '' }))))
+        : (PK.wk === D.league.week ? el('p', { class: 'note', text: 'Nobody in our league has a player in this game.' }) : null);
+      return el('div', { class: 'pk-det' }, btn, tbl, facts, pl);
     };
     const body = games.length ? groups.flatMap(([d, gs]) => [el('h3', { class: 'pk-day', text: d }), ...gs.map(card)]) : [el('div', { class: 'card' }, el('p', { class: 'note', text: 'No NFL games found for this week.' }))];
     // leaderboard

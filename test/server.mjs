@@ -48,10 +48,10 @@ const slate = (league.nfl || []).map((g, i) => {
   const st = i < 3 ? 'post' : i < 5 ? 'in' : 'pre';
   const hs = st === 'pre' ? null : 10 + ((i * 7) % 21), as = st === 'pre' ? null : 13 + ((i * 11) % 17);
   const kick = new Date(Date.now() + (st === 'pre' ? (i - 4) * 3 * 3600000 : -3 * 3600000)).toISOString();
-  const side = (x, sc, w) => ({ abbr: x.abbr, name: NAMES[x.abbr] || x.abbr, score: sc, winner: w });
+  const side = (x, sc, w) => ({ abbr: x.abbr, name: NAMES[x.abbr] || x.abbr, score: sc, winner: w, rec: `${3 + ((i * 5 + x.abbr.length) % 5)}-${2 + (i % 4)}` });
   const done = st === 'post';
   return { id: String(g.id), kickoff: kick, state: st, status: st === 'post' ? 'Final' : st === 'in' ? 'Q3 4:12' : '', done,
-    home: side(g.home, hs, done && hs > as), away: side(g.away, as, done && as > hs), fav: g.odds && g.odds.favId === g.homeId ? g.home.abbr : g.away.abbr, line: g.odds ? g.odds.line : null,
+    home: side(g.home, hs, done && hs > as), away: side(g.away, as, done && as > hs), fav: g.odds && g.odds.favId === g.homeId ? g.home.abbr : g.away.abbr, line: g.odds ? g.odds.line : null, total: g.odds ? g.odds.total : null, hwin: g.odds ? (g.odds.favId === g.homeId ? 0.5 + g.odds.line / 30 : 0.5 - g.odds.line / 30) : null, venue: 'Somewhere Stadium',
     winner: done ? (hs > as ? g.home.abbr : g.away.abbr) : null };
 });
 const fakePicks = {};
