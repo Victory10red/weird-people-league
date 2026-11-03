@@ -1661,11 +1661,7 @@
       `${F.n} averages ${F.avg} a week. Like its manager, it comes up short.`,
       F.worst && `${F.o} scored ${f1(F.worst.pts)} in week ${F.worst.wk}. Even her lowlights are 5'2".`,
     ] },
-    { re: /^carlos/i, lines: (F) => [
-      `${F.o} sucks at video games, and fantasy football is just a video game with spreadsheets. Do the math: ${F.rec}.`,
-      F.bk ? `${F.o}'s best Breakaway run is ${F.bk.r.score} yards on ${F.bk.l}. The commissioner, ladies and gentlemen.` : `${F.o} hasn't even posted a Breakaway score. Scared of a mouse game, commissioner?`,
-      `${F.o} plays Madden on Rookie and still throws picks. ${F.n} is that, but with ${F.bench} points on the bench.`,
-      `Give ${F.o} a controller and he loses to the tutorial. Give him a roster and he goes ${F.rec}. Consistent, at least.`,
+    { re: /^carlos/i, priority: (F) => [
       `${F.o} is a liberal, which explains the ${F.bench} points on his bench. He thinks every player deserves equal playing time.`,
       `${F.o} wants to redistribute the league's points. Makes sense, his team hasn't earned any. ${F.rec}.`,
       `${F.o} doesn't believe in benching players. Everybody gets a participation trophy. Everybody gets an L. ${F.rec}.`,
@@ -1674,6 +1670,11 @@
       F.po < 50 ? `${F.o}'s playoff odds are ${F.po}%. He's calling for a recount.` : `${F.o} is ${F.rec} and already writing an op-ed about how the playoff format is unfair.`,
       `${F.o} runs ${F.n} like a government program: way over budget, nothing gets done, and somehow he wants more funding.`,
       `${F.o} would trade his whole roster for one free agent if you called it a "stimulus package."`,
+    ], lines: (F) => [
+      `${F.o} sucks at video games, and fantasy football is just a video game with spreadsheets. Do the math: ${F.rec}.`,
+      F.bk ? `${F.o}'s best Breakaway run is ${F.bk.r.score} yards on ${F.bk.l}. The commissioner, ladies and gentlemen.` : `${F.o} hasn't even posted a Breakaway score. Scared of a mouse game, commissioner?`,
+      `${F.o} plays Madden on Rookie and still throws picks. ${F.n} is that, but with ${F.bench} points on the bench.`,
+      `Give ${F.o} a controller and he loses to the tutorial. Give him a roster and he goes ${F.rec}. Consistent, at least.`,
     ] },
     { re: /^justin/i, lines: (F) => [
       `${F.o}'s lineup is like ${F.o}: big, slow, and ${F.bench} points of it sitting on the bench.`,
@@ -1703,6 +1704,8 @@
     const pick = (pool) => { pool = pool.filter((x) => x && x !== lastRoast); return pool[Math.floor(Math.random() * pool.length)]; };
     // this week's matchup about a third of the time, personal material most of the rest, then the numbers
     const r = Math.random(), wl = weekLines(F);
+    // someone's signature material comes first when they have it (Carlos: politics)
+    if (mine && mine.priority && Math.random() < 0.6) { const p = pick(mine.priority(F)); if (p) { lastRoast = p; return p; } }
     const out = (wl.length && r < 0.35 && pick(wl)) || (mine && r < 0.8 && pick(mine.lines(F))) || pick(roastLines(F)) || pick(wl) || '';
     lastRoast = out; return out;
   }
