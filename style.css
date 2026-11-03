@@ -745,3 +745,24 @@ body.tv #tv-exit { top: auto; bottom: 14px; right: auto; left: 18px; }
 .pk-pn { display: grid; min-width: 0; } .pk-pn b { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .pk-pn small { font-size: 11.5px; color: var(--muted); }
 .pk-pp { font-weight: 600; font-variant-numeric: tabular-nums; }
 #tip { white-space: pre-line; }
+
+.pk-money { margin-top: 6px; font-size: 12.5px; text-align: center; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pk-money.up, .pk-bank .up, .lb .up { color: var(--good); } .pk-money.down, .pk-bank .down, .lb .down { color: var(--bad); }
+.pk-bank { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; padding: 10px; border-radius: 12px; background: var(--panel-2); text-align: center; }
+.pk-bank small { display: block; font-size: 11.5px; color: var(--muted); } .pk-bank b { font: 600 18px Oswald, Inter, sans-serif; font-variant-numeric: tabular-nums; }
+.pk-bank .note { grid-column: 1 / -1; margin: 0; font-size: 11.5px; }
+
+/* predictions v2 */
+.pr-info { margin: 4px 0 8px; font-size: 12.5px; color: var(--muted); line-height: 1.35; }
+.pr-opts.rich { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.pr-opts.rich.many { grid-template-columns: 1fr 1fr; }
+.pr-opt.rich { display: flex; justify-content: space-between; align-items: center; gap: 6px; text-align: left; min-width: 0; position: relative; }
+.pr-ol { display: grid; min-width: 0; } .pr-ol > span { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pr-sub { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 400; }
+.pr-or { display: grid; justify-items: end; gap: 1px; flex: none; }
+.pr-p { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; } .pr-p.bot { color: var(--accent); font-weight: 600; }
+.pr-n2 { font-size: 11px; color: var(--muted); }
+@media (max-width: 380px) { .pr-opts.rich.many { grid-template-columns: 1fr; } }
+
+.pr-opts.rich.one { grid-template-columns: 1fr; }
+.pr-ol > span { white-space: normal; }

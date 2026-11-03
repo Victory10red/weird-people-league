@@ -1420,19 +1420,29 @@
       el('div', { class: 'pk-title' }, nav(-1, '‹'), el('div', {}, el('h2', { text: `Week ${wk} Predictions` }), el('small', { text: res ? `You went ${right} for ${answered}` : `${answered} of ${PR.qs.length} answered` })), nav(1, '›')),
       el('p', { class: 'note', text: res ? 'Graded from the final scores.' : PR.locked ? 'Locked. Results come in when the week is final.' : `Free picks on our own league. Change them any time until the first kickoff${lockTxt ? ` (${lockTxt})` : ''}. Everyone’s answers show after that.` }),
       prMsg ? el('p', { class: prMsg.startsWith('✓') ? 'note al-ok' : 'pin-err', text: prMsg }) : null);
-    const label = (q, o) => (q.kind === 'top' || q.kind === 'low') && T[o.v] ? T[o.v].owner : o.label;
+    const teamQ = (q) => q.kind === 'top' || q.kind === 'low' || q.kind === 'match';
+    const label = (q, o) => (teamQ(q) && T[o.v] ? T[o.v].owner : o.label);
+    const subOf = (q, o) => (teamQ(q) && T[o.v] ? o.sub || T[o.v].name : o.who && T[o.who] ? `${o.sub || ''} · ${T[o.who].owner}` : o.sub || '');
+    const owners = (txt) => [...D.teams].sort((a, b) => b.name.length - a.name.length).reduce((t, x) => (x.name ? t.split(x.name).join(x.owner) : t), String(txt || ''));
+    const qText = (q) => (q.kind === 'match' && T[q.a] && T[q.h] ? `${T[q.a].owner} vs ${T[q.h].owner}: who wins?` : owners(q.text));
     const cards = PR.qs.map((q, i) => {
       const crowd = PR.picks ? Object.values(PR.picks).filter((a) => a[q.id]) : [];
+      const best = q.opts.reduce((m, o) => (o.p != null && (m == null || o.p > m.p) ? o : m), null);
       const btns = q.opts.map((o) => {
         const on = mine[q.id] === o.v, isAns = res && res[q.id] === o.v;
-        const n = PR.picks ? crowd.filter((a) => a[q.id] === o.v).length : null;
-        const b = el('button', { class: 'pr-opt' + (on ? ' on' : '') + (res ? (isAns ? ' won' : on ? ' lost' : '') : ''), type: 'button', disabled: PR.locked ? 'disabled' : null },
-          el('span', { text: label(q, o) }), n != null && n > 0 ? el('small', { text: `${n}` }) : null, on && res ? el('span', { class: 'pk-mark', text: isAns ? '✅' : '❌' }) : null);
+        const n = PR.picks ? crowd.filter((a) => a[q.id] === o.v).length : null, sub = subOf(q, o);
+        const tipTxt = [label(q, o), sub, o.p != null ? `The app gives this a ${o.p}% chance` : '', n ? `${n} of us picked it` : ''].filter(Boolean).join(' · ');
+        const b = el('button', { class: 'pr-opt' + (on ? ' on' : '') + (res ? (isAns ? ' won' : on ? ' lost' : '') : '') + (sub || o.p != null ? ' rich' : ''), type: 'button', disabled: PR.locked ? 'disabled' : null, title: tipTxt },
+          el('span', { class: 'pr-ol' }, el('span', { text: label(q, o) }), sub ? el('small', { class: 'pr-sub', text: sub }) : null),
+          el('span', { class: 'pr-or' }, o.p != null ? el('small', { class: 'pr-p' + (best === o ? ' bot' : ''), text: `${best === o ? '🤖 ' : ''}${o.p}%` }) : null,
+            n != null && n > 0 ? el('small', { class: 'pr-n2', text: `${n} 👤` }) : null),
+          on && res ? el('span', { class: 'pk-mark', text: isAns ? '✅' : '❌' }) : null);
         if (!PR.locked) b.addEventListener('click', () => predAnswer(q.id, o.v));
         return b;
       });
-      return el('div', { class: 'card pr-q' }, el('div', { class: 'pr-n', text: `${i + 1}` }), el('div', {}, el('b', { text: q.text }),
-        el('div', { class: 'pr-opts' + (q.opts.length > 2 ? ' many' : '') }, ...btns)));
+      return el('div', { class: 'card pr-q' }, el('div', { class: 'pr-n', text: `${i + 1}` }), el('div', {}, el('b', { text: qText(q) }),
+        q.info ? el('p', { class: 'pr-info', text: `ⓘ ${owners(q.info)}` }) : null,
+        el('div', { class: 'pr-opts' + (q.opts.length > 2 ? ' many' : '') + (q.opts.some((o) => o.sub || o.p != null) ? ' rich' : '') + (q.kind === 'star' || q.kind === 'bench' || q.kind === 'close' ? ' one' : '') }, ...btns)));
     });
     const rows = (PR.board && PR.board[prBoard]) || [];
     const segb = (k, lab) => { const b = el('button', { 'aria-pressed': String(prBoard === k), text: lab }); b.addEventListener('click', () => { prBoard = k; renderPred(); }); return b; };
@@ -1458,6 +1468,9 @@
     players.sort((a, b) => (b.starter - a.starter) || b.proj - a.proj);
     return { a: side(g.away, n?.away, false), h: side(g.home, n?.home, true), total: g.total ?? n?.odds?.total ?? null, line: n?.odds?.details || (g.fav && g.line != null ? (g.line ? `${g.fav} -${g.line}` : 'Pick ’em') : null), n, players };
   }
+  const usd = (v, sign) => `${sign && v > 0 ? '+' : v < 0 ? '−' : ''}$${Math.abs(v).toFixed(2).replace(/\.00$/, '')}`;
+  const mlTxt = (ml) => (ml == null ? 'even' : ml > 0 ? `+${ml}` : String(ml));
+  const mlWin = (ml, stake) => (!ml ? stake : ml > 0 ? stake * ml / 100 : stake * 100 / -ml);
   function pkTipText(x, s) {
     const bits = [];
     if (s.rec) bits.push(`Record ${s.rec}`);
@@ -1506,6 +1519,15 @@
     if (!PK.ready) { host.replaceChildren(el('div', { class: 'card' }, el('p', { class: 'note', text: PK.error || 'Pick’em needs the league database (same one as the leaderboards).' }))); return; }
     const wk = PK.wk, games = PK.games || [], mine = PK.mine || {}, draft = getDraft();
     const isLocked = (g) => g.state !== 'pre' || Date.now() >= new Date(g.kickoff).getTime();
+    const pkBank = () => {
+      if (!PK.stake) return null;
+      const r = ((PK.board && PK.board.week) || []).find((x) => x.id === ME) || {}, s = ((PK.board && PK.board.season) || []).find((x) => x.id === ME) || {};
+      return el('div', { class: 'pk-bank', title: `Pretend money: $${PK.bank} a week, split evenly over every game (${usd(PK.stake)} each), paid at the closing Vegas moneyline.` },
+        el('span', {}, el('small', { text: 'Your Vegas week' }), el('b', { class: (r.m || 0) > 0 ? 'up' : (r.m || 0) < 0 ? 'down' : '', text: usd(r.m || 0, true) })),
+        el('span', {}, el('small', { text: 'Still riding' }), el('b', { text: usd(r.open || 0) })),
+        el('span', {}, el('small', { text: 'Season' }), el('b', { class: (s.m || 0) > 0 ? 'up' : (s.m || 0) < 0 ? 'down' : '', text: usd(s.m || 0, true) })),
+        el('p', { class: 'note', text: `Pretend money: $${PK.bank} a week, ${usd(PK.stake)} on every pick, paid at Vegas odds. Underdogs pay more.` }));
+    };
     const graded = games.filter((g) => g.winner && g.winner !== 'TIE' && mine[g.id]);
     const right = graded.filter((g) => mine[g.id] === g.winner).length;
     for (const gid of Object.keys(draft)) { const g = games.find((x) => x.id === gid); if (!g || mine[gid] || isLocked(g)) delete draft[gid]; }
@@ -1514,7 +1536,7 @@
     const head = el('div', { class: 'card pk-head' },
       el('div', { class: 'pk-title' }, nav(-1, '‹'), el('div', {}, el('h2', { text: `Week ${wk} Pick’em` }), el('small', { text: `${Object.keys(mine).length} of ${games.length} locked in${nDraft ? ` · ${nDraft} not locked yet` : ''}${graded.length ? ` · ${right}-${graded.length - right} so far` : ''}` })), nav(1, '›')),
       el('p', { class: 'note', text: open.length ? `Tap the team you think wins, then hit Lock in picks. Locked picks can’t be changed. ${openLeft ? `${openLeft} game${openLeft === 1 ? '' : 's'} still open.` : 'Every open game has a pick.'} Everyone’s picks show once a game kicks off.` : 'Every game this week is locked in or has kicked off.' }),
-      pkMsg ? el('p', { class: 'pin-err', text: pkMsg }) : null);
+      pkBank(), pkMsg ? el('p', { class: 'pin-err', text: pkMsg }) : null);
     // games grouped by kickoff day
     const day = (g) => new Date(g.kickoff).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
     const groups = []; for (const g of games) { const d = day(g); if (!groups.length || groups[groups.length - 1][0] !== d) groups.push([d, []]); groups[groups.length - 1][1].push(g); }
@@ -1541,7 +1563,14 @@
           el('span', { class: 'pk-oa', text: `${x.a.win}%` }),
           el('div', { class: 'pk-obar' }, el('i', { style: `width:${x.a.win}%` })),
           el('span', { class: 'pk-oh', text: `${x.h.win}%` })) : null,
-        split, pkDetails(g, x, my));
+        pkMoney(g, my), split, pkDetails(g, x, my));
+    };
+    const pkMoney = (g, my) => {
+      if (!my || !PK.stake) return null;
+      const ml = g.ml ? (my === g.home.abbr ? g.ml.h : g.ml.a) : null, stake = PK.stake, win = mlWin(ml, stake);
+      const txt = !g.winner ? `💵 ${usd(stake)} on ${my} at ${mlTxt(ml)} → pays ${usd(win)}${mine[g.id] ? '' : ' (if locked now)'}`
+        : g.winner === 'TIE' ? '💵 Tie: money back' : g.winner === my ? `💵 Won ${usd(win)}` : `💵 Lost ${usd(stake)}`;
+      return el('div', { class: 'pk-money' + (g.winner && g.winner !== 'TIE' ? (g.winner === my ? ' up' : ' down') : ''), text: txt });
     };
     const pkDetails = (g, x, my) => {
       const isOpen = pkOpen.has(g.id);
@@ -1551,7 +1580,7 @@
       const row = (lab, fa, fh, best) => { const va = fa(x.a), vh = fh ? fh(x.h) : fa(x.h); if (va == null && vh == null) return null; const b = best && va != null && vh != null && va !== vh ? (best(va, vh) ? 'a' : 'h') : ''; return el('tr', {}, el('td', { class: 'pk-dl', text: lab }), el('td', { class: b === 'a' ? 'good' : '', text: va == null ? '–' : String(fmtv(lab, va)) }), el('td', { class: b === 'h' ? 'good' : '', text: vh == null ? '–' : String(fmtv(lab, vh)) })); };
       const fmtv = (lab, v) => (typeof v === 'number' ? (lab.includes('win') ? v + '%' : f1(v)) : v);
       const tbl = el('table', { class: 'pk-dt' }, el('thead', {}, el('tr', {}, el('th', {}), el('th', { text: x.a.abbr }), el('th', { text: x.h.abbr }))),
-        el('tbody', {}, row('Record', (s) => s.rec), row('Chance to win', (s) => s.win, null, (a, h) => a > h), row('Vegas projected score', (s) => s.implied, null, (a, h) => a > h),
+        el('tbody', {}, row('Record', (s) => s.rec), g.ml ? row('Moneyline', (s) => mlTxt(s.abbr === g.home.abbr ? g.ml.h : g.ml.a)) : null, row('Chance to win', (s) => s.win, null, (a, h) => a > h), row('Vegas projected score', (s) => s.implied, null, (a, h) => a > h),
           row('Points per game', (s) => s.ppg, null, (a, h) => a > h), row('Points allowed per game', (s) => s.papg, null, (a, h) => a < h)));
       const n = x.n, wx = n ? wxText(n) : null;
       const facts = el('p', { class: 'note pk-facts', text: [x.line ? `Spread ${x.line}` : null, x.total ? `over/under ${f1(x.total)}` : null, wx && wx !== '–' ? `weather ${wx}` : null, g.venue || n?.venue || null].filter(Boolean).join(' · ') });
@@ -1564,15 +1593,15 @@
     };
     const body = games.length ? groups.flatMap(([d, gs]) => [el('h3', { class: 'pk-day', text: d }), ...gs.map(card)]) : [el('div', { class: 'card' }, el('p', { class: 'note', text: 'No NFL games found for this week.' }))];
     // leaderboard
-    const rows = (PK.board && PK.board[pkBoard]) || [];
+    const rows = pkBoard === 'money' ? [...((PK.board && PK.board.season) || [])].sort((a, b) => (b.m || 0) - (a.m || 0)) : (PK.board && PK.board[pkBoard]) || [];
     const segb = (k, lab) => { const b = el('button', { 'aria-pressed': String(pkBoard === k), text: lab }); b.addEventListener('click', () => { pkBoard = k; renderPickem(); }); return b; };
     const lb = el('div', { class: 'card pk-lb' },
-      el('div', { class: 'row-head' }, el('h3', { text: 'Pick’em standings' }), el('div', { class: 'seg' }, segb('week', `Week ${wk}`), segb('season', 'Season'))),
+      el('div', { class: 'row-head' }, el('h3', { text: 'Pick’em standings' }), el('div', { class: 'seg' }, segb('week', `Week ${wk}`), segb('season', 'Season'), segb('money', '💰 $'))),
       rows.length ? el('ul', { class: 'lb' }, ...rows.filter((r) => T[r.id]).map((r, i) => el('li', { class: r.id === ME ? 'me' : '' },
         el('span', { class: 'lb-r', text: i === 0 && r.c ? '👑' : String(i + 1) }),
         el('span', { class: 'lb-n' }, el('b', { text: T[r.id].owner }), el('small', { text: T[r.id].name })),
-        el('span', { class: 'lb-s' }, el('b', { text: `${r.c}-${r.n - r.c}` })),
-        el('span', { class: 'lb-d', text: pkBoard === 'season' ? `${r.wk} wk${r.wk === 1 ? '' : 's'}` : `${r.made} picked` }))))
+        el('span', { class: 'lb-s' }, el('b', { class: pkBoard === 'money' ? ((r.m || 0) >= 0 ? 'up' : 'down') : '', text: pkBoard === 'money' ? usd(r.m || 0, true) : `${r.c}-${r.n - r.c}` })),
+        el('span', { class: 'lb-d', text: pkBoard === 'money' ? `${r.c}-${r.n - r.c}` : pkBoard === 'season' ? `${r.wk} wk${r.wk === 1 ? '' : 's'} · ${usd(r.m || 0, true)}` : `${r.made} picked${r.m ? ' · ' + usd(r.m, true) : ''}` }))))
         : el('p', { class: 'note', text: pkBoard === 'week' ? 'Nobody has picked yet this week. Be first.' : 'No picks yet this season.' }));
     let bar = null;
     if (nDraft) {

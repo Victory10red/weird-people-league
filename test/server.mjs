@@ -51,7 +51,7 @@ const slate = (league.nfl || []).map((g, i) => {
   const side = (x, sc, w) => ({ abbr: x.abbr, name: NAMES[x.abbr] || x.abbr, score: sc, winner: w, rec: `${3 + ((i * 5 + x.abbr.length) % 5)}-${2 + (i % 4)}` });
   const done = st === 'post';
   return { id: String(g.id), kickoff: kick, state: st, status: st === 'post' ? 'Final' : st === 'in' ? 'Q3 4:12' : '', done,
-    home: side(g.home, hs, done && hs > as), away: side(g.away, as, done && as > hs), fav: g.odds && g.odds.favId === g.homeId ? g.home.abbr : g.away.abbr, line: g.odds ? g.odds.line : null, total: g.odds ? g.odds.total : null, hwin: g.odds ? (g.odds.favId === g.homeId ? 0.5 + g.odds.line / 30 : 0.5 - g.odds.line / 30) : null, venue: 'Somewhere Stadium',
+    home: side(g.home, hs, done && hs > as), away: side(g.away, as, done && as > hs), fav: g.odds && g.odds.favId === g.homeId ? g.home.abbr : g.away.abbr, line: g.odds ? g.odds.line : null, total: g.odds ? g.odds.total : null, hwin: g.odds ? (g.odds.favId === g.homeId ? 0.5 + g.odds.line / 30 : 0.5 - g.odds.line / 30) : null, venue: 'Somewhere Stadium', ml: g.odds ? (g.odds.favId === g.homeId ? { h: -150 - i * 20, a: 130 + i * 18 } : { h: 125 + i * 15, a: -145 - i * 15 }) : null,
     winner: done ? (hs > as ? g.home.abbr : g.away.abbr) : null };
 });
 const fakePicks = {};
@@ -61,8 +61,8 @@ const picksOut = (team) => {
   const locked = new Set(slate.filter((g) => g.state !== 'pre').map((g) => g.id)); const picked = {};
   for (const [t, p] of Object.entries(fakePicks)) for (const [gid, ab] of Object.entries(p)) if (locked.has(gid)) ((picked[gid] ||= {})[ab] ||= []).push(+t);
   const res = Object.fromEntries(slate.filter((g) => g.winner).map((g) => [g.id, g.winner]));
-  const rows = Object.entries(fakePicks).map(([t, p]) => { let c = 0, n = 0; for (const [gid, ab] of Object.entries(p)) if (res[gid]) { n++; if (res[gid] === ab) c++; } return { id: +t, c, n, made: Object.keys(p).length }; }).sort((a, b) => b.c - a.c || a.n - b.n);
-  return { ready: true, year: 2026, week: wk, games: slate, mine: fakePicks[team] || {}, picked, made: Object.fromEntries(Object.entries(fakePicks).map(([t, p]) => [t, Object.keys(p).length])), board: { week: rows, season: rows.map((r) => ({ ...r, c: r.c + 20, n: r.n + 40, wk: 4 })) } };
+  const rows = Object.entries(fakePicks).map(([t, p]) => { let c = 0, n = 0; for (const [gid, ab] of Object.entries(p)) if (res[gid]) { n++; if (res[gid] === ab) c++; } return { id: +t, c, n, made: Object.keys(p).length, m: Math.round((c * 30 - (n - c) * 31.25) * 100) / 100, open: 31.25 * (Object.keys(p).length - n) }; }).sort((a, b) => b.c - a.c || a.n - b.n);
+  return { ready: true, year: 2026, week: wk, games: slate, bank: 500, stake: Math.round(50000 / slate.length) / 100, mine: fakePicks[team] || {}, picked, made: Object.fromEntries(Object.entries(fakePicks).map(([t, p]) => [t, Object.keys(p).length])), board: { week: rows, season: rows.map((r) => ({ ...r, c: r.c + 20, n: r.n + 40, wk: 4, m: r.m + 87.5 })) } };
 };
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
 const fakeTrophy = { 2025: { caption: 'Hoisting it at the draft party', last: 'Edwin', punishment: '24 hours at a Waffle House' } };
