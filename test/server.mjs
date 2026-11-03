@@ -6,6 +6,7 @@ import { fromTextDump } from './from-text-dump.mjs';
 import { analyze } from '../lib/analyze.js';
 import { sampleWeek } from './week-sample.mjs';
 import { liveScores } from '../lib/live.js';
+import { makeQuestions } from '../api/club.js';
 import { byes } from './byes.mjs';
 const dump = fromTextDump(process.argv[2]);
 dump.byes ||= byes;
@@ -54,6 +55,7 @@ const slate = (league.nfl || []).map((g, i) => {
     winner: done ? (hs > as ? g.home.abbr : g.away.abbr) : null };
 });
 const fakePicks = {};
+const fakePred = { qs: null, ans: {} };
 slate.slice(0, 5).forEach((g, i) => { for (const t of [3, 8, 10, 6, 1]) (fakePicks[t] ||= {})[g.id] = (t + i) % 2 ? g.home.abbr : g.away.abbr; });
 const picksOut = (team) => {
   const locked = new Set(slate.filter((g) => g.state !== 'pre').map((g) => g.id)); const picked = {};
@@ -65,6 +67,13 @@ const picksOut = (team) => {
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
 http.createServer((req, res) => {
   const u = new URL(req.url, 'http://x');
+  if (u.pathname === '/api/club') {
+    res.setHeader('content-type', 'application/json');
+    fakePred.qs ||= makeQuestions(live);
+    const out = (team) => ({ ready: true, week: live.week, locksAt: new Date(Date.now() + 3 * 86400000).toISOString(), locked: false, qs: fakePred.qs, results: null, mine: fakePred.ans[team] || {}, made: Object.keys(fakePred.ans).length, board: { week: [], season: [{ id: 3, c: 9, n: 14, wk: 2 }, { id: 4, c: 7, n: 14, wk: 2 }] } });
+    if (req.method === 'POST') { let body = ''; req.on('data', (c) => { body += c; }); req.on('end', () => { const b = JSON.parse(body || '{}'); (fakePred.ans[b.team] ||= {})[b.q] = b.a; res.end(JSON.stringify(out(b.team))); }); return; }
+    return res.end(JSON.stringify(out(Number(u.searchParams.get('team')))));
+  }
   if (u.pathname === '/api/push') { res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify({ ready: true, key: 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U' })); }
   if (u.pathname === '/api/picks') {
     res.setHeader('content-type', 'application/json');

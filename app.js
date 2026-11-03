@@ -1003,7 +1003,7 @@
   }
 
 
-  let playGame = ({ hol: 'pick' })[store.get('play-game')] || (['bk', 'pick', 'poop'].includes(store.get('play-game')) ? store.get('play-game') : 'pick'), bkInst = null;
+  let playGame = ({ hol: 'pick' })[store.get('play-game')] || (['bk', 'pick', 'pred', 'poop'].includes(store.get('play-game')) ? store.get('play-game') : 'pick'), bkInst = null;
   let LB = null, lbAt = 0, bkLevel = 'hard';
   const LB_GAME = () => `bk:${bkLevel}`;
   async function loadLB(force) {
@@ -1126,7 +1126,7 @@
   // admin: everything people did, newest first (who, what, when, which kind of device)
   let actFilter = 'all', actShow = 120;
   const ACT = { open: 'opened the app', post: 'posted in Trash Talk', 'post-anon': 'posted anonymously', react: 'reacted', delete: 'deleted their post', 'admin-delete': 'deleted a post (admin)',
-    picks: 'Pick’em:', poop: 'logged a 💩', 'poop-undo': 'undid a 💩', game: 'played', 'admin-reset-picks': 'reset Pick’em picks (admin)', 'admin-remove-score': 'removed a score (admin)', reply: 'replied', 'reply-anon': 'replied anonymously', 'push-on': 'turned on notifications 🔔', 'push-off': 'turned off notifications' };
+    picks: 'Pick’em:', poop: 'logged a 💩', 'poop-undo': 'undid a 💩', game: 'played', 'admin-reset-picks': 'reset Pick’em picks (admin)', 'admin-remove-score': 'removed a score (admin)', reply: 'replied', 'reply-anon': 'replied anonymously', predict: 'made predictions:', 'push-on': 'turned on notifications 🔔', 'push-off': 'turned off notifications' };
   function activityLog(log) {
     const box = el('div', { class: 'act' });
     const people = [...new Set(log.map((e) => e.t))];
@@ -1214,7 +1214,7 @@
     if (!ok) return;
     loadLB();
     $$('#play-pick button').forEach((b) => { b.setAttribute('aria-pressed', String(b.dataset.game === playGame)); b.onclick = () => { playGame = b.dataset.game; store.set('play-game', playGame); renderPlay(); }; });
-    $('#play-bk').hidden = playGame !== 'bk'; $('#play-pickem').hidden = playGame !== 'pick'; $('#play-poop').hidden = playGame !== 'poop'; $('.play-lb').hidden = playGame !== 'bk';
+    $('#play-bk').hidden = playGame !== 'bk'; $('#play-pickem').hidden = playGame !== 'pick'; $('#play-pred').hidden = playGame !== 'pred'; $('#play-poop').hidden = playGame !== 'poop'; $('.play-lb').hidden = playGame !== 'bk';
     if (playGame === 'poop') { renderPoop(); return; }
     if (playGame === 'bk') {
       if (!bkInst && window.Breakaway) {
@@ -1225,9 +1225,62 @@
       renderLB();
       return;
     }
+    if (playGame === 'pred') { renderPred(); return; }
     renderPickem();
   }
 
+  // ---------- Predictions: 7 picks on our own league each week, lock at the first NFL kickoff ----------
+  let PR = null, prWeek = null, prBoard = 'week', prBusy = false, prMsg = '';
+  async function loadPred() {
+    const wk = prWeek || D.league.week;
+    try { PR = await getJSON(`/api/club?k=pred&year=${D.league.year}&week=${wk}&team=${ME}`); } catch (e) { PR = { ready: false, error: e.message }; }
+    PR.wk = wk; PR.me = ME; if (tab === 'play' && playGame === 'pred') renderPred();
+  }
+  async function predAnswer(qid, a) {
+    if (prBusy) return; prBusy = true; PR.mine[qid] = a; prMsg = ''; renderPred();
+    try {
+      const r = await fetch('/api/club', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ k: 'pred', year: D.league.year, week: PR.wk, team: ME, q: qid, a }) });
+      const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Didn’t save');
+      const wk = PR.wk; PR = j; PR.wk = wk; PR.me = ME; prMsg = '✓ Saved';
+    } catch (e) { prMsg = e.message; }
+    prBusy = false; renderPred();
+  }
+  function renderPred() {
+    const host = $('#play-pred');
+    if (!PR || PR.wk !== (prWeek || D.league.week) || PR.me !== ME) { host.replaceChildren(el('div', { class: 'card' }, el('p', { class: 'note', text: 'Loading this week’s predictions…' }))); if (!prBusy) { prBusy = true; loadPred().finally(() => { prBusy = false; }); } return; }
+    if (!PR.ready) { host.replaceChildren(el('div', { class: 'card' }, el('p', { class: 'note', text: PR.error || 'Predictions need the league database.' }))); return; }
+    const wk = PR.wk, mine = PR.mine || {}, res = PR.results;
+    const answered = PR.qs.filter((q) => mine[q.id]).length;
+    const right = res ? PR.qs.filter((q) => mine[q.id] && mine[q.id] === res[q.id]).length : 0;
+    const nav = (d, lab) => { const b = el('button', { class: 'btn ghost pk-nav', type: 'button', text: lab, disabled: (wk + d < 1 || wk + d > D.league.week) ? 'disabled' : null }); b.addEventListener('click', () => { prWeek = wk + d; PR = null; renderPred(); }); return b; };
+    const lockTxt = PR.locksAt ? new Date(PR.locksAt).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' }) : null;
+    const head = el('div', { class: 'card pk-head' },
+      el('div', { class: 'pk-title' }, nav(-1, '‹'), el('div', {}, el('h2', { text: `Week ${wk} Predictions` }), el('small', { text: res ? `You went ${right} for ${answered}` : `${answered} of ${PR.qs.length} answered` })), nav(1, '›')),
+      el('p', { class: 'note', text: res ? 'Graded from the final scores.' : PR.locked ? 'Locked. Results come in when the week is final.' : `Free picks on our own league. Change them any time until the first kickoff${lockTxt ? ` (${lockTxt})` : ''}. Everyone’s answers show after that.` }),
+      prMsg ? el('p', { class: prMsg.startsWith('✓') ? 'note al-ok' : 'pin-err', text: prMsg }) : null);
+    const label = (q, o) => (q.kind === 'top' || q.kind === 'low') && T[o.v] ? T[o.v].owner : o.label;
+    const cards = PR.qs.map((q, i) => {
+      const crowd = PR.picks ? Object.values(PR.picks).filter((a) => a[q.id]) : [];
+      const btns = q.opts.map((o) => {
+        const on = mine[q.id] === o.v, isAns = res && res[q.id] === o.v;
+        const n = PR.picks ? crowd.filter((a) => a[q.id] === o.v).length : null;
+        const b = el('button', { class: 'pr-opt' + (on ? ' on' : '') + (res ? (isAns ? ' won' : on ? ' lost' : '') : ''), type: 'button', disabled: PR.locked ? 'disabled' : null },
+          el('span', { text: label(q, o) }), n != null && n > 0 ? el('small', { text: `${n}` }) : null, on && res ? el('span', { class: 'pk-mark', text: isAns ? '✅' : '❌' }) : null);
+        if (!PR.locked) b.addEventListener('click', () => predAnswer(q.id, o.v));
+        return b;
+      });
+      return el('div', { class: 'card pr-q' }, el('div', { class: 'pr-n', text: `${i + 1}` }), el('div', {}, el('b', { text: q.text }),
+        el('div', { class: 'pr-opts' + (q.opts.length > 2 ? ' many' : '') }, ...btns)));
+    });
+    const rows = (PR.board && PR.board[prBoard]) || [];
+    const segb = (k, lab) => { const b = el('button', { 'aria-pressed': String(prBoard === k), text: lab }); b.addEventListener('click', () => { prBoard = k; renderPred(); }); return b; };
+    const lb = el('div', { class: 'card pk-lb' }, el('div', { class: 'row-head' }, el('h3', { text: 'Prediction standings' }), el('div', { class: 'seg' }, segb('week', `Week ${wk}`), segb('season', 'Season'))),
+      rows.length ? el('ul', { class: 'lb' }, ...rows.filter((r) => T[r.id]).map((r, i) => el('li', { class: r.id === ME ? 'me' : '' },
+        el('span', { class: 'lb-r', text: i === 0 && r.c ? '👑' : String(i + 1) }), el('span', { class: 'lb-n' }, el('b', { text: T[r.id].owner }), el('small', { text: T[r.id].name })),
+        el('span', { class: 'lb-s' }, el('b', { text: `${r.c}/${r.n}` })), el('span', { class: 'lb-d', text: prBoard === 'season' ? `${r.wk} wk${r.wk === 1 ? '' : 's'}` : '' }))))
+        : el('p', { class: 'note', text: prBoard === 'week' ? (res ? 'Nobody predicted this week.' : 'Standings show once the week is final.') : 'No graded weeks yet.' }));
+    host.replaceChildren(head, ...cards, lb);
+  }
   // ---------- NFL Pick'em: pick the winner of every game, locks at kickoff ----------
   let PK = null, pkWeek = null, pkBoard = 'week', pkMsg = '', pkBusy = false;
   const logo = (abbr) => { const i = el('img', { class: 'pk-logo', src: `https://a.espncdn.com/i/teamlogos/nfl/500/${String(abbr).toLowerCase()}.png`, alt: '', loading: 'lazy' }); i.addEventListener('error', () => { i.style.visibility = 'hidden'; }); return i; };

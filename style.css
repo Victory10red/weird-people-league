@@ -662,3 +662,18 @@ body.tv #tv-clock { display: block; position: fixed; bottom: 14px; right: 22px; 
 html:has(body.tv) { background: #0b0d11; }
 body.tv { min-height: 100vh; }
 body.tv #tv-exit { top: auto; bottom: 14px; right: auto; left: 18px; }
+
+/* Predictions */
+.pr-q { display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; padding: 12px; margin-bottom: 8px; }
+.pr-n { width: 26px; height: 26px; border-radius: 50%; background: var(--panel-2); display: grid; place-items: center; font: 700 13px Inter, sans-serif; color: var(--muted); }
+.pr-q b { display: block; font-size: 14.5px; line-height: 1.35; }
+.pr-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.pr-opts.many { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
+.pr-opt { position: relative; display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 9px 11px; border-radius: 10px; border: 2px solid var(--line); background: var(--panel-2); color: var(--fg); font: 600 13.5px Inter, sans-serif; cursor: pointer; text-align: left; }
+.pr-opt small { font-size: 11px; color: var(--muted); font-weight: 600; }
+.pr-opt.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--panel)); }
+.pr-opt.won { border-color: var(--good); }
+.pr-opt.on.lost { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 10%, var(--panel)); }
+.pr-opt[disabled] { cursor: default; }
+.pr-opt .pk-mark { top: -8px; right: -6px; }
+.pr-opts.many { grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); }

@@ -3,7 +3,7 @@
 import { fetchDump } from '../lib/espn.js';
 import { analyze } from '../lib/analyze.js';
 import { redis } from '../lib/kv.js';
-import { weeklyRoast } from '../lib/autoroast.js';
+import { weeklyRoast, powerPost } from '../lib/autoroast.js';
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
@@ -20,11 +20,18 @@ export default async function handler(req, res) {
     // the one before, and the next week already has points on the board. Wait for the next run instead.
     const nextPts = dump.sched.filter((m) => m.wk === r.week + 1).reduce((s, m) => s + (m.hp || 0) + (m.ap || 0), 0);
     if (nextPts > 0) return res.status(200).json({ posted: false, why: `week ${r.week + 1} is still being closed out` });
-    const [fresh] = await run([['SET', `autoroast:${r.year}:${r.week}`, '1', 'NX', 'EX', 60 * 86400]]);
-    if (!fresh) return res.status(200).json({ posted: false, why: `week ${r.week} already roasted` });
-    const at = Date.now(), id = at.toString(36) + 'bot';
-    await run([['HSET', 'talk:m', id, JSON.stringify({ id, t: 0, bot: true, text: r.text, gif: null, at, re: {} })], ['ZADD', 'talk:z', at, id]]);
-    return res.status(200).json({ posted: true, week: r.week, text: r.text });
+    const posted = [];
+    const post = async (key, text, offset) => {
+      const [fresh] = await run([['SET', key, '1', 'NX', 'EX', 60 * 86400]]);
+      if (!fresh) return;
+      const at = Date.now() + offset, id = at.toString(36) + 'bot';
+      await run([['HSET', 'talk:m', id, JSON.stringify({ id, t: 0, bot: true, text, gif: null, at, re: {} })], ['ZADD', 'talk:z', at, id]]);
+      posted.push(text);
+    };
+    const pr = powerPost(out);
+    if (pr) await post(`autopower:${pr.year}:${pr.week}`, pr.text, 0);
+    await post(`autoroast:${r.year}:${r.week}`, r.text, 1); // the roast lands on top
+    return res.status(200).json({ posted: posted.length > 0, week: r.week, posted });
   } catch (e) {
     return res.status(502).json({ posted: false, error: e.message });
   }
