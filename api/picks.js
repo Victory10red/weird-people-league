@@ -4,7 +4,7 @@
 // POST /api/picks { year, week, team, picks: { gameId: abbr } }  locks those picks in for good (games not yet started only)
 // POST /api/picks { action:'reset', year, week, target, token }      app admin wipes one person's picks for that week
 import { redis } from '../lib/kv.js';
-import { fetchSlate, getJSON } from '../lib/week.js';
+import { fetchSlate, getJSON, fairML, homeWinProb } from '../lib/week.js';
 import { verify, ADMIN_TEAM } from '../lib/auth.js';
 import { logAct } from '../lib/activity.js';
 
@@ -33,12 +33,15 @@ async function closingLines(run, year, week, games) {
   if (have._done && !games) return have;
   games = games || await fetchSlate(year, week, 10 * 60000);
   await Promise.all(games.map(async (g) => {
-    if (g.state === 'pre') { const v = g.ml ? { ...g.ml, home: g.home.abbr } : null; if (v && JSON.stringify(v) !== JSON.stringify(have[g.id])) { have[g.id] = v; set.push(g.id, JSON.stringify(v)); } return; }
+    if (g.state === 'pre') { const v = g.ml ? { ...g.ml, home: g.home.abbr } : g.hwin != null ? { h: fairML(g.hwin), a: fairML(1 - g.hwin), est: 1, home: g.home.abbr } : null; if (v && JSON.stringify(v) !== JSON.stringify(have[g.id])) { have[g.id] = v; set.push(g.id, JSON.stringify(v)); } return; }
     if (have[g.id]) return;
     try {
       const sm = await getJSON(`https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event=${g.id}`, 5000);
       const o = (sm.pickcenter || []).find((x) => x.homeTeamOdds?.moneyLine != null && x.awayTeamOdds?.moneyLine != null);
-      have[g.id] = o ? { h: Number(o.homeTeamOdds.moneyLine), a: Number(o.awayTeamOdds.moneyLine), home: g.home.abbr } : { none: true, home: g.home.abbr };
+      const sp = (sm.pickcenter || []).find((x) => x.spread != null);
+      const hp = !o && sp ? homeWinProb({ line: Math.abs(Number(sp.spread)), favId: Number(sp.spread) < 0 ? 'H' : Number(sp.spread) > 0 ? 'A' : null }, 'H') : null;
+      have[g.id] = o ? { h: Number(o.homeTeamOdds.moneyLine), a: Number(o.awayTeamOdds.moneyLine), home: g.home.abbr }
+        : hp != null ? { h: fairML(hp), a: fairML(1 - hp), est: 1, home: g.home.abbr } : { none: true, home: g.home.abbr };
       set.push(g.id, JSON.stringify(have[g.id]));
     } catch { /* try again next time */ }
   }));
@@ -137,7 +140,7 @@ export default async function handler(req, res) {
     }
     const rows = (o) => Object.entries(o).map(([t, v]) => ({ id: Number(t), ...v, made: count[t] || 0 })).sort((a, b) => b.c - a.c || a.n - b.n);
     const stake = Math.round(100 * BANK / (games.length || 16)) / 100;
-    for (const g of games) { const l = linesNow[g.id]; if (!g.ml && l && !l.none) g.ml = { h: l.h, a: l.a }; }
+    for (const g of games) { const l = linesNow[g.id]; if (!g.ml && l && !l.none) g.ml = { h: l.h, a: l.a, ...(l.est ? { est: 1 } : {}) }; }
     return res.status(200).json({ ready: true, year, week, games, bank: BANK, stake, skipped: skippedN, mine: Number.isInteger(team) ? (all[team] || {}) : {}, picked, made: count,
       board: { week: rows(weekBoard), season: rows(season) } });
   } catch (e) {

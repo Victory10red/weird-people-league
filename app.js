@@ -1568,8 +1568,9 @@
     const pkMoney = (g, my) => {
       if (!my || !PK.stake) return null;
       const ml = g.ml ? (my === g.home.abbr ? g.ml.h : g.ml.a) : null, stake = PK.stake, win = mlWin(ml, stake);
-      const txt = !g.winner ? `💵 ${usd(stake)} on ${my} at ${mlTxt(ml)} → pays ${usd(win)}${mine[g.id] ? '' : ' (if locked now)'}`
-        : g.winner === 'TIE' ? '💵 Tie: money back' : g.winner === my ? `💵 Won ${usd(win)}` : `💵 Lost ${usd(stake)}`;
+      const odds = ml == null ? 'even money' : `${mlTxt(ml)}${g.ml && g.ml.est ? ' (from the spread)' : ''}`;
+      const txt = !g.winner ? `💵 ${usd(stake)} on ${my} at ${odds}: ${my} wins → +${usd(win)} · loses → −${usd(stake)}`
+        : g.winner === 'TIE' ? '💵 Tie: money back' : g.winner === my ? `💵 ${my} won: +${usd(win)}` : `💵 ${my} lost: −${usd(stake)}`;
       return el('div', { class: 'pk-money' + (g.winner && g.winner !== 'TIE' ? (g.winner === my ? ' up' : ' down') : ''), text: txt });
     };
     const pkDetails = (g, x, my) => {
