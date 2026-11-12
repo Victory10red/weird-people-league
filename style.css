@@ -780,11 +780,11 @@ body.tv #tv-exit { top: auto; bottom: 14px; right: auto; left: 18px; }
 .pl-tbl th, .pl-wk th { font-size: 11.5px; color: var(--muted); font-weight: 600; }
 .pl-tbl .n, .pl-wk .n { text-align: right; }
 .pl-tbl .b, .pl-wk .b { font-weight: 700; }
-.pl-tbl th:first-child, .pl-tbl td:first-child { position: sticky; left: 0; background: var(--panel); z-index: 1; }
-.pl-row { cursor: pointer; } .pl-row:hover td { background: var(--panel-2); } .pl-row.open td { background: color-mix(in srgb, var(--accent) 8%, var(--panel)); }
+.pl-tbl > thead > tr > th:first-child, .pl-tbl > tbody > tr.pl-row > td:first-child { position: sticky; left: 0; background: var(--panel); z-index: 1; }
+.pl-row { cursor: pointer; } .pl-row:hover > td { background: var(--panel-2); } .pl-row.open > td { background: color-mix(in srgb, var(--accent) 8%, var(--panel)); }
 .pl-nm b { display: block; font-size: 13.5px; max-width: 170px; overflow: hidden; text-overflow: ellipsis; } .pl-nm small { color: var(--muted); font-size: 11.5px; }
 .pl-tbl small.up { color: var(--good); } .pl-tbl small.down { color: var(--bad); }
-.pl-det td { background: var(--panel-2); white-space: normal; }
+.pl-tbl > tbody > tr.pl-det > td { background: var(--panel-2); white-space: normal; }
 .pl-detail { padding: 4px 2px 8px; }
 .pl-detgrid { display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 12px; align-items: start; }
 .pl-depth small { color: var(--muted); font-size: 11.5px; } .pl-depth ol, .pl-dcol ol { margin: 4px 0 0; padding-left: 22px; font-size: 13px; }
@@ -806,3 +806,10 @@ body.tv #tv-exit { top: auto; bottom: 14px; right: auto; left: 18px; }
 .pl-injb { margin-left: 5px; font-size: 10.5px; padding: 1px 4px; border-radius: 4px; background: color-mix(in srgb, var(--bad) 18%, var(--panel)); color: var(--bad); }
 .pl-tbl td .opp small { margin-left: 3px; }
 @media (max-width: 620px) { .pl-tbl th, .pl-tbl td { padding: 7px 4px; } .pl-nm b { max-width: 130px; } .pl-wk .wide { display: table-cell; } }
+
+.pl-tbl th small { display: block; font-weight: 400; font-size: 10px; color: var(--muted); }
+.pl-tbl th.szn, .pl-tbl td.szn { background: color-mix(in srgb, var(--panel-2) 55%, transparent); }
+.pl-tbl td.str { font-size: 12px; }
+
+.pl-nm b.pl-injb { display: inline; margin-left: 5px; }
+.pl-wk td, .pl-wk th { background: transparent; }

@@ -2811,6 +2811,60 @@
     K: [['fg', 'FG', 'frac'], ['xpm', 'XP', 'sum']],
     'D/ST': [['dsk', 'Sacks', 'avg'], ['to', 'Takeaways', 'sum'], ['pa', 'Pts allowed', 'avg', 1]],
   };
+  // main waiver table: what each column shows, per position. g = 'l3' (per game, last 3), 'szn' (season), 'last' (last game)
+  const perG = (p, k) => { const w = l3(p); return w.length ? w.reduce((s, x) => s + wv(x, k), 0) / w.length : null; };
+  const sumL3 = (p, k) => { const w = l3(p); return w.length ? w.reduce((s, x) => s + wv(x, k), 0) : null; };
+  const szn = (p, k) => (p.season && p.season.gp ? (p.season[k] || 0) / p.season.gp : null);
+  const ratio = (a, b, mul = 1) => (b ? (a || 0) / b * mul : null);
+  const lastG = (p) => (p.weeks || []).slice(-1)[0] || null;
+  const pct0 = (v) => (v == null ? '–' : `${Math.round(v)}%`);
+  const n1 = (v) => (v == null ? '–' : f1(v));
+  const n0 = (v) => (v == null ? '–' : String(Math.round(v)));
+  const recv = [
+    { h: 'Targets', g: 'l3', t: 'Targets per game, last 3 games (▲▼ = up or down vs his season average)', v: (p) => perG(p, 'tgt'), f: n1, trend: (p) => (perG(p, 'tgt') ?? 0) - (szn(p, 'tgt') ?? 0) },
+    { h: 'Catches', g: 'l3', t: 'Catches per game, last 3 games', v: (p) => perG(p, 'rec'), f: n1, m: 1 },
+    { h: 'Yards', g: 'l3', t: 'Receiving yards per game, last 3 games', v: (p) => perG(p, 'reyd'), f: n1 },
+    { h: 'TD', g: 'l3 total', t: 'Touchdowns, last 3 games combined', v: (p) => sumL3(p, 'td'), f: n0, m: 1 },
+    { h: 'Targets', g: 'season', t: 'Targets per game this season', v: (p) => szn(p, 'tgt'), f: n1, m: 1 },
+    { h: 'Catch %', g: 'season', t: 'Catches ÷ targets this season', v: (p) => ratio(p.season && p.season.rec, p.season && p.season.tgt, 100), f: pct0, m: 1 },
+    { h: 'Yds/tgt', g: 'season', t: 'Receiving yards per target this season', v: (p) => ratio(p.season && p.season.reyd, p.season && p.season.tgt), f: n1, m: 1 },
+    { h: 'Last game', g: '', t: 'Catches-yards (targets) in his last game', v: (p) => { const w = lastG(p); return w ? `${w.rec || 0}-${w.reyd || 0} (${w.tgt || 0})` : null; }, f: (v) => v || '–', m: 1, str: 1 },
+  ];
+  const PLMAIN = {
+    WR: recv, TE: recv,
+    RB: [
+      { h: 'Carries', g: 'l3', t: 'Carries per game, last 3 games', v: (p) => perG(p, 'car'), f: n1 },
+      { h: 'Rush yds', g: 'l3', t: 'Rushing yards per game, last 3 games', v: (p) => perG(p, 'ruyd'), f: n1, m: 1 },
+      { h: 'Targets', g: 'l3', t: 'Targets per game, last 3 games', v: (p) => perG(p, 'tgt'), f: n1 },
+      { h: 'Touches', g: 'l3', t: 'Carries + catches per game, last 3 games (▲▼ = up or down vs his season average)', v: (p) => { const a = perG(p, 'car'), b = perG(p, 'rec'); return a == null ? null : a + (b || 0); }, f: n1, m: 1, trend: (p) => { const a = perG(p, 'car'), b = perG(p, 'rec'), sz = p.season && p.season.gp ? ((p.season.car || 0) + (p.season.rec || 0)) / p.season.gp : 0; return (a || 0) + (b || 0) - sz; } },
+      { h: 'TD', g: 'l3 total', t: 'Rushing + receiving TDs, last 3 games combined', v: (p) => sumL3(p, 'td'), f: n0, m: 1 },
+      { h: 'Touches', g: 'season', t: 'Carries + catches per game this season', v: (p) => (p.season && p.season.gp ? ((p.season.car || 0) + (p.season.rec || 0)) / p.season.gp : null), f: n1, m: 1 },
+      { h: 'Yds/carry', g: 'season', t: 'Rushing yards per carry this season', v: (p) => ratio(p.season && p.season.ruyd, p.season && p.season.car), f: n1, m: 1 },
+      { h: 'Last game', g: '', t: 'Carries-rush yds, catches-rec yds in his last game', v: (p) => { const w = lastG(p); return w ? `${w.car || 0}-${w.ruyd || 0}, ${w.rec || 0}-${w.reyd || 0}` : null; }, f: (v) => v || '–', m: 1, str: 1 },
+    ],
+    QB: [
+      { h: 'Pass att', g: 'l3', t: 'Pass attempts per game, last 3 games', v: (p) => perG(p, 'patt'), f: n1, m: 1 },
+      { h: 'Pass yds', g: 'l3', t: 'Passing yards per game, last 3 games', v: (p) => perG(p, 'pyd'), f: n1 },
+      { h: 'Pass TD', g: 'l3 total', t: 'Passing TDs, last 3 games combined', v: (p) => sumL3(p, 'ptd'), f: n0 },
+      { h: 'INT', g: 'l3 total', t: 'Interceptions, last 3 games combined', v: (p) => sumL3(p, 'int'), f: n0, m: 1 },
+      { h: 'Rush yds', g: 'l3', t: 'Rushing yards per game, last 3 games', v: (p) => perG(p, 'ruyd'), f: n1, m: 1 },
+      { h: 'Comp %', g: 'season', t: 'Completions ÷ attempts this season', v: (p) => ratio(p.season && p.season.cmp, p.season && p.season.patt, 100), f: pct0, m: 1 },
+      { h: 'Last game', g: '', t: 'Passing yards / TDs / INTs in his last game', v: (p) => { const w = lastG(p); return w ? `${w.pyd || 0} yds, ${w.ptd || 0} TD, ${w.int || 0} INT` : null; }, f: (v) => v || '–', m: 1, str: 1 },
+    ],
+    K: [
+      { h: 'FG', g: 'l3 total', t: 'Field goals made/attempted, last 3 games', v: (p) => { const w = l3(p); return w.length ? `${w.reduce((s, x) => s + (x.fgm || 0), 0)}/${w.reduce((s, x) => s + (x.fga || 0), 0)}` : null; }, f: (v) => v || '–', str: 1 },
+      { h: 'XP', g: 'l3 total', t: 'Extra points made, last 3 games', v: (p) => sumL3(p, 'xpm'), f: n0 },
+      { h: 'FG %', g: 'season', t: 'Field goal percentage this season', v: (p) => ratio(p.season && p.season.fgm, p.season && p.season.fga, 100), f: pct0, m: 1 },
+      { h: 'FG att', g: 'season', t: 'Field goal attempts per game this season', v: (p) => szn(p, 'fga'), f: n1, m: 1 },
+    ],
+    'D/ST': [
+      { h: 'Sacks', g: 'l3', t: 'Sacks per game, last 3 games', v: (p) => perG(p, 'dsk'), f: n1 },
+      { h: 'Takeaways', g: 'l3 total', t: 'Interceptions + fumble recoveries, last 3 games', v: (p) => sumL3(p, 'to'), f: n0 },
+      { h: 'Pts allowed', g: 'l3', t: 'Points allowed per game, last 3 games', v: (p) => perG(p, 'pa'), f: n1, m: 1 },
+      { h: 'Yds allowed', g: 'l3', t: 'Yards allowed per game, last 3 games', v: (p) => perG(p, 'ya'), f: n0, m: 1 },
+    ],
+  };
+  const byeOf = () => { const m = {}; for (const f of Object.values(D.waivers || {}).flat()) if (f.bye_wk) m[f.team] = f.bye_wk; for (const t of D.teams) for (const r of D.rosters[t.id] || []) if (r.bye_wk) m[r.nfl] = r.bye_wk; return m; };
   const wv = (w, k) => (k === 'td' ? (w.rutd || 0) + (w.retd || 0) : k === 'to' ? (w.dint || 0) + (w.dfr || 0) : w[k] || 0);
   const l3 = (p) => (p.weeks || []).slice(-3);
   const agg = (p, k, how) => {
@@ -2833,7 +2887,7 @@
     if (W.error) return host.replaceChildren(el('p', { class: 'note', text: W.error }));
     const INJ = injById(), nfl = nflByAbbr();
     const posSeg = el('div', { class: 'seg pl-pos' }, ...['QB', 'RB', 'WR', 'TE', 'K', 'D/ST'].map((p) => { const b = el('button', { type: 'button', 'aria-pressed': String(p === plPos), text: p }); b.onclick = () => { plPos = p; store.set('pl-pos', p); plOpen = null; plSort = 'l3'; renderPlayers(); }; return b; }));
-    const cols = PLCOLS[plPos];
+    const cols = PLMAIN[plPos], BYE = byeOf();
     const sorts = [['l3', 'Last 3 games'], ['proj', `Week ${W.week} projection`], ['own', 'Most owned'], ['trend', 'Trending up'], ...(plPos === 'WR' || plPos === 'TE' || plPos === 'RB' ? [['use', plPos === 'RB' ? 'Touches' : 'Targets']] : [])];
     const sel = el('select', { class: 'pl-sort', 'aria-label': 'Sort' }, ...sorts.map(([v, t]) => el('option', { value: v, text: `Sort: ${t}` })));
     sel.value = plSort; sel.onchange = () => { plSort = sel.value; renderPlayers(); };
@@ -2844,21 +2898,27 @@
     const key = { l3: l3pts, proj: (p) => p.proj ?? -1, own: (p) => p.own, trend: (p) => p.ownChg, use: (p) => (plPos === 'RB' ? (agg(p, 'car', 'avg') || 0) + (agg(p, 'rec', 'avg') || 0) : agg(p, 'tgt', 'avg') || 0) }[plSort];
     rows = rows.sort((a, b) => (key(b) ?? -1) - (key(a) ?? -1)).slice(0, 30);
     const tbl = el('table', { class: 'pl-tbl' },
-      el('thead', {}, el('tr', {}, el('th', { text: 'Player' }), ...cols.map(([, h, , m]) => el('th', { class: 'n' + (m ? ' wide' : ''), text: h })), el('th', { class: 'n', text: 'Pts/g' }), el('th', { class: 'n', text: `Wk ${W.week}` }), el('th', { class: 'n wide', text: 'Matchup' }), el('th', { class: 'n wide', text: 'Owned' }))),
+      el('thead', {}, el('tr', {}, el('th', { text: 'Player' }),
+        ...cols.map((c) => el('th', { class: 'n' + (c.m ? ' wide' : '') + (c.g === 'season' ? ' szn' : ''), title: c.t }, c.h, el('small', { text: c.g === 'l3' ? 'per game' : c.g === 'l3 total' ? 'last 3' : c.g === 'season' ? 'season' : '' }))),
+        el('th', { class: 'n', title: 'Fantasy points per game, last 3 games' }, 'Pts', el('small', { text: 'per game' })), el('th', { class: 'n', title: 'ESPN projection this week' }, `Wk ${W.week}`, el('small', { text: 'proj' })),
+        el('th', { class: 'n wide', title: 'ESPN rest-of-season projection' }, 'ROS', el('small', { text: 'proj' })), el('th', { class: 'n wide', title: 'Points this week’s opponent allows to the position, and its rank (1st = toughest)' }, 'Matchup', el('small', { text: 'opp allows' })),
+        el('th', { class: 'n wide', text: 'Bye' }), el('th', { class: 'n wide' }, 'Owned', el('small', { text: 'ESPN, 1-wk change' })))),
       el('tbody', {}, ...rows.flatMap((p) => {
         const inj = INJ[p.id], dep = depthOf(p.id, p.team, p.pos), x = nfl[p.team];
         const tr = el('tr', { class: 'pl-row' + (plOpen === p.id ? ' open' : '') },
           el('td', { class: 'pl-nm' }, el('b', { text: p.name }), el('small', {}, `${p.team}${dep ? ' · ' + dep : ''}${p.status === 'WAIVERS' ? ' · waivers' : ''}`, p.inj && p.inj !== 'ACTIVE' ? el('b', { class: 'pl-injb', text: injLetter(p.inj) }) : null)),
-          ...cols.map(([k, , how, m]) => { const v = agg(p, k, how); return el('td', { class: 'n' + (m ? ' wide' : ''), text: v == null ? '–' : typeof v === 'string' ? v : how === 'sum' ? String(v) : f1(v) }); }),
+          ...cols.map((c) => { const v = c.v(p), tr = c.trend ? c.trend(p) : 0; return el('td', { class: 'n' + (c.m ? ' wide' : '') + (c.g === 'season' ? ' szn' : '') + (c.str ? ' str' : ''), title: c.t }, c.f(v), c.trend && v != null && Math.abs(tr) >= 1 ? el('small', { class: tr > 0 ? 'up' : 'down', title: 'Last 3 games vs season', text: tr > 0 ? ' ▲' : ' ▼' }) : null); }),
           el('td', { class: 'n b', text: l3pts(p) == null ? '–' : f1(l3pts(p)) }),
           el('td', { class: 'n', text: p.proj == null || p.proj === 0 ? '–' : f1(p.proj) }),
+          el('td', { class: 'n wide', text: p.ros == null ? '–' : String(p.ros) }),
           el('td', { class: 'n wide' }, x ? oppCell(x, p.pos) : el('span', { class: 'muted', text: 'BYE' })),
+          el('td', { class: 'n wide', text: BYE[p.team] ? `Wk ${BYE[p.team]}` : '–' }),
           el('td', { class: 'n wide' }, `${Math.round(p.own)}%`, p.ownChg ? el('small', { class: p.ownChg > 0 ? 'up' : 'down', text: ` ${p.ownChg > 0 ? '▲' : '▼'}${Math.abs(p.ownChg).toFixed(1)}` }) : null));
         tr.onclick = () => { plOpen = plOpen === p.id ? null : p.id; renderPlayers(); };
-        return plOpen === p.id ? [tr, el('tr', { class: 'pl-det' }, el('td', { colspan: String(cols.length + 5) }, plDetail(p, inj)))] : [tr];
+        return plOpen === p.id ? [tr, el('tr', { class: 'pl-det' }, el('td', { colspan: String(cols.length + 7) }, plDetail(p, inj)))] : [tr];
       })));
     host.replaceChildren(el('div', { class: 'pl-tools' }, posSeg, sel, hurt),
-      el('p', { class: 'note', text: `Free agents and waiver players, averaged over their last 3 games. Tap a player for week-by-week stats, the depth chart and injury news. From ESPN, updated ${new Date(W.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.` }),
+      el('p', { class: 'note', text: `Free agents and waiver players. “Per game” columns average his last 3 games (e.g. 4, 4 and 3 targets = 3.7 a game); “season” columns cover every game this year, and ▲▼ shows if his last 3 are up or down from that. Tap a player for week-by-week stats, the depth chart and injury news. From ESPN, updated ${new Date(W.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.` }),
       rows.length ? el('div', { class: 'pl-wrap' }, tbl) : el('p', { class: 'note', text: 'Nobody available at this position.' }),
       el('p', { class: 'note' }, 'To pick someone up, use ESPN: ', el('a', { href: `https://fantasy.espn.com/football/players/add?leagueId=${(D.league && D.league.id) || 961003394}`, target: '_blank', rel: 'noopener', text: 'open the waiver wire on ESPN ↗' })));
   }
