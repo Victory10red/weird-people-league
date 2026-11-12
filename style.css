@@ -822,3 +822,12 @@ body.tv #tv-exit { top: auto; bottom: 14px; right: auto; left: 18px; }
 .pl-matelist { margin-bottom: 8px; font-size: 13px; } .pl-matelist small { color: var(--muted); font-size: 11.5px; } .pl-matelist ul { margin: 4px 0 0; padding-left: 18px; }
 .pl-matelist li.ahead b { color: var(--good); } .pl-ahead { color: var(--good); font-size: 11.5px; font-weight: 600; }
 #tip { max-width: min(340px, calc(100vw - 16px)); }
+
+.pl-swap { font-size: 12px; padding: 1px 6px; }
+.pl-drops { margin-bottom: 8px; font-size: 13px; } .pl-drops small { color: var(--muted); font-size: 11.5px; } .pl-drops ol { margin: 4px 0 0; padding-left: 20px; } .pl-drops li { padding: 2px 0; }
+.pl-drops .good { color: var(--good); font-weight: 600; } .pl-drops .bad { color: var(--bad); }
+@media (max-width: 620px) {
+  .pl-role { white-space: normal; min-width: 64px; }
+  .pl-role .pl-rchip { display: block; margin: 0 0 4px auto; width: max-content; }
+  .pl-role .pl-mates { margin: 0 0 0 2px; padding: 1px 4px; }
+}

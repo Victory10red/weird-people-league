@@ -2875,11 +2875,45 @@
     const outAhead = rows.filter((r) => r.ahead && r.out).length;
     return { rows, me, outAhead, role: me >= 0 ? `${p.pos}${me + 1}` : null, nowRole: me >= 0 && outAhead ? `${p.pos}${me + 1 - outAhead}` : null };
   }
+  // who to drop from your team to make room for p (any position), by how much your best lineup improves
+  const FLEXPOS = new Set(['RB', 'WR', 'TE']);
+  function dropsFor(p) {
+    const tid = ME || team, mine = (D.rosters && D.rosters[tid]) || [];
+    if (!mine.length || !D.sim) return null;
+    const f = { pid: p.id, name: p.name, pos: p.pos, ros: p.ros || 0, proj: p.proj || 0, inj: p.inj, slot: 'Bench', starter: false, bye: !p.proj };
+    const base = rosWk(mine), baseWk = thisWk(mine);
+    const out = mine.filter((d) => d.slot !== 'IR').map((d) => {
+      const after = mine.filter((x) => x.pid !== d.pid).concat(f);
+      const g = rosWk(after) - base, gw = thisWk(after) - baseWk, depth = (f.ros || 0) - (d.ros || 0);
+      // lineup gains count most. Bench depth (byes, injuries) matters mostly at RB/WR/TE, the flex
+      // positions; a backup QB, K or D/ST rarely plays, so they count for a lot less
+      const dv = (x) => ((x.ros || 0) / Math.max(1, D.sim.games_left)) * (FLEXPOS.has(x.pos) ? 1 : 0.2);
+      const extra = !FLEXPOS.has(d.pos) && mine.filter((x) => x.pos === d.pos && x.slot !== 'IR').length > 1;
+      return { d, g, gw, depth, extra, same: FLEXPOS.has(f.pos) === FLEXPOS.has(d.pos), score: g + gw * 0.3 + (dv(f) - dv(d)) * 0.25 };
+    }).sort((a, b) => b.score - a.score);
+    const seen = new Set(); // only one 'extra' QB / K / D/ST at a time: you can't drop both
+    const list = out.filter((x) => { if (!x.extra) return true; if (seen.has(x.d.pos)) return false; seen.add(x.d.pos); return true; }).slice(0, 3);
+    return { tid, list, mine: tid === ME };
+  }
+  const gainTxt = (x) => {
+    const why = x.extra ? ` (your ${x.d.pos === 'QB' ? 'backup QB' : 'extra ' + x.d.pos}, you only start one)` : '';
+    if (x.g > 0.05) return `+${f1(x.g)} pts/wk to your best lineup${Math.abs(x.gw) >= 0.1 ? `, ${x.gw >= 0 ? '+' : ''}${f1(x.gw)} this week` : ''}${why}`;
+    if (!x.same) return `frees up a roster spot${why}`;
+    return `better backup: ${x.d.ros || 0} → ${(x.d.ros || 0) + Math.round(x.depth)} rest-of-season pts`;
+  };
+  const dropLine = (x) => `${x.d.name} (${x.d.pos}, ${x.d.starter ? 'starter' : 'bench'}${x.d.inj && !/ACTIVE|NORMAL/.test(x.d.inj) ? ', ' + x.d.inj : ''}): ${gainTxt(x)}`;
+  function dropsText(p) {
+    const r = dropsFor(p); if (!r) return '';
+    const who = r.mine ? 'you' : `${tm(r.tid).owner}`;
+    if (!r.list.length || r.list[0].score <= 0) return `\n\nWorth a roster spot for ${who}? Not really. He doesn't beat anyone on ${r.mine ? 'your' : 'that'} roster yet.`;
+    return `\n\nIf ${who} add${r.mine ? '' : 's'} him, drop:\n` + r.list.filter((x) => x.score > 0).map((x, i) => `${i + 1}. ${dropLine(x)}`).join('\n');
+  }
+  function swapTip(ev, p) { tip.show(ev, `Add ${p.name}? (${p.pos}, ${p.team})`, dropsText(p).replace(/^\n\n/, '\n') || '\nPick who you are first to see suggested drops.'); tipEl.dataset.k = 'mates'; }
   function matesTip(ev, p, m) {
     const head = m.nowRole ? `${p.name}: ${m.role} → ${m.nowRole} this week` : `${p.team} injuries`;
     const body = m.rows.map((r) => `${r.ahead ? '⬆ ' : ''}${r.name} (${r.depth}) – ${r.status}${r.part ? ', ' + r.part : ''}${r.ret ? ', back ~' + retTxt(r.ret) : ''}`).join('\n')
       + (m.outAhead ? `\n\n${m.outAhead === 1 ? 'Someone' : m.outAhead + ' players'} ahead of him on the depth chart ${m.outAhead === 1 ? 'is' : 'are'} out or doubtful, so he should see more work.` : '');
-    tip.show(ev, head, '\n' + body); tipEl.dataset.k = 'mates';
+    tip.show(ev, head, '\n' + body + dropsText(p)); tipEl.dataset.k = 'mates';
   }
   document.addEventListener('click', (e) => { if (tipEl.dataset.k === 'mates' && !e.target.closest('.pl-mates')) { tip.hide(); tipEl.dataset.k = ''; } });
   const byeOf = () => { const m = {}; for (const f of Object.values(D.waivers || {}).flat()) if (f.bye_wk) m[f.team] = f.bye_wk; for (const t of D.teams) for (const r of D.rosters[t.id] || []) if (r.bye_wk) m[r.nfl] = r.bye_wk; return m; };
@@ -2929,7 +2963,10 @@
           badge.addEventListener('click', (e) => { e.stopPropagation(); matesTip(e, p, mates); });
           if (canHover) { badge.addEventListener('mouseenter', (e) => matesTip(e, p, mates)); badge.addEventListener('mouseleave', () => tip.hide()); }
         }
-        const roleCell = el('td', { class: 'n pl-role' }, mates.role ? el('span', { class: 'pl-rchip' + (mates.nowRole ? ' up' : ''), title: mates.nowRole ? `${mates.role} on the depth chart, ${mates.nowRole} with the injuries ahead of him` : `${mates.role} on the depth chart` }, mates.nowRole ? `${mates.role}→${mates.nowRole}` : mates.role) : el('span', { class: 'muted', text: '–' }), badge);
+        const swap = el('button', { type: 'button', class: 'pl-mates pl-swap', title: 'Who would you drop for him?', 'aria-label': `Suggested drops for ${p.name}`, text: '⇄' });
+        swap.addEventListener('click', (e) => { e.stopPropagation(); swapTip(e, p); });
+        if (canHover) { swap.addEventListener('mouseenter', (e) => swapTip(e, p)); swap.addEventListener('mouseleave', () => tip.hide()); }
+        const roleCell = el('td', { class: 'n pl-role' }, mates.role ? el('span', { class: 'pl-rchip' + (mates.nowRole ? ' up' : ''), title: mates.nowRole ? `${mates.role} on the depth chart, ${mates.nowRole} with the injuries ahead of him` : `${mates.role} on the depth chart` }, mates.nowRole ? `${mates.role}→${mates.nowRole}` : mates.role) : el('span', { class: 'muted', text: '–' }), badge, swap);
         const tr = el('tr', { class: 'pl-row' + (plOpen === p.id ? ' open' : '') },
           el('td', { class: 'pl-nm' }, el('b', { text: p.name }), el('small', {}, `${p.team}${p.status === 'WAIVERS' ? ' · waivers' : ''}`, p.inj && p.inj !== 'ACTIVE' ? el('b', { class: 'pl-injb', text: injLetter(p.inj) }) : null)),
           roleCell,
@@ -2962,7 +2999,12 @@
     const mates = injMates(p);
     const matesEl = mates.rows.length ? el('div', { class: 'pl-matelist' }, el('small', { text: mates.nowRole ? `Injured teammates: he moves from ${mates.role} to ${mates.nowRole} with them out` : `Injured ${p.team} teammates` }),
       el('ul', {}, ...mates.rows.map((r) => el('li', { class: r.ahead ? 'ahead' : '' }, el('b', { text: `${r.name} (${r.depth})` }), ` ${r.status}${r.part ? ', ' + r.part : ''}${r.ret ? ' · est. return ' + retTxt(r.ret) : ''}`, r.ahead ? el('span', { class: 'pl-ahead', text: ' ahead of him' }) : null)))) : null;
-    return el('div', { class: 'pl-detail' }, matesEl,
+    const dr = dropsFor(p);
+    const dropsEl = dr ? el('div', { class: 'pl-drops' }, el('small', { text: dr.mine ? 'If you add him, drop:' : `If ${tm(dr.tid).owner} adds him, drop:` }),
+      dr.list.length && dr.list[0].score > 0 ? el('ol', {}, ...dr.list.filter((x) => x.score > 0).map((x) => el('li', {}, el('b', { text: x.d.name }), ` (${x.d.pos}, ${x.d.starter ? 'starter' : 'bench'}${x.d.inj && !/ACTIVE|NORMAL/.test(x.d.inj) ? ', ' + x.d.inj : ''}) `,
+        el('span', { class: 'good', text: gainTxt(x) }))))
+        : el('p', { class: 'note', text: 'He doesn’t beat anyone on the roster yet. Not worth a spot.' })) : null;
+    return el('div', { class: 'pl-detail' }, dropsEl, matesEl,
       inj ? el('p', { class: 'pl-injnote' }, el('b', { text: `${inj.status}${inj.part ? ` (${inj.part})` : ''}${inj.ret ? ` · est. return ${retTxt(inj.ret)}` : ''}. ` }), inj.note) : null,
       seasonLine ? el('p', { class: 'note', text: seasonLine + (p.ros != null ? ` Rest-of-season projection: ${p.ros} pts.` : '') }) : null,
       el('div', { class: 'pl-detgrid' }, el('div', { class: 'pl-wrap' }, wk), depth));
