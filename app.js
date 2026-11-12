@@ -17,7 +17,7 @@
     set(k, v) { try { localStorage.setItem(k, v); } catch { /* private mode */ } },
   };
   const TABS = ['team', 'week', 'talk', 'play', 'league'];
-  const LVIEWS = ['standings', 'playoffs', 'moves', 'draft', 'history'];
+  const LVIEWS = ['standings', 'players', 'playoffs', 'moves', 'draft', 'history'];
 
   let D = null, LIVE = null, T = {};
   let team = Number(new URLSearchParams(location.search).get('team')) || Number(store.get('team')) || null;
@@ -29,10 +29,10 @@
   // shareable links straight to a page: /#pickem, /#predictions, /#playoffs, /#trophies …
   const ROUTES = {
     pickem: ['play', 'pick'], picks: ['play', 'pick'], predictions: ['play', 'pred'], predict: ['play', 'pred'], dump: ['play', 'poop'], poop: ['play', 'poop'], breakaway: ['play', 'bk'],
-    standings: ['league', 'standings'], playoffs: ['league', 'playoffs'], bracket: ['league', 'playoffs'], toilet: ['league', 'playoffs'], moves: ['league', 'moves'], trophies: ['league', 'history'],
+    standings: ['league', 'standings'], players: ['league', 'players'], wire: ['league', 'players'], injuries: ['league', 'players'], depth: ['league', 'players'], playoffs: ['league', 'playoffs'], bracket: ['league', 'playoffs'], toilet: ['league', 'playoffs'], moves: ['league', 'moves'], trophies: ['league', 'history'],
     roster: ['team', 'roster'], waivers: ['team', 'roster'], outlook: ['team', 'outlook'], season: ['team', 'season'],
   };
-  const GAME_ROUTE = { pick: 'pickem', pred: 'predictions', poop: 'dump', bk: 'breakaway' }, LV_ROUTE = { standings: 'standings', playoffs: 'playoffs', moves: 'moves', draft: 'draft', history: 'history' };
+  const GAME_ROUTE = { pick: 'pickem', pred: 'predictions', poop: 'dump', bk: 'breakaway' }, LV_ROUTE = { standings: 'standings', players: 'players', playoffs: 'playoffs', moves: 'moves', draft: 'draft', history: 'history' };
   let linkGame = null, linkTeamView = null;
   function applyRoute(h) {
     const r = ROUTES[h]; if (!r) return h;
@@ -2776,10 +2776,156 @@
       col(`Week ${W1} · Round 1 (losers advance)`, game(W1, losers[0], losers[3]), game(W1, losers[1], losers[2])),
       col(`Week ${W2} · Toilet Bowl`, game(W2, tl1, tl2, '7/10 loser', '8/9 loser'), last ? el('div', { class: 'br-champ toilet', text: `🚽 ${tm(last).owner} finishes dead last` }) : el('p', { class: 'note', text: started ? '' : `Right now: ${losers.map((id) => tm(id).owner).join(', ')}.` }))));
   }
+  // ---------- League › Players: waiver wire by position, injury report, depth charts ----------
+  const PL = { wire: null, injuries: null, depth: null, at: {} };
+  let plView = ['wire', 'injuries', 'depth'].includes(store.get('pl-view')) ? store.get('pl-view') : 'wire';
+  { const h0 = location.hash.slice(1).toLowerCase(); if (h0 === 'injuries' || h0 === 'depth' || h0 === 'wire') plView = h0; }
+  let plPos = store.get('pl-pos') || 'WR', plSort = 'l3', plHideHurt = true, plOpen = null, plInjF = 'league', plTeam = store.get('pl-team') || null;
+  async function plLoad(k) {
+    if (PL[k] && Date.now() - (PL.at[k] || 0) < 10 * 60000) return;
+    PL.at[k] = Date.now();
+    try { PL[k] = await getJSON(`/api/players?k=${k}`); } catch (e) { PL[k] = { error: e.message }; }
+    if (tab === 'league' && leagueView === 'players') renderPlayers();
+  }
+  const injLetter = (s) => ({ QUESTIONABLE: 'Q', Questionable: 'Q', DOUBTFUL: 'D', Doubtful: 'D', OUT: 'O', Out: 'O', INJURY_RESERVE: 'IR', 'Injured Reserve': 'IR', SUSPENSION: 'SSPD', Suspension: 'SSPD' })[s] || (s ? s.slice(0, 3) : '');
+  const ownerOfPid = () => { const m = {}; for (const t of D.teams) for (const r of D.rosters[t.id] || []) m[r.pid] = t.id; return m; };
+  const injById = () => { const m = {}; for (const i of (PL.injuries && PL.injuries.list) || []) if (i.id) m[i.id] = i; return m; };
+  // where a player sits on his team's depth chart: "WR2"
+  const depthOf = (id, team, pos) => {
+    const t = PL.depth && PL.depth.teams && PL.depth.teams[team]; if (!t) return null;
+    const list = t[pos === 'D/ST' ? '' : pos] || []; const i = list.indexOf(id);
+    return i >= 0 ? `${pos}${i + 1}` : null;
+  };
+  const retTxt = (d) => {
+    if (!d) return '–';
+    const t = new Date(d + 'T12:00:00'), days = Math.round((t - Date.now()) / 86400000);
+    const s = t.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    return days <= 0 ? `${s} (any day)` : days <= 7 ? `${s} (this week)` : `${s} (${Math.round(days / 7)} wk${Math.round(days / 7) === 1 ? '' : 's'})`;
+  };
+  // stat columns per position, averaged over the last 3 games played
+  const PLCOLS = {
+    QB: [['pyd', 'Pass yds', 'avg'], ['ptd', 'Pass TD', 'sum'], ['int', 'INT', 'sum', 1], ['ruyd', 'Rush yds', 'avg', 1]],
+    RB: [['car', 'Carries', 'avg'], ['ruyd', 'Rush yds', 'avg', 1], ['tgt', 'Targets', 'avg'], ['rec', 'Catches', 'avg', 1], ['td', 'TD', 'sum', 1]],
+    WR: [['tgt', 'Targets', 'avg'], ['rec', 'Catches', 'avg', 1], ['reyd', 'Yards', 'avg'], ['td', 'TD', 'sum', 1]],
+    TE: [['tgt', 'Targets', 'avg'], ['rec', 'Catches', 'avg', 1], ['reyd', 'Yards', 'avg'], ['td', 'TD', 'sum', 1]],
+    K: [['fg', 'FG', 'frac'], ['xpm', 'XP', 'sum']],
+    'D/ST': [['dsk', 'Sacks', 'avg'], ['to', 'Takeaways', 'sum'], ['pa', 'Pts allowed', 'avg', 1]],
+  };
+  const wv = (w, k) => (k === 'td' ? (w.rutd || 0) + (w.retd || 0) : k === 'to' ? (w.dint || 0) + (w.dfr || 0) : w[k] || 0);
+  const l3 = (p) => (p.weeks || []).slice(-3);
+  const agg = (p, k, how) => {
+    const w = l3(p); if (!w.length) return null;
+    if (how === 'frac') return `${w.reduce((s, x) => s + (x.fgm || 0), 0)}/${w.reduce((s, x) => s + (x.fga || 0), 0)}`;
+    const sum = w.reduce((s, x) => s + wv(x, k), 0);
+    return how === 'sum' ? sum : sum / w.length;
+  };
+  const l3pts = (p) => { const w = l3(p); return w.length ? w.reduce((s, x) => s + x.pts, 0) / w.length : null; };
+  function renderPlayers() {
+    $$('#pl-seg button').forEach((b) => { b.setAttribute('aria-pressed', String(b.dataset.v === plView)); b.onclick = () => { plView = b.dataset.v; store.set('pl-view', plView); renderPlayers(); }; });
+    // every view uses the injury list and depth charts for context
+    plLoad('injuries'); plLoad('depth'); if (plView === 'wire') plLoad('wire');
+    const host = $('#pl-body');
+    ({ wire: plWire, injuries: plInjuries, depth: plDepth })[plView](host);
+  }
+  function plWire(host) {
+    const W = PL.wire;
+    if (!W) return host.replaceChildren(el('p', { class: 'note', text: 'Loading the waiver wire from ESPN…' }));
+    if (W.error) return host.replaceChildren(el('p', { class: 'note', text: W.error }));
+    const INJ = injById(), nfl = nflByAbbr();
+    const posSeg = el('div', { class: 'seg pl-pos' }, ...['QB', 'RB', 'WR', 'TE', 'K', 'D/ST'].map((p) => { const b = el('button', { type: 'button', 'aria-pressed': String(p === plPos), text: p }); b.onclick = () => { plPos = p; store.set('pl-pos', p); plOpen = null; plSort = 'l3'; renderPlayers(); }; return b; }));
+    const cols = PLCOLS[plPos];
+    const sorts = [['l3', 'Last 3 games'], ['proj', `Week ${W.week} projection`], ['own', 'Most owned'], ['trend', 'Trending up'], ...(plPos === 'WR' || plPos === 'TE' || plPos === 'RB' ? [['use', plPos === 'RB' ? 'Touches' : 'Targets']] : [])];
+    const sel = el('select', { class: 'pl-sort', 'aria-label': 'Sort' }, ...sorts.map(([v, t]) => el('option', { value: v, text: `Sort: ${t}` })));
+    sel.value = plSort; sel.onchange = () => { plSort = sel.value; renderPlayers(); };
+    const hurt = el('label', { class: 'pl-chk' }, el('input', { type: 'checkbox' }), ' Hide Out / IR');
+    hurt.firstChild.checked = plHideHurt; hurt.firstChild.onchange = (e) => { plHideHurt = e.target.checked; renderPlayers(); };
+    let rows = W.players.filter((p) => p.pos === plPos);
+    if (plHideHurt) rows = rows.filter((p) => !/OUT|INJURY_RESERVE|SUSPENSION/.test(p.inj || ''));
+    const key = { l3: l3pts, proj: (p) => p.proj ?? -1, own: (p) => p.own, trend: (p) => p.ownChg, use: (p) => (plPos === 'RB' ? (agg(p, 'car', 'avg') || 0) + (agg(p, 'rec', 'avg') || 0) : agg(p, 'tgt', 'avg') || 0) }[plSort];
+    rows = rows.sort((a, b) => (key(b) ?? -1) - (key(a) ?? -1)).slice(0, 30);
+    const tbl = el('table', { class: 'pl-tbl' },
+      el('thead', {}, el('tr', {}, el('th', { text: 'Player' }), ...cols.map(([, h, , m]) => el('th', { class: 'n' + (m ? ' wide' : ''), text: h })), el('th', { class: 'n', text: 'Pts/g' }), el('th', { class: 'n', text: `Wk ${W.week}` }), el('th', { class: 'n wide', text: 'Matchup' }), el('th', { class: 'n wide', text: 'Owned' }))),
+      el('tbody', {}, ...rows.flatMap((p) => {
+        const inj = INJ[p.id], dep = depthOf(p.id, p.team, p.pos), x = nfl[p.team];
+        const tr = el('tr', { class: 'pl-row' + (plOpen === p.id ? ' open' : '') },
+          el('td', { class: 'pl-nm' }, el('b', { text: p.name }), el('small', {}, `${p.team}${dep ? ' · ' + dep : ''}${p.status === 'WAIVERS' ? ' · waivers' : ''}`, p.inj && p.inj !== 'ACTIVE' ? el('b', { class: 'pl-injb', text: injLetter(p.inj) }) : null)),
+          ...cols.map(([k, , how, m]) => { const v = agg(p, k, how); return el('td', { class: 'n' + (m ? ' wide' : ''), text: v == null ? '–' : typeof v === 'string' ? v : how === 'sum' ? String(v) : f1(v) }); }),
+          el('td', { class: 'n b', text: l3pts(p) == null ? '–' : f1(l3pts(p)) }),
+          el('td', { class: 'n', text: p.proj == null || p.proj === 0 ? '–' : f1(p.proj) }),
+          el('td', { class: 'n wide' }, x ? oppCell(x, p.pos) : el('span', { class: 'muted', text: 'BYE' })),
+          el('td', { class: 'n wide' }, `${Math.round(p.own)}%`, p.ownChg ? el('small', { class: p.ownChg > 0 ? 'up' : 'down', text: ` ${p.ownChg > 0 ? '▲' : '▼'}${Math.abs(p.ownChg).toFixed(1)}` }) : null));
+        tr.onclick = () => { plOpen = plOpen === p.id ? null : p.id; renderPlayers(); };
+        return plOpen === p.id ? [tr, el('tr', { class: 'pl-det' }, el('td', { colspan: String(cols.length + 5) }, plDetail(p, inj)))] : [tr];
+      })));
+    host.replaceChildren(el('div', { class: 'pl-tools' }, posSeg, sel, hurt),
+      el('p', { class: 'note', text: `Free agents and waiver players, averaged over their last 3 games. Tap a player for week-by-week stats, the depth chart and injury news. From ESPN, updated ${new Date(W.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.` }),
+      rows.length ? el('div', { class: 'pl-wrap' }, tbl) : el('p', { class: 'note', text: 'Nobody available at this position.' }),
+      el('p', { class: 'note' }, 'To pick someone up, use ESPN: ', el('a', { href: `https://fantasy.espn.com/football/players/add?leagueId=${(D.league && D.league.id) || 961003394}`, target: '_blank', rel: 'noopener', text: 'open the waiver wire on ESPN ↗' })));
+  }
+  function plDetail(p, inj) {
+    const cols = PLCOLS[p.pos] || [];
+    const wk = el('table', { class: 'pl-wk' }, el('thead', {}, el('tr', {}, el('th', { text: 'Week' }), el('th', { class: 'n', text: 'Pts' }), ...cols.map(([, h]) => el('th', { class: 'n', text: h })))),
+      el('tbody', {}, ...[...(p.weeks || [])].reverse().map((w) => el('tr', {}, el('td', { text: `Wk ${w.wk}` }), el('td', { class: 'n b', text: f1(w.pts) }),
+        ...cols.map(([k, , how]) => el('td', { class: 'n', text: how === 'frac' ? `${w.fgm || 0}/${w.fga || 0}` : String(Math.round(wv(w, k) * 10) / 10) }))))));
+    const s = p.season;
+    const seasonLine = s ? `Season: ${f1(s.pts)} pts${s.gp ? ` in ${s.gp} games (${f1(s.pts / s.gp)} a game)` : ''}${p.pos === 'WR' || p.pos === 'TE' ? `, ${s.tgt || 0} targets, ${s.rec || 0} catches, ${s.reyd || 0} yards` : p.pos === 'RB' ? `, ${s.car || 0} carries, ${s.ruyd || 0} yards, ${s.tgt || 0} targets` : p.pos === 'QB' ? `, ${s.pyd || 0} pass yds, ${s.ptd || 0} TD, ${s.int || 0} INT` : ''}.` : '';
+    const dl = PL.depth && PL.depth.teams && PL.depth.teams[p.team] && PL.depth.teams[p.team][p.pos];
+    const INJ = injById();
+    const depth = dl ? el('div', { class: 'pl-depth' }, el('small', { text: `${p.team} ${p.pos} depth chart` }),
+      el('ol', {}, ...dl.slice(0, 5).map((id) => { const i = INJ[id]; return el('li', { class: id === p.id ? 'me' : '' }, (PL.depth.names || {})[id] || `#${id}`, i ? el('b', { class: 'inj', text: ' ' + injLetter(i.status) }) : null); }))) : null;
+    return el('div', { class: 'pl-detail' },
+      inj ? el('p', { class: 'pl-injnote' }, el('b', { text: `${inj.status}${inj.part ? ` (${inj.part})` : ''}${inj.ret ? ` · est. return ${retTxt(inj.ret)}` : ''}. ` }), inj.note) : null,
+      seasonLine ? el('p', { class: 'note', text: seasonLine + (p.ros != null ? ` Rest-of-season projection: ${p.ros} pts.` : '') }) : null,
+      el('div', { class: 'pl-detgrid' }, el('div', { class: 'pl-wrap' }, wk), depth));
+  }
+  function plInjuries(host) {
+    const J = PL.injuries;
+    if (!J) return host.replaceChildren(el('p', { class: 'note', text: 'Loading the injury report…' }));
+    if (J.error) return host.replaceChildren(el('p', { class: 'note', text: J.error }));
+    const own = ownerOfPid(), wireIds = new Set(((PL.wire && PL.wire.players) || []).map((p) => p.id));
+    const seg = el('div', { class: 'seg' }, ...[['league', 'Our league'], ['mine', 'My team'], ['all', 'All NFL']].map(([v, t]) => { const b = el('button', { type: 'button', 'aria-pressed': String(plInjF === v), text: t }); b.onclick = () => { plInjF = v; renderPlayers(); }; return b; }));
+    let list = J.list.map((i) => ({ ...i, tid: own[i.id] || null }));
+    if (plInjF === 'league') list = list.filter((i) => i.tid);
+    if (plInjF === 'mine') list = list.filter((i) => i.tid === (ME || team));
+    const week = Date.now() - 8 * 86400000;
+    const fresh = list.filter((i) => i.date && new Date(i.date).getTime() >= week).sort((a, b) => new Date(b.date) - new Date(a.date));
+    const order = { Out: 0, 'Injured Reserve': 1, Doubtful: 2, Questionable: 3 };
+    const rest = list.filter((i) => !fresh.includes(i)).sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9) || String(a.ret || 'z').localeCompare(String(b.ret || 'z')));
+    const row = (i) => el('div', { class: 'pl-inj' + (i.tid && i.tid === ME ? ' me' : '') },
+      el('span', { class: 'pl-st st-' + injLetter(i.status), text: injLetter(i.status) }),
+      el('div', { class: 'pl-im' },
+        el('div', {}, el('b', { text: i.name }), el('small', { text: ` ${i.pos} · ${i.team}${depthOf(i.id, i.team, i.pos) ? ' · ' + depthOf(i.id, i.team, i.pos) : ''}` })),
+        el('div', { class: 'pl-iw' }, el('span', { text: i.part || 'Undisclosed' }), i.ret ? el('span', { text: `Est. return: ${retTxt(i.ret)}` }) : null, el('span', { class: 'pl-own', text: i.tid ? `${tm(i.tid).owner}’s team` : wireIds.has(i.id) ? 'Free agent' : 'Not rostered' })),
+        i.note ? el('small', { class: 'pl-note', text: i.note }) : null));
+    host.replaceChildren(el('div', { class: 'pl-tools' }, seg),
+      el('p', { class: 'note', text: `NFL injury report for fantasy positions. Estimated return dates come from ESPN and change often. Updated ${new Date(J.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.` }),
+      el('h4', { class: 'pl-h', text: `New this week (${fresh.length})` }), ...(fresh.length ? fresh.map(row) : [el('p', { class: 'note', text: 'Nothing new in the last 8 days.' })]),
+      el('h4', { class: 'pl-h', text: `Still out or banged up (${rest.length})` }), ...(rest.length ? rest.map(row) : [el('p', { class: 'note', text: 'Nobody.' })]));
+  }
+  function plDepth(host) {
+    const DP = PL.depth;
+    if (!DP) return host.replaceChildren(el('p', { class: 'note', text: 'Loading depth charts…' }));
+    if (DP.error) return host.replaceChildren(el('p', { class: 'note', text: DP.error }));
+    const teamsList = Object.keys(DP.teams).sort();
+    if (!plTeam || !DP.teams[plTeam]) { const mine = (D.rosters[ME || team] || []).find((r) => r.starter && DP.teams[r.nfl]); plTeam = mine ? mine.nfl : teamsList[0]; }
+    const sel = el('select', { class: 'pl-sort', 'aria-label': 'NFL team' }, ...teamsList.map((t) => el('option', { value: t, text: t })));
+    sel.value = plTeam; sel.onchange = () => { plTeam = sel.value; store.set('pl-team', plTeam); renderPlayers(); };
+    const own = ownerOfPid(), INJ = injById(), wire = new Map(((PL.wire && PL.wire.players) || []).map((p) => [p.id, p]));
+    const T0 = DP.teams[plTeam];
+    const x = nflByAbbr()[plTeam];
+    host.replaceChildren(el('div', { class: 'pl-tools' }, sel, el('span', { class: 'note', text: x ? `Week ${D.league.week}: ${x.home ? 'vs' : '@'} ${x.them.abbr}` : '' })),
+      el('div', { class: 'pl-dgrid' }, ...['QB', 'RB', 'WR', 'TE', 'K'].filter((p) => (T0[p] || []).length).map((pos) => el('div', { class: 'pl-dcol' }, el('h4', { text: pos }),
+        el('ol', {}, ...(T0[pos] || []).slice(0, pos === 'WR' ? 6 : 4).map((id) => {
+          const i = INJ[id], tid = own[id], w = wire.get(id);
+          return el('li', { class: tid === ME ? 'me' : '' }, el('span', { text: (DP.names || {})[id] || `#${id}` }), i ? el('b', { class: 'inj', title: `${i.status}${i.part ? ' – ' + i.part : ''}${i.ret ? ', est. return ' + i.ret : ''}`, text: ' ' + injLetter(i.status) }) : null,
+            el('small', { class: tid ? 'pl-tag' : w ? 'pl-tag fa' : 'pl-tag none', text: tid ? tm(tid).owner : w ? `FA ${Math.round(w.own)}%` : '' }));
+        }))))),
+      el('p', { class: 'note', text: 'Names show who has them in our league. Green “FA” means available on the wire. From ESPN’s team depth charts.' }));
+  }
   function renderLeagueTab() {
     $$('#lsubnav button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.lv === leagueView)));
     $$('#league .lview').forEach((v) => { v.hidden = v.dataset.lv !== leagueView; });
-    ({ standings: renderLeague, playoffs: renderPlayoffs, moves: renderTrades, draft: renderDraft, history: renderHistory })[leagueView]();
+    ({ standings: renderLeague, players: renderPlayers, playoffs: renderPlayoffs, moves: renderTrades, draft: renderDraft, history: renderHistory })[leagueView]();
   }
   function renderAll() {
     if (!D) return;

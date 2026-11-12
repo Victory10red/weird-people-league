@@ -67,7 +67,7 @@
         <div class="view" data-view="roster" hidden>
           <div class="card"><h3>Waiver plan</h3><p class="note">Every free agent tried in your lineup: who adds the most rest-of-season points to your best lineup, and who you'd drop for him. Byes and this week's projection included.</p><div id="wplan" class="wplan"></div></div>
           <div class="card"><h3>Trade finder</h3><p class="note">Every 1-for-1 swap with every team, kept only when both teams' best lineups get better, then the best few run through the playoff simulator. Deals that help both sides are the ones people say yes to.</p><div id="tfind" class="tfind"></div></div>
-          <div class="card"><h3>Best available</h3><p class="note">Free agents and waivers by rest-of-season projection. ESPN and Vegas = this week's projections.</p><div class="seg" id="wv-seg"></div><div class="tbl" id="t-waivers"></div></div>
+          <div class="card"><h3>Best available</h3><p class="note">Free agents and waivers by rest-of-season projection. ESPN and Vegas = this week's projections. <a href="#players">Full waiver wire with targets, carries, injuries and depth charts →</a></p><div class="seg" id="wv-seg"></div><div class="tbl" id="t-waivers"></div></div>
           <div class="card"><h3>Trade targets: <span id="weak-pos">–</span></h3><p class="note">Best players at your weakest slot sitting outside their own team's best lineup. Test a deal in the Trades tab's analyzer.</p><div class="tbl" id="t-targets"></div></div>
         </div>
 
@@ -125,7 +125,7 @@
     <!-- LEAGUE -->
     <section id="league" class="tab" hidden>
       <nav class="subnav" id="lsubnav" aria-label="League sections">
-        <button data-lv="standings">Standings</button><button data-lv="playoffs">Playoffs</button><button data-lv="moves">Trades</button><button data-lv="draft">Draft</button><button data-lv="history">History</button>
+        <button data-lv="standings">Standings</button><button data-lv="players">Players</button><button data-lv="playoffs">Playoffs</button><button data-lv="moves">Trades</button><button data-lv="draft">Draft</button><button data-lv="history">History</button>
       </nav>
       <div class="lview" data-lv="standings">
 
@@ -147,6 +147,9 @@
       </div>
       <div class="card fold" data-fold="clutch"><h3>Clutch &amp; schedule</h3><p class="note">Close = decided by under 10 points. Opp avg = average score of the opponents faced.</p><div class="tbl" id="t-clutch"></div></div>
         <p class="note fold-hint">Tap any section above to open it.</p>
+      </div>
+      <div class="lview" data-lv="players" hidden>
+        <div class="card"><div class="row-head"><h3>Players</h3><div class="seg" id="pl-seg"><button data-v="wire">Waiver wire</button><button data-v="injuries">Injuries</button><button data-v="depth">Depth charts</button></div></div><div id="pl-body"></div></div>
       </div>
       <div class="lview" data-lv="playoffs" hidden>
         <div class="card"><div class="row-head"><h3 id="br-title">Playoff bracket</h3><span class="pill" id="br-pill">–</span></div><p class="note">Top 6 make it; seeds 1 and 2 get a first-round bye. Weeks 15, 16 and 17. Before the playoffs this is the bracket if the season ended today, with each team's odds of winning it all from that spot.</p><div id="bracket" class="bracket"></div></div>

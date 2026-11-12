@@ -66,6 +66,27 @@ const picksOut = (team) => {
 };
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
 const fakeTrophy = { 2025: { caption: 'Hoisting it at the draft party', last: 'Edwin', punishment: '24 hours at a Waffle House' } };
+
+// League › Players fakes, built from the saved league
+const rnd = (seed) => () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+const fakePlayers = (() => {
+  const R = rnd(7), wk = league.league.week;
+  const mk = (pos, i) => { const base = { QB: 16, RB: 9, WR: 8, TE: 6, K: 7, 'D/ST': 6 }[pos];
+    return Array.from({ length: 4 }, (_, k) => { const w = { wk: wk - 4 + k, pts: Math.round((base + R() * 10 - 3) * 10) / 10 };
+      if (pos === 'WR' || pos === 'TE') Object.assign(w, { tgt: Math.round(3 + R() * 7), rec: Math.round(2 + R() * 5), reyd: Math.round(20 + R() * 70), retd: R() > 0.8 ? 1 : 0 });
+      if (pos === 'RB') Object.assign(w, { car: Math.round(6 + R() * 12), ruyd: Math.round(20 + R() * 60), tgt: Math.round(R() * 5), rec: Math.round(R() * 4), rutd: R() > 0.8 ? 1 : 0 });
+      if (pos === 'QB') Object.assign(w, { pyd: Math.round(180 + R() * 120), ptd: Math.round(R() * 3), int: Math.round(R()), ruyd: Math.round(R() * 30) });
+      if (pos === 'K') Object.assign(w, { fgm: Math.round(1 + R() * 2), fga: 3, xpm: Math.round(1 + R() * 3) });
+      if (pos === 'D/ST') Object.assign(w, { dsk: Math.round(R() * 5), dint: Math.round(R() * 2), dfr: Math.round(R()), pa: Math.round(10 + R() * 20) });
+      return w; }); };
+  const players = Object.values(league.waivers || {}).flat().map((f, i) => ({ id: f.id, name: f.name, pos: f.pos, team: f.team, status: f.status, inj: f.inj || '', own: f.owned, ownChg: Math.round((R() * 6 - 2) * 10) / 10, started: 1, weeks: mk(f.pos, i), season: { pts: 60, gp: 8, tgt: 40, rec: 25, reyd: 300, car: 60, ruyd: 250 }, proj: f.proj, ros: f.ros }));
+  const ros = Object.values(league.rosters).flat();
+  const injured = ros.filter((r) => r.inj).concat(ros.slice(0, 6));
+  const list = injured.map((r, i) => ({ id: r.pid, name: r.name, pos: r.pos, team: r.nfl, status: ['Questionable', 'Out', 'Injured Reserve', 'Doubtful'][i % 4], date: new Date(Date.now() - (i % 3) * 5 * 86400000).toISOString(), ret: i % 4 === 2 ? new Date(Date.now() + 20 * 86400000).toISOString().slice(0, 10) : i % 4 === 1 ? new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10) : null, part: ['Left Hamstring', 'Knee', 'Ankle', 'Concussion'][i % 4], detail: '', fstat: '', note: `${r.name} did not practice Wednesday and is considered day-to-day.` }));
+  const teams = {}, names = {};
+  for (const r of ros.concat(players.map((p) => ({ pid: p.id, name: p.name, pos: p.pos, nfl: p.team })))) { if (!r.nfl || r.pos === 'D/ST') continue; const t = (teams[r.nfl] ||= {}); (t[r.pos] ||= []).push(r.pid); names[r.pid] = r.name; }
+  return { wire: { year: 2026, week: wk, at: new Date().toISOString(), players }, injuries: { at: new Date().toISOString(), list }, depth: { at: new Date().toISOString(), teams, names } };
+})();
 http.createServer((req, res) => {
   const u = new URL(req.url, 'http://x');
   if (u.pathname === '/api/club' && u.searchParams.get('k') === 'trophy' || (u.pathname === '/api/club' && req.method === 'POST' && req.headers['x-k'] === 'trophy')) {
@@ -78,6 +99,7 @@ http.createServer((req, res) => {
     if (req.method === 'POST') { let body = ''; req.on('data', (c) => { body += c; }); req.on('end', () => { const b = JSON.parse(body || '{}'); if (b.k === 'trophy') { const it = (fakeTrophy[b.year] ||= {}); for (const f of ['caption', 'last', 'punishment', 'photo']) if (f in b) { if (b[f]) it[f] = b[f]; else delete it[f]; } return res.end(JSON.stringify({ ok: true, items: fakeTrophy })); } if (b.action === 'lock') { (fakePred.lk ||= {})[b.team] = Date.now(); } else (fakePred.ans[b.team] ||= {})[b.q] = b.a; res.end(JSON.stringify(out(b.team))); }); return; }
     return res.end(JSON.stringify(out(Number(u.searchParams.get('team')))));
   }
+  if (u.pathname === '/api/players') { res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify(fakePlayers[u.searchParams.get('k')] || { error: 'Unknown' })); }
   if (u.pathname === '/api/push') { res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify({ ready: true, key: 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U' })); }
   if (u.pathname === '/api/picks') {
     res.setHeader('content-type', 'application/json');
