@@ -813,3 +813,12 @@ body.tv #tv-exit { top: auto; bottom: 14px; right: auto; left: 18px; }
 
 .pl-nm b.pl-injb { display: inline; margin-left: 5px; }
 .pl-wk td, .pl-wk th { background: transparent; }
+
+.pl-role { white-space: nowrap; }
+.pl-rchip { display: inline-block; font: 700 11.5px Inter, sans-serif; padding: 2px 6px; border-radius: 6px; background: var(--panel-2); border: 1px solid var(--line); }
+.pl-rchip.up { background: color-mix(in srgb, var(--good) 16%, var(--panel)); border-color: color-mix(in srgb, var(--good) 45%, var(--line)); color: var(--good); }
+.pl-mates { margin-left: 4px; font: 600 11px Inter, sans-serif; padding: 2px 5px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); cursor: pointer; }
+.pl-mates.up { border-color: var(--good); background: color-mix(in srgb, var(--good) 12%, var(--panel)); }
+.pl-matelist { margin-bottom: 8px; font-size: 13px; } .pl-matelist small { color: var(--muted); font-size: 11.5px; } .pl-matelist ul { margin: 4px 0 0; padding-left: 18px; }
+.pl-matelist li.ahead b { color: var(--good); } .pl-ahead { color: var(--good); font-size: 11.5px; font-weight: 600; }
+#tip { max-width: min(340px, calc(100vw - 16px)); }

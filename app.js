@@ -2864,6 +2864,24 @@
       { h: 'Yds allowed', g: 'l3', t: 'Yards allowed per game, last 3 games', v: (p) => perG(p, 'ya'), f: n0, m: 1 },
     ],
   };
+  const OUTISH = /^(Out|Injured Reserve|Doubtful|Suspension)$/;
+  // hurt teammates at the skill positions; the ones ahead of him at his position open a door
+  function injMates(p) {
+    const list = ((PL.injuries && PL.injuries.list) || []).filter((i) => i.team === p.team && i.id !== p.id && ['QB', 'RB', 'WR', 'TE'].includes(i.pos));
+    const T0 = (PL.depth && PL.depth.teams && PL.depth.teams[p.team]) || {}, dl = T0[p.pos] || [];
+    const me = dl.indexOf(p.id);
+    const rows = list.map((i) => { const at = (T0[i.pos] || []).indexOf(i.id); return { ...i, depth: at >= 0 ? `${i.pos}${at + 1}` : i.pos, ahead: i.pos === p.pos && me >= 0 && at >= 0 && at < me, out: OUTISH.test(i.status) }; })
+      .sort((a, b) => (b.ahead - a.ahead) || (b.out - a.out));
+    const outAhead = rows.filter((r) => r.ahead && r.out).length;
+    return { rows, me, outAhead, role: me >= 0 ? `${p.pos}${me + 1}` : null, nowRole: me >= 0 && outAhead ? `${p.pos}${me + 1 - outAhead}` : null };
+  }
+  function matesTip(ev, p, m) {
+    const head = m.nowRole ? `${p.name}: ${m.role} → ${m.nowRole} this week` : `${p.team} injuries`;
+    const body = m.rows.map((r) => `${r.ahead ? '⬆ ' : ''}${r.name} (${r.depth}) – ${r.status}${r.part ? ', ' + r.part : ''}${r.ret ? ', back ~' + retTxt(r.ret) : ''}`).join('\n')
+      + (m.outAhead ? `\n\n${m.outAhead === 1 ? 'Someone' : m.outAhead + ' players'} ahead of him on the depth chart ${m.outAhead === 1 ? 'is' : 'are'} out or doubtful, so he should see more work.` : '');
+    tip.show(ev, head, '\n' + body); tipEl.dataset.k = 'mates';
+  }
+  document.addEventListener('click', (e) => { if (tipEl.dataset.k === 'mates' && !e.target.closest('.pl-mates')) { tip.hide(); tipEl.dataset.k = ''; } });
   const byeOf = () => { const m = {}; for (const f of Object.values(D.waivers || {}).flat()) if (f.bye_wk) m[f.team] = f.bye_wk; for (const t of D.teams) for (const r of D.rosters[t.id] || []) if (r.bye_wk) m[r.nfl] = r.bye_wk; return m; };
   const wv = (w, k) => (k === 'td' ? (w.rutd || 0) + (w.retd || 0) : k === 'to' ? (w.dint || 0) + (w.dfr || 0) : w[k] || 0);
   const l3 = (p) => (p.weeks || []).slice(-3);
@@ -2888,25 +2906,33 @@
     const INJ = injById(), nfl = nflByAbbr();
     const posSeg = el('div', { class: 'seg pl-pos' }, ...['QB', 'RB', 'WR', 'TE', 'K', 'D/ST'].map((p) => { const b = el('button', { type: 'button', 'aria-pressed': String(p === plPos), text: p }); b.onclick = () => { plPos = p; store.set('pl-pos', p); plOpen = null; plSort = 'l3'; renderPlayers(); }; return b; }));
     const cols = PLMAIN[plPos], BYE = byeOf();
-    const sorts = [['l3', 'Last 3 games'], ['proj', `Week ${W.week} projection`], ['own', 'Most owned'], ['trend', 'Trending up'], ...(plPos === 'WR' || plPos === 'TE' || plPos === 'RB' ? [['use', plPos === 'RB' ? 'Touches' : 'Targets']] : [])];
+    const sorts = [['l3', 'Last 3 games'], ['proj', `Week ${W.week} projection`], ['own', 'Most owned'], ['trend', 'Trending up'], ['opp', 'Moving up the depth chart'], ...(plPos === 'WR' || plPos === 'TE' || plPos === 'RB' ? [['use', plPos === 'RB' ? 'Touches' : 'Targets']] : [])];
     const sel = el('select', { class: 'pl-sort', 'aria-label': 'Sort' }, ...sorts.map(([v, t]) => el('option', { value: v, text: `Sort: ${t}` })));
     sel.value = plSort; sel.onchange = () => { plSort = sel.value; renderPlayers(); };
     const hurt = el('label', { class: 'pl-chk' }, el('input', { type: 'checkbox' }), ' Hide Out / IR');
     hurt.firstChild.checked = plHideHurt; hurt.firstChild.onchange = (e) => { plHideHurt = e.target.checked; renderPlayers(); };
     let rows = W.players.filter((p) => p.pos === plPos);
     if (plHideHurt) rows = rows.filter((p) => !/OUT|INJURY_RESERVE|SUSPENSION/.test(p.inj || ''));
-    const key = { l3: l3pts, proj: (p) => p.proj ?? -1, own: (p) => p.own, trend: (p) => p.ownChg, use: (p) => (plPos === 'RB' ? (agg(p, 'car', 'avg') || 0) + (agg(p, 'rec', 'avg') || 0) : agg(p, 'tgt', 'avg') || 0) }[plSort];
+    const key = { opp: (p) => { const m = injMates(p); return m.outAhead * 100 + (l3pts(p) || 0); }, l3: l3pts, proj: (p) => p.proj ?? -1, own: (p) => p.own, trend: (p) => p.ownChg, use: (p) => (plPos === 'RB' ? (agg(p, 'car', 'avg') || 0) + (agg(p, 'rec', 'avg') || 0) : agg(p, 'tgt', 'avg') || 0) }[plSort];
     rows = rows.sort((a, b) => (key(b) ?? -1) - (key(a) ?? -1)).slice(0, 30);
     const tbl = el('table', { class: 'pl-tbl' },
-      el('thead', {}, el('tr', {}, el('th', { text: 'Player' }),
+      el('thead', {}, el('tr', {}, el('th', { text: 'Player' }), el('th', { class: 'n', title: 'Spot on his team’s depth chart. Green = moving up because someone ahead of him is hurt.' }, 'Role', el('small', { text: 'depth' })),
         ...cols.map((c) => el('th', { class: 'n' + (c.m ? ' wide' : '') + (c.g === 'season' ? ' szn' : ''), title: c.t }, c.h, el('small', { text: c.g === 'l3' ? 'per game' : c.g === 'l3 total' ? 'last 3' : c.g === 'season' ? 'season' : '' }))),
         el('th', { class: 'n', title: 'Fantasy points per game, last 3 games' }, 'Pts', el('small', { text: 'per game' })), el('th', { class: 'n', title: 'ESPN projection this week' }, `Wk ${W.week}`, el('small', { text: 'proj' })),
         el('th', { class: 'n wide', title: 'ESPN rest-of-season projection' }, 'ROS', el('small', { text: 'proj' })), el('th', { class: 'n wide', title: 'Points this week’s opponent allows to the position, and its rank (1st = toughest)' }, 'Matchup', el('small', { text: 'opp allows' })),
         el('th', { class: 'n wide', text: 'Bye' }), el('th', { class: 'n wide' }, 'Owned', el('small', { text: 'ESPN, 1-wk change' })))),
       el('tbody', {}, ...rows.flatMap((p) => {
-        const inj = INJ[p.id], dep = depthOf(p.id, p.team, p.pos), x = nfl[p.team];
+        const inj = INJ[p.id], x = nfl[p.team], mates = injMates(p);
+        let badge = null;
+        if (mates.rows.length) {
+          badge = el('button', { type: 'button', class: 'pl-mates' + (mates.outAhead ? ' up' : ''), title: 'Injured teammates', 'aria-label': `${mates.rows.length} injured teammates`, text: `🚑 ${mates.rows.length}` });
+          badge.addEventListener('click', (e) => { e.stopPropagation(); matesTip(e, p, mates); });
+          if (canHover) { badge.addEventListener('mouseenter', (e) => matesTip(e, p, mates)); badge.addEventListener('mouseleave', () => tip.hide()); }
+        }
+        const roleCell = el('td', { class: 'n pl-role' }, mates.role ? el('span', { class: 'pl-rchip' + (mates.nowRole ? ' up' : ''), title: mates.nowRole ? `${mates.role} on the depth chart, ${mates.nowRole} with the injuries ahead of him` : `${mates.role} on the depth chart` }, mates.nowRole ? `${mates.role}→${mates.nowRole}` : mates.role) : el('span', { class: 'muted', text: '–' }), badge);
         const tr = el('tr', { class: 'pl-row' + (plOpen === p.id ? ' open' : '') },
-          el('td', { class: 'pl-nm' }, el('b', { text: p.name }), el('small', {}, `${p.team}${dep ? ' · ' + dep : ''}${p.status === 'WAIVERS' ? ' · waivers' : ''}`, p.inj && p.inj !== 'ACTIVE' ? el('b', { class: 'pl-injb', text: injLetter(p.inj) }) : null)),
+          el('td', { class: 'pl-nm' }, el('b', { text: p.name }), el('small', {}, `${p.team}${p.status === 'WAIVERS' ? ' · waivers' : ''}`, p.inj && p.inj !== 'ACTIVE' ? el('b', { class: 'pl-injb', text: injLetter(p.inj) }) : null)),
+          roleCell,
           ...cols.map((c) => { const v = c.v(p), tr = c.trend ? c.trend(p) : 0; return el('td', { class: 'n' + (c.m ? ' wide' : '') + (c.g === 'season' ? ' szn' : '') + (c.str ? ' str' : ''), title: c.t }, c.f(v), c.trend && v != null && Math.abs(tr) >= 1 ? el('small', { class: tr > 0 ? 'up' : 'down', title: 'Last 3 games vs season', text: tr > 0 ? ' ▲' : ' ▼' }) : null); }),
           el('td', { class: 'n b', text: l3pts(p) == null ? '–' : f1(l3pts(p)) }),
           el('td', { class: 'n', text: p.proj == null || p.proj === 0 ? '–' : f1(p.proj) }),
@@ -2915,7 +2941,7 @@
           el('td', { class: 'n wide', text: BYE[p.team] ? `Wk ${BYE[p.team]}` : '–' }),
           el('td', { class: 'n wide' }, `${Math.round(p.own)}%`, p.ownChg ? el('small', { class: p.ownChg > 0 ? 'up' : 'down', text: ` ${p.ownChg > 0 ? '▲' : '▼'}${Math.abs(p.ownChg).toFixed(1)}` }) : null));
         tr.onclick = () => { plOpen = plOpen === p.id ? null : p.id; renderPlayers(); };
-        return plOpen === p.id ? [tr, el('tr', { class: 'pl-det' }, el('td', { colspan: String(cols.length + 7) }, plDetail(p, inj)))] : [tr];
+        return plOpen === p.id ? [tr, el('tr', { class: 'pl-det' }, el('td', { colspan: String(cols.length + 8) }, plDetail(p, inj)))] : [tr];
       })));
     host.replaceChildren(el('div', { class: 'pl-tools' }, posSeg, sel, hurt),
       el('p', { class: 'note', text: `Free agents and waiver players. “Per game” columns average his last 3 games (e.g. 4, 4 and 3 targets = 3.7 a game); “season” columns cover every game this year, and ▲▼ shows if his last 3 are up or down from that. Tap a player for week-by-week stats, the depth chart and injury news. From ESPN, updated ${new Date(W.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.` }),
@@ -2933,7 +2959,10 @@
     const INJ = injById();
     const depth = dl ? el('div', { class: 'pl-depth' }, el('small', { text: `${p.team} ${p.pos} depth chart` }),
       el('ol', {}, ...dl.slice(0, 5).map((id) => { const i = INJ[id]; return el('li', { class: id === p.id ? 'me' : '' }, (PL.depth.names || {})[id] || `#${id}`, i ? el('b', { class: 'inj', text: ' ' + injLetter(i.status) }) : null); }))) : null;
-    return el('div', { class: 'pl-detail' },
+    const mates = injMates(p);
+    const matesEl = mates.rows.length ? el('div', { class: 'pl-matelist' }, el('small', { text: mates.nowRole ? `Injured teammates: he moves from ${mates.role} to ${mates.nowRole} with them out` : `Injured ${p.team} teammates` }),
+      el('ul', {}, ...mates.rows.map((r) => el('li', { class: r.ahead ? 'ahead' : '' }, el('b', { text: `${r.name} (${r.depth})` }), ` ${r.status}${r.part ? ', ' + r.part : ''}${r.ret ? ' · est. return ' + retTxt(r.ret) : ''}`, r.ahead ? el('span', { class: 'pl-ahead', text: ' ahead of him' }) : null)))) : null;
+    return el('div', { class: 'pl-detail' }, matesEl,
       inj ? el('p', { class: 'pl-injnote' }, el('b', { text: `${inj.status}${inj.part ? ` (${inj.part})` : ''}${inj.ret ? ` · est. return ${retTxt(inj.ret)}` : ''}. ` }), inj.note) : null,
       seasonLine ? el('p', { class: 'note', text: seasonLine + (p.ros != null ? ` Rest-of-season projection: ${p.ros} pts.` : '') }) : null,
       el('div', { class: 'pl-detgrid' }, el('div', { class: 'pl-wrap' }, wk), depth));
