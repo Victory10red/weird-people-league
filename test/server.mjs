@@ -85,7 +85,12 @@ const fakePlayers = (() => {
   const list = injured.map((r, i) => ({ id: r.pid, name: r.name, pos: r.pos, team: r.nfl, status: ['Questionable', 'Out', 'Injured Reserve', 'Doubtful'][i % 4], date: new Date(Date.now() - (i % 3) * 5 * 86400000).toISOString(), ret: i % 4 === 2 ? new Date(Date.now() + 20 * 86400000).toISOString().slice(0, 10) : i % 4 === 1 ? new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10) : null, part: ['Left Hamstring', 'Knee', 'Ankle', 'Concussion'][i % 4], detail: '', fstat: '', note: `${r.name} did not practice Wednesday and is considered day-to-day.` }));
   const teams = {}, names = {};
   for (const r of ros.concat(players.map((p) => ({ pid: p.id, name: p.name, pos: p.pos, nfl: p.team })))) { if (!r.nfl || r.pos === 'D/ST') continue; const t = (teams[r.nfl] ||= {}); (t[r.pos] ||= []).push(r.pid); names[r.pid] = r.name; }
-  return { wire: { year: 2026, week: wk, at: new Date().toISOString(), players }, injuries: { at: new Date().toISOString(), list }, depth: { at: new Date().toISOString(), teams, names } };
+  const teamsAll = [...new Set(ros.map((r) => r.nfl).concat(players.map((p) => p.team)))].filter((x) => x && x !== 'FA').sort();
+  const opp = {}; for (let k = 0; k + 1 < teamsAll.length; k += 2) { if (teamsAll[k] === 'CIN') continue; opp[teamsAll[k]] = { opp: teamsAll[k + 1], oppId: k + 1, home: true }; opp[teamsAll[k + 1]] = { opp: teamsAll[k], oppId: k, home: false }; }
+  const onTeam = {}; for (const [tid, rs] of Object.entries(league.rosters)) for (const r of rs) onTeam[r.pid] = Number(tid);
+  const nextP = ros.map((r) => ({ id: r.pid, name: r.name, pos: r.pos, team: r.nfl, onTeam: onTeam[r.pid], status: 'ONTEAM', inj: r.inj || '', own: 90, proj: Math.round(((r.ros || 50) / 10) * (0.7 + R() * 0.6) * 10) / 10, ros: r.ros }))
+    .concat(players.map((p) => ({ id: p.id, name: p.name, pos: p.pos, team: p.team, onTeam: 0, status: p.status, inj: p.inj, own: p.own, proj: Math.round(((p.ros || 40) / 10) * (0.7 + R() * 0.8) * 10) / 10, ros: p.ros })));
+  return { next: { year: 2026, cur: wk, week: wk + 1, at: new Date().toISOString(), players: nextP, opp }, wire: { year: 2026, week: wk, at: new Date().toISOString(), players }, injuries: { at: new Date().toISOString(), list }, depth: { at: new Date().toISOString(), teams, names } };
 })();
 http.createServer((req, res) => {
   const u = new URL(req.url, 'http://x');

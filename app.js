@@ -30,7 +30,7 @@
   const ROUTES = {
     pickem: ['play', 'pick'], picks: ['play', 'pick'], predictions: ['play', 'pred'], predict: ['play', 'pred'], dump: ['play', 'poop'], poop: ['play', 'poop'], breakaway: ['play', 'bk'],
     standings: ['league', 'standings'], players: ['league', 'players'], wire: ['league', 'players'], injuries: ['league', 'players'], depth: ['league', 'players'], playoffs: ['league', 'playoffs'], bracket: ['league', 'playoffs'], toilet: ['league', 'playoffs'], moves: ['league', 'moves'], trophies: ['league', 'history'],
-    roster: ['team', 'roster'], waivers: ['team', 'roster'], outlook: ['team', 'outlook'], season: ['team', 'season'],
+    roster: ['team', 'roster'], waivers: ['team', 'roster'], next: ['team', 'next'], nextweek: ['team', 'next'], planner: ['team', 'next'], outlook: ['team', 'outlook'], season: ['team', 'season'],
   };
   const GAME_ROUTE = { pick: 'pickem', pred: 'predictions', poop: 'dump', bk: 'breakaway' }, LV_ROUTE = { standings: 'standings', players: 'players', playoffs: 'playoffs', moves: 'moves', draft: 'draft', history: 'history' };
   let linkGame = null, linkTeamView = null;
@@ -47,7 +47,7 @@
   if (!TABS.includes(tab)) tab = 'team';
   let wvPos = 'ALL', yrSel = null, bumpFocus = null;
   let heroOpen = null, heroWeek = null; const weekCache = {};
-  let teamView = linkTeamView || (['week', 'roster', 'outlook', 'season'].includes(store.get('teamview')) ? store.get('teamview') : 'week');
+  let teamView = linkTeamView || (['week', 'next', 'roster', 'outlook', 'season'].includes(store.get('teamview')) ? store.get('teamview') : 'week');
 
   // ---------- tooltip ----------
   const tipEl = $('#tip');
@@ -332,9 +332,104 @@
       tile('Manager grade', t.card ? letter(t.card.gpa) : '–', t.card ? `${ord(t.card.rank)} of ${D.teams.length} (draft, waivers, lineups, trades)` : ''));
     $$('#subnav button').forEach((b) => { b.setAttribute('aria-pressed', String(b.dataset.view === teamView)); });
     $$('#team-body .view').forEach((v) => { v.hidden = v.dataset.view !== teamView; });
-    ({ week: viewWeek, roster: viewRoster, outlook: viewOutlook, season: viewSeason })[teamView](t, live);
+    ({ week: viewWeek, next: viewNext, roster: viewRoster, outlook: viewOutlook, season: viewSeason })[teamView](t, live);
   }
 
+  // ---------- My Team › Next week: plan the coming week before this one is over ----------
+  let NX = null, nxAt = 0;
+  async function nxLoad() {
+    if (NX && Date.now() - nxAt < 10 * 60000) return;
+    nxAt = Date.now();
+    try { NX = await getJSON('/api/players?k=next'); } catch (e) { NX = { error: e.message }; }
+    if (tab === 'team' && teamView === 'next') renderTeam();
+  }
+  const ncdf = (z) => { const t = 1 / (1 + 0.2316419 * Math.abs(z)), d = 0.3989423 * Math.exp(-z * z / 2), q = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274)))); return z > 0 ? 1 - q : q; };
+  // best legal lineup with who plays where: QB, RB, RB, WR, WR, TE, FLEX, D/ST, K
+  function bestLineup(ps) {
+    const left = [...ps].sort((a, b) => b.v - a.v), slots = [];
+    const take = (slot, ok) => { const i = left.findIndex((p) => ok.includes(p.pos)); slots.push({ slot, p: i >= 0 ? left.splice(i, 1)[0] : null }); };
+    take('QB', ['QB']); take('RB', ['RB']); take('RB', ['RB']); take('WR', ['WR']); take('WR', ['WR']); take('TE', ['TE']);
+    take('FLEX', ['RB', 'WR', 'TE']); take('D/ST', ['D/ST']); take('K', ['K']);
+    return { slots, total: slots.reduce((s, x) => s + (x.p ? x.p.v : 0), 0), bench: left };
+  }
+  function viewNext(t) {
+    const host = $('#next-body');
+    nxLoad(); plLoad('injuries');
+    if (!NX) return host.replaceChildren(el('p', { class: 'note', text: 'Loading next week’s projections from ESPN…' }));
+    if (NX.error) return host.replaceChildren(el('p', { class: 'note', text: NX.error }));
+    const N = NX.week, proj = new Map(NX.players.map((p) => [p.id, p])), INJ = injById();
+    if (N > (D.league.reg_weeks || 14) + 3) return host.replaceChildren(el('p', { class: 'note', text: 'The season is over. Nothing left to plan.' }));
+    const card = (title, ...kids) => el('div', { class: 'card' }, el('h3', { text: title }), ...kids);
+    const oppTxt = (nfl) => { const o = NX.opp[nfl]; return o ? `${o.home ? 'vs' : '@'} ${o.opp}` : 'BYE'; };
+    const mOf = (pos, nfl) => { const o = NX.opp[nfl]; const tbl = D.oprk && D.oprk[POSID[pos]]; return o && tbl ? tbl[o.oppId] : null; };
+    // out = injured and not expected back before his game that week (ESPN's return date); doubtful counts 30%
+    const gameAt = (nfl) => { const o = NX.opp[nfl]; return o && o.date ? new Date(o.date).getTime() : Date.now() + 6 * 86400000; };
+    const hurt = (r) => { const i = INJ[r.pid]; const st = i ? i.status : ({ OUT: 'Out', INJURY_RESERVE: 'Injured Reserve', DOUBTFUL: 'Doubtful', SUSPENSION: 'Suspension' })[r.inj] || '';
+      if (/Out|Injured Reserve|Suspension/.test(st)) return i && i.ret && new Date(i.ret + 'T23:00:00').getTime() < gameAt(r.nfl) ? 1 : 0;
+      return st === 'Doubtful' ? 0.3 : 1; };
+    const roster = (id) => (D.rosters[id] || []).filter((r) => r.slot !== 'IR').map((r) => { const x = proj.get(r.pid); const bye = !NX.opp[r.nfl]; const h = hurt(r);
+      return { ...r, v: bye ? 0 : x && x.proj != null ? x.proj * h : 0, nbye: bye, nout: !bye && h === 0, noproj: !x || x.proj == null }; });
+    const mine = roster(t.id), L = bestLineup(mine);
+    // next week's opponent in our league
+    const m = (D.sched || []).find((s) => s.id === t.id && s.wk === N);
+    const opp = m ? m.opp : null, OL = opp ? bestLineup(roster(opp)) : null;
+    const sd = (D.sim && D.sim.sd) || 25, wp = OL ? Math.round(100 * ncdf((L.total - OL.total) / (sd * Math.SQRT2))) : null;
+    const head = el('div', { class: 'card nx-head' },
+      el('div', { class: 'row-head' }, el('h3', { text: `Week ${N} planner` }), el('span', { class: 'pill', text: NX.cur === D.league.week ? `Week ${NX.cur} still finishing` : `Week ${N}` })),
+      opp ? el('div', { class: 'nx-match' },
+        el('div', {}, el('small', { text: 'You' }), el('b', { text: f1(L.total) }), el('span', { text: t.name })),
+        el('div', { class: 'nx-vs' }, el('b', { class: wp >= 50 ? 'up' : 'down', text: `${wp}%` }), el('small', { text: 'to win' })),
+        el('div', {}, el('small', { text: tm(opp).owner }), el('b', { text: f1(OL.total) }), el('span', { text: tm(opp).name })))
+        : el('p', { class: 'note', text: `No regular-season matchup in week ${N}${N > (D.league.reg_weeks || 14) ? ' (playoffs: check the bracket)' : ''}.` }),
+      el('p', { class: 'note', text: `Projections are ESPN’s for week ${N} with your best lineup set. They’ll move during the week as injuries and news come in. Updated ${new Date(NX.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.` }));
+    // the lineup
+    const curStart = new Set((D.rosters[t.id] || []).filter((r) => r.starter).map((r) => r.pid));
+    const lrow = (s) => {
+      const p = s.p; if (!p) return el('div', { class: 'nx-row empty' }, el('span', { class: 'nx-slot', text: s.slot }), el('span', { class: 'bad', text: 'Nobody available: pick someone up' }));
+      const i = INJ[p.pid], mm = mOf(p.pos, p.nfl), injTxt = i ? `${injLetter(i.status)}${i.ret ? ' · back ~' + retTxt(i.ret) : ''}` : p.inj ? injLetter(p.inj) : '';
+      return el('div', { class: 'nx-row' + (p.v === 0 ? ' zero' : '') },
+        el('span', { class: 'nx-slot', text: s.slot }),
+        el('span', { class: 'nx-nm' }, el('b', {}, p.name, !curStart.has(p.pid) ? el('span', { class: 'nx-new', text: 'NEW' }) : null), el('small', { text: `${p.pos} · ${p.nfl} ${oppTxt(p.nfl)}${injTxt ? ' · ' + injTxt : ''}` })),
+        el('span', { class: 'nx-m' + (mm ? (mm[1] >= 25 ? ' easy' : mm[1] <= 8 ? ' hard' : '') : ''), title: mm ? `Opponent allows ${f1(mm[0])} to ${p.pos}s (${ord(mm[1])} most)` : '' }, mm ? `${ord(mm[1])}` : p.nbye ? 'BYE' : '–'),
+        el('span', { class: 'nx-p', text: p.nbye ? 'BYE' : p.nout ? 'OUT' : p.noproj ? '–' : f1(p.v) }));
+    };
+    const lineup = card(`Your best week ${N} lineup`, el('div', { class: 'nx-list' }, ...L.slots.map(lrow)),
+      el('p', { class: 'note', text: '“NEW” = not in your lineup right now. Matchup = how many points his opponent gives up to the position (32nd = most, easiest).' }));
+    // problems: byes and injuries among players you'd normally start
+    const probs = (D.rosters[t.id] || []).filter((r) => r.starter || r.slot === 'IR' || (r.ros || 0) > 60).map((r) => {
+      const i = INJ[r.pid]; const bye = !NX.opp[r.nfl];
+      if (bye) return { r, txt: `on bye in week ${N}`, cls: 'bye' };
+      if (i && /Out|Injured Reserve|Doubtful|Suspension/.test(i.status)) return { r, txt: `${i.status}${i.part ? ' (' + i.part + ')' : ''}${i.ret ? ', est. return ' + retTxt(i.ret) : ''}`, cls: 'out' };
+      if (i && i.status === 'Questionable') return { r, txt: `questionable${i.part ? ' (' + i.part + ')' : ''}`, cls: 'q' };
+      return null;
+    }).filter(Boolean);
+    const probCard = card(`Byes and injuries for week ${N}`, probs.length ? el('ul', { class: 'nx-probs' }, ...probs.map((x) => el('li', { class: x.cls }, el('b', { text: x.r.name }), ` (${x.r.pos}, ${x.r.nfl}) ${x.txt}`))) : el('p', { class: 'note', text: 'None of your key players are on bye or hurt. Nice.' }));
+    // pickups that raise next week's lineup the most, with who you'd drop
+    const base = L.total, myVals = mine.map((p) => ({ pos: p.pos, v: p.v }));
+    const fas = NX.players.filter((p) => !p.onTeam && p.proj > 0 && !/OUT|INJURY_RESERVE|SUSPENSION/.test(p.inj || '') && NX.opp[p.team]);
+    const perPos = {};
+    const picks = fas.map((f) => ({ f, gain: optimalJS([...myVals, { pos: f.pos, v: f.proj }]) - base })).filter((x) => x.gain >= 0.5).sort((a, b) => b.gain - a.gain)
+      .filter((x) => (perPos[x.f.pos] = (perPos[x.f.pos] || 0) + 1) <= 2).slice(0, 6).map((x) => {
+      // drop: whoever costs the least next week, then the lowest rest-of-season value; never your only QB, K or D/ST
+      const with_ = [...mine, { pid: -1, pos: x.f.pos, v: x.f.proj }];
+      const only = (d) => ['QB', 'K', 'D/ST'].includes(d.pos) && d.pos !== x.f.pos && mine.filter((y) => y.pos === d.pos).length === 1;
+      const cand = mine.filter((d) => !only(d)).map((d) => ({ d, loss: base + x.gain - optimalJS(with_.filter((y) => y.pid !== d.pid).map((y) => ({ pos: y.pos, v: y.v }))) })).sort((a, b) => a.loss - b.loss || (a.d.ros || 0) - (b.d.ros || 0))[0];
+      return { ...x, drop: cand ? cand.d : null };
+    });
+    const pickCard = card(`Best pickups for week ${N}`, picks.length ? el('ol', { class: 'nx-picks' }, ...picks.map((x) => { const mm = mOf(x.f.pos, x.f.team); return el('li', {},
+      el('div', {}, el('b', { text: x.f.name }), el('span', { class: 'muted', text: ` ${x.f.pos} · ${x.f.team} ${oppTxt(x.f.team)}${mm ? ` (${ord(mm[1])} vs ${x.f.pos}s)` : ''} · ${x.f.status === 'WAIVERS' ? 'waivers' : 'free agent'} · ${Math.round(x.f.own)}% owned` })),
+      el('div', { class: 'nx-g' }, el('span', { class: 'good', text: `+${f1(x.gain)} to your week ${N} lineup` }), ` · proj ${f1(x.f.proj)}`, x.drop ? el('span', { class: 'muted', text: ` · drop ${x.drop.name} (${x.drop.pos}${x.drop.nbye ? ', bye' : ''})` }) : null)); }))
+      : el('p', { class: 'note', text: `No free agent beats your week ${N} lineup. You’re set.` }),
+      el('p', { class: 'note' }, 'Make moves on ESPN: ', el('a', { href: `https://fantasy.espn.com/football/players/add?leagueId=${(D.league && D.league.id) || 961003394}`, target: '_blank', rel: 'noopener', text: 'open the waiver wire ↗' })));
+    // the opponent's side
+    const oppCard = opp ? (() => {
+      const oProbs = (D.rosters[opp] || []).filter((r) => r.starter).map((r) => { const i = INJ[r.pid]; return !NX.opp[r.nfl] ? `${r.name} (bye)` : i && /Out|Injured Reserve|Doubtful/.test(i.status) ? `${r.name} (${i.status.toLowerCase()})` : null; }).filter(Boolean);
+      const top = OL.slots.filter((s) => s.p).sort((a, b) => b.p.v - a.p.v).slice(0, 3).map((s) => `${s.p.name} ${f1(s.p.v)}`);
+      return card(`Scouting ${tm(opp).owner}`, el('p', {}, `Projected ${f1(OL.total)} with their best lineup. Top guys: ${top.join(', ')}.`),
+        el('p', { class: oProbs.length ? '' : 'note', text: oProbs.length ? `Missing for them: ${oProbs.join(', ')}.` : 'No byes or injuries among their starters right now.' }));
+    })() : null;
+    host.replaceChildren(...[head, lineup, probCard, pickCard, oppCard].filter(Boolean));
+  }
   function viewWeek(t, live) {
     // hero matchup
     const hero = $('#hero');
@@ -2786,6 +2881,7 @@
     PL.at[k] = Date.now();
     try { PL[k] = await getJSON(`/api/players?k=${k}`); } catch (e) { PL[k] = { error: e.message }; }
     if (tab === 'league' && leagueView === 'players') renderPlayers();
+    if (tab === 'team' && teamView === 'next' && k === 'injuries') renderTeam();
   }
   const injLetter = (s) => ({ QUESTIONABLE: 'Q', Questionable: 'Q', DOUBTFUL: 'D', Doubtful: 'D', OUT: 'O', Out: 'O', INJURY_RESERVE: 'IR', 'Injured Reserve': 'IR', SUSPENSION: 'SSPD', Suspension: 'SSPD' })[s] || (s ? s.slice(0, 3) : '');
   const ownerOfPid = () => { const m = {}; for (const t of D.teams) for (const r of D.rosters[t.id] || []) m[r.pid] = t.id; return m; };

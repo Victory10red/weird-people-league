@@ -55,7 +55,7 @@
         <label class="viewsel"><span>Viewing</span><select id="team-pick" aria-label="View another team"></select></label>
         <div class="tiles" id="tiles"></div>
         <nav class="subnav" id="subnav" aria-label="My Team sections">
-          <button data-view="week">This week</button><button data-view="roster">Waivers &amp; trades</button><button data-view="outlook">Playoff outlook</button><button data-view="season">Season so far</button>
+          <button data-view="week">This week</button><button data-view="next">Next week</button><button data-view="roster">Waivers &amp; trades</button><button data-view="outlook">Playoff outlook</button><button data-view="season">Season so far</button>
         </nav>
 
         <div class="view" data-view="week">
@@ -63,6 +63,8 @@
           <div class="card"><h3>Moves I'd make this week</h3><p class="note">Lineup calls average ESPN's projection with the Vegas projection; close calls go to the softer matchup. Same rules for every team.</p><div id="moves" class="moves"></div></div>
           <div class="card"><h3>Start/sit: compare two players</h3><p class="note">Any two players in the league or on waivers, side by side.</p><div class="cmp-pick"><select id="cmp-a" aria-label="First player"></select><span>vs</span><select id="cmp-b" aria-label="Second player"></select></div><div id="cmp"></div></div>
         </div>
+
+        <div class="view" data-view="next" hidden><div id="next-body"></div></div>
 
         <div class="view" data-view="roster" hidden>
           <div class="card"><h3>Waiver plan</h3><p class="note">Every free agent tried in your lineup: who adds the most rest-of-season points to your best lineup, and who you'd drop for him. Byes and this week's projection included.</p><div id="wplan" class="wplan"></div></div>

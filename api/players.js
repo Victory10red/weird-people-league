@@ -2,11 +2,12 @@
 // GET /api/players?k=wire      -> free agents / waivers by position with their last 4 weeks of usage stats
 // GET /api/players?k=injuries  -> NFL injury report for fantasy positions (status, body part, estimated return, note)
 // GET /api/players?k=depth     -> depth charts (QB/RB/WR/TE/K) for every NFL team, with names
+// GET /api/players?k=next      -> next week's ESPN projections (rostered + best free agents) and NFL opponents
 import { redis } from '../lib/kv.js';
-import { fetchWire, fetchInjuries, fetchDepth } from '../lib/players.js';
+import { fetchWire, fetchInjuries, fetchDepth, fetchNext } from '../lib/players.js';
 
-const TTL = { wire: 900, injuries: 1800, depth: 6 * 3600 }; // seconds
-const LOAD = { wire: fetchWire, injuries: fetchInjuries, depth: fetchDepth };
+const TTL = { wire: 900, injuries: 1800, depth: 6 * 3600, next: 1800 }; // seconds
+const LOAD = { wire: fetchWire, injuries: fetchInjuries, depth: fetchDepth, next: fetchNext };
 
 export default async function handler(req, res) {
   const k = String((req.query || {}).k || '');
