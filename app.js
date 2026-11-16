@@ -407,18 +407,23 @@
     // pickups that raise next week's lineup the most, with who you'd drop
     const base = L.total, myVals = mine.map((p) => ({ pos: p.pos, v: p.v }));
     const fas = NX.players.filter((p) => !p.onTeam && p.proj > 0 && !/OUT|INJURY_RESERVE|SUSPENSION/.test(p.inj || '') && NX.opp[p.team]);
-    const perPos = {};
-    const picks = fas.map((f) => ({ f, gain: optimalJS([...myVals, { pos: f.pos, v: f.proj }]) - base })).filter((x) => x.gain >= 0.5).sort((a, b) => b.gain - a.gain)
-      .filter((x) => (perPos[x.f.pos] = (perPos[x.f.pos] || 0) + 1) <= 2).slice(0, 6).map((x) => {
-      // drop: whoever costs the least next week, then the lowest rest-of-season value; never your only QB, K or D/ST
+    const perPos = {}, gl = Math.max(1, (D.sim && D.sim.games_left) || 1);
+    const rosBase = rosWk(mine);
+    const picks = fas.map((f) => ({ f, gain: optimalJS([...myVals, { pos: f.pos, v: f.proj }]) - base })).filter((x) => x.gain >= 0.5).sort((a, b) => b.gain - a.gain).slice(0, 25).map((x) => {
+      // the drop: cheapest overall = next week's lineup loss + half the rest-of-season lineup loss
+      // (so a good player who's just on bye stays); never your only QB, K or D/ST
       const with_ = [...mine, { pid: -1, pos: x.f.pos, v: x.f.proj }];
       const only = (d) => ['QB', 'K', 'D/ST'].includes(d.pos) && d.pos !== x.f.pos && mine.filter((y) => y.pos === d.pos).length === 1;
-      const cand = mine.filter((d) => !only(d)).map((d) => ({ d, loss: base + x.gain - optimalJS(with_.filter((y) => y.pid !== d.pid).map((y) => ({ pos: y.pos, v: y.v }))) })).sort((a, b) => a.loss - b.loss || (a.d.ros || 0) - (b.d.ros || 0))[0];
-      return { ...x, drop: cand ? cand.d : null };
-    });
+      const best = mine.filter((d) => !only(d)).map((d) => {
+        const lossNext = base + x.gain - optimalJS(with_.filter((y) => y.pid !== d.pid).map((y) => ({ pos: y.pos, v: y.v })));
+        const rosLoss = rosBase - rosWk([...mine.filter((y) => y.pid !== d.pid), { pos: x.f.pos, ros: x.f.ros || 0, slot: 'BN', inj: x.f.inj }]);
+        return { d, lossNext, rosLoss, cost: lossNext + Math.max(0, rosLoss) * gl * 0.5 };
+      }).sort((a, b) => a.cost - b.cost || (a.d.ros || 0) - (b.d.ros || 0))[0];
+      return { ...x, drop: best ? best.d : null, rosLoss: best ? best.rosLoss : 0, net: x.gain - (best ? best.cost : 0) };
+    }).filter((x) => x.net > 0.5).sort((a, b) => b.net - a.net).filter((x) => (perPos[x.f.pos] = (perPos[x.f.pos] || 0) + 1) <= 2).slice(0, 6);
     const pickCard = card(`Best pickups for week ${N}`, picks.length ? el('ol', { class: 'nx-picks' }, ...picks.map((x) => { const mm = mOf(x.f.pos, x.f.team); return el('li', {},
       el('div', {}, el('b', { text: x.f.name }), el('span', { class: 'muted', text: ` ${x.f.pos} · ${x.f.team} ${oppTxt(x.f.team)}${mm ? ` (${ord(mm[1])} vs ${x.f.pos}s)` : ''} · ${x.f.status === 'WAIVERS' ? 'waivers' : 'free agent'} · ${Math.round(x.f.own)}% owned` })),
-      el('div', { class: 'nx-g' }, el('span', { class: 'good', text: `+${f1(x.gain)} to your week ${N} lineup` }), ` · proj ${f1(x.f.proj)}`, x.drop ? el('span', { class: 'muted', text: ` · drop ${x.drop.name} (${x.drop.pos}${x.drop.nbye ? ', bye' : ''})` }) : null)); }))
+      el('div', { class: 'nx-g' }, el('span', { class: 'good', text: `+${f1(x.gain)} to your week ${N} lineup` }), ` · proj ${f1(x.f.proj)}`, x.drop ? el('span', { class: 'muted', text: ` · drop ${x.drop.name} (${x.drop.pos}${x.drop.nbye ? ', bye' : ''})${x.rosLoss > 0.2 ? `, costs ${f1(x.rosLoss)}/wk after that` : x.rosLoss < -0.2 ? `, and he’s +${f1(-x.rosLoss)}/wk rest of season too` : ''}` }) : null)); }))
       : el('p', { class: 'note', text: `No free agent beats your week ${N} lineup. You’re set.` }),
       el('p', { class: 'note' }, 'Make moves on ESPN: ', el('a', { href: `https://fantasy.espn.com/football/players/add?leagueId=${(D.league && D.league.id) || 961003394}`, target: '_blank', rel: 'noopener', text: 'open the waiver wire ↗' })));
     // the opponent's side
